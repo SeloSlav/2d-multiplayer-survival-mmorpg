@@ -750,7 +750,7 @@ export function useEntityFiltering(
     
     // Projectiles - Priority 19, Y = calculated position
     for (const projectile of visibleProjectiles) {
-      const startTime = Number(projectile.startTime.microsSinceUnixEpoch / 1000n);
+        const startTime = Number(projectile.startTime.microsSinceUnixEpoch / 1000n);
       const elapsedSeconds = (stableTimestamp - startTime) / 1000.0;
       const currentY = projectile.startPosY + projectile.velocityY * elapsedSeconds;
       sortedEntities[index++] = {
@@ -817,10 +817,10 @@ export function useEntityFiltering(
       };
     }
     
-    // Shelters - Priority 25, Y = posY
+    // Shelters - Priority 25, Y = posY - 200 (visual base is 200px from bottom of image)
     for (const shelter of visibleShelters) {
       sortedEntities[index++] = {
-        y: shelter.posY,
+        y: shelter.posY - 100, // Adjust for visual base position
         priority: 25,
         item: { type: 'shelter' as const, entity: shelter }
       };

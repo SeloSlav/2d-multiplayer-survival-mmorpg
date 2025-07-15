@@ -64,6 +64,9 @@ pub fn resolve_animal_collision(
     let mut final_x = proposed_x;
     let mut final_y = proposed_y;
     
+    // PERFORMANCE: Use cached spatial grid instead of creating new one
+    let grid = spatial_grid::get_cached_spatial_grid(&ctx.db, ctx.timestamp);
+    
     // Check water collision - but allow walruses to swim!
     if is_water_tile(ctx, proposed_x, proposed_y) {
         // Look up the animal to check its species
@@ -109,7 +112,7 @@ pub fn resolve_animal_collision(
     }
     
     // Environmental collision checks
-    if let Some((pushback_x, pushback_y)) = check_environmental_collision(ctx, final_x, final_y) {
+    if let Some((pushback_x, pushback_y)) = check_environmental_collision_with_grid(grid, &ctx.db, final_x, final_y) {
         final_x = current_x + pushback_x;
         final_y = current_y + pushback_y;
         collision_detected = true;
@@ -228,15 +231,28 @@ pub fn check_environmental_collision(
     proposed_x: f32,
     proposed_y: f32,
 ) -> Option<(f32, f32)> {
-    // Use spatial grid for efficient collision detection
-    let mut grid = spatial_grid::SpatialGrid::new();
-    grid.populate_from_world(&ctx.db, ctx.timestamp);
+    // PERFORMANCE: Use cached spatial grid for efficient collision detection
+    let grid = spatial_grid::get_cached_spatial_grid(&ctx.db, ctx.timestamp);
+    check_environmental_collision_with_grid(grid, &ctx.db, proposed_x, proposed_y)
+}
+
+/// Optimized version that uses a pre-built spatial grid
+pub fn check_environmental_collision_with_grid<DB>(
+    grid: &spatial_grid::SpatialGrid,
+    db: &DB,
+    proposed_x: f32,
+    proposed_y: f32,
+) -> Option<(f32, f32)> 
+where
+    DB: TreeTableTrait + StoneTableTrait + WoodenStorageBoxTableTrait 
+        + RainCollectorTableTrait + PlayerCorpseTableTrait,
+{
     let nearby_entities = grid.get_entities_in_range(proposed_x, proposed_y);
     
     for entity in &nearby_entities {
         match entity {
             spatial_grid::EntityType::Tree(tree_id) => {
-                if let Some(tree) = ctx.db.tree().id().find(tree_id) {
+                if let Some(tree) = db.tree().id().find(tree_id) {
                     if tree.health == 0 { continue; }
                     let tree_collision_y = tree.pos_y - crate::tree::TREE_COLLISION_Y_OFFSET;
                     let dx = proposed_x - tree.pos_x;
@@ -254,7 +270,7 @@ pub fn check_environmental_collision(
                 }
             },
             spatial_grid::EntityType::Stone(stone_id) => {
-                if let Some(stone) = ctx.db.stone().id().find(stone_id) {
+                if let Some(stone) = db.stone().id().find(stone_id) {
                     if stone.health == 0 { continue; }
                     let stone_collision_y = stone.pos_y - crate::stone::STONE_COLLISION_Y_OFFSET;
                     let dx = proposed_x - stone.pos_x;
@@ -272,7 +288,7 @@ pub fn check_environmental_collision(
                 }
             },
             spatial_grid::EntityType::WoodenStorageBox(box_id) => {
-                if let Some(box_instance) = ctx.db.wooden_storage_box().id().find(box_id) {
+                if let Some(box_instance) = db.wooden_storage_box().id().find(box_id) {
                     let box_collision_y = box_instance.pos_y - crate::wooden_storage_box::BOX_COLLISION_Y_OFFSET;
                     let dx = proposed_x - box_instance.pos_x;
                     let dy = proposed_y - box_collision_y;
@@ -289,7 +305,7 @@ pub fn check_environmental_collision(
                 }
             },
             spatial_grid::EntityType::RainCollector(rain_collector_id) => {
-                if let Some(rain_collector) = ctx.db.rain_collector().id().find(rain_collector_id) {
+                if let Some(rain_collector) = db.rain_collector().id().find(rain_collector_id) {
                     if rain_collector.is_destroyed { continue; }
                     let rain_collector_collision_y = rain_collector.pos_y - RAIN_COLLECTOR_COLLISION_Y_OFFSET;
                     let dx = proposed_x - rain_collector.pos_x;
@@ -307,7 +323,7 @@ pub fn check_environmental_collision(
                 }
             },
             spatial_grid::EntityType::PlayerCorpse(corpse_id) => {
-                if let Some(corpse) = ctx.db.player_corpse().id().find(corpse_id) {
+                if let Some(corpse) = db.player_corpse().id().find(corpse_id) {
                     let corpse_collision_y = corpse.pos_y - CORPSE_COLLISION_Y_OFFSET;
                     let dx = proposed_x - corpse.pos_x;
                     let dy = proposed_y - corpse_collision_y;

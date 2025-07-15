@@ -22,6 +22,11 @@ import CyberpunkLoadingScreen, { CyberpunkErrorBar } from './components/Cyberpun
 import BlogPage from './blog/BlogPage';
 import BlogPostPage from './blog/BlogPostPage';
 
+// Legal Pages
+import PrivacyPage from './components/PrivacyPage';
+import TermsPage from './components/TermsPage';
+import CookiesPage from './components/CookiesPage';
+
 // Context Providers
 import { GameContextsProvider } from './contexts/GameContexts';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -877,6 +882,9 @@ function App() {
                             <Route path="/" element={<AppContent />} />
                             <Route path="/blog" element={<BlogPage />} />
                             <Route path="/blog/:slug" element={<BlogPostPage />} />
+                            <Route path="/privacy" element={<PrivacyPage />} />
+                            <Route path="/terms" element={<TermsPage />} />
+                            <Route path="/cookies" element={<CookiesPage />} />
                         </Routes>
                     </Router>
                 </DebugProvider>

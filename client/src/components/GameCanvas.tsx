@@ -48,7 +48,7 @@ import { useGameLoop } from '../hooks/useGameLoop';
 import type { FrameInfo } from '../hooks/useGameLoop';
 import { usePlayerHover } from '../hooks/usePlayerHover';
 import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
-import { useEntityFiltering } from '../hooks/useEntityFiltering';
+import { useEntityFiltering, YSortedEntityType } from '../hooks/useEntityFiltering';
 import { useSpacetimeTables } from '../hooks/useSpacetimeTables';
 import { useCampfireParticles, Particle } from '../hooks/useCampfireParticles';
 import { useTorchParticles } from '../hooks/useTorchParticles';
@@ -1134,46 +1134,52 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       ...swimmingPlayers.map(player => ({ ...player, isSwimmingPlayerTopHalf: true }))
     ];
     
-    // EMERGENCY: Skip Y-sorting entirely if too many entities
-    if (entityCount > 150 || perf.isEmergencyMode) {
-      // Don't sort at all - just render in current order for maximum performance
-      console.log(`⚡ Skipping Y-sort for ${entityCount} entities (emergency mode: ${perf.isEmergencyMode})`);
-    } else if (frameNumber.current % sortInterval === 0) {
-      combinedEntities = combinedEntities.sort((a, b) => {
-      // Calculate Y position for sorting
-      let aY: number;
-      let bY: number;
-      
-      if (a.isSwimmingPlayerTopHalf) {
-        aY = (a as any).yPosition;
-      } else {
-        // Use same Y-sorting logic as in useEntityFiltering
-        const entity = a.entity;
-        if (entity.positionY !== undefined) {
-          aY = entity.positionY + 48; // Player foot position
-        } else if (entity.posY !== undefined) {
-          aY = entity.posY;
-        } else {
-          aY = 0;
+    // CRITICAL FIX: Don't re-sort! The ySortedEntities are already properly sorted by useEntityFiltering
+    // Re-sorting here was overriding the shelter priority and Y-position adjustments
+    // Just insert swimming players at the correct position based on their Y coordinate
+    if (entityCount <= 150 && !perf.isEmergencyMode && frameNumber.current % sortInterval === 0) {
+      // Only sort swimming players into the existing sorted array
+      swimmingPlayers.forEach(swimmingPlayer => {
+        const playerY = swimmingPlayer.yPosition;
+        
+        // Find the correct insertion point to maintain Y-sort order
+        let insertIndex = 0;
+        for (let i = 0; i < limitedEntitiesExceptSwimming.length; i++) {
+          const entity = limitedEntitiesExceptSwimming[i].entity;
+          let entityY: number;
+          
+          if (entity.positionY !== undefined) {
+            entityY = entity.positionY + 48; // Player foot position
+          } else if (entity.posY !== undefined) {
+            entityY = entity.posY;
+          } else {
+            entityY = 0;
+          }
+          
+          if (playerY <= entityY) {
+            insertIndex = i;
+            break;
+          }
+          insertIndex = i + 1;
         }
-      }
-      
-      if (b.isSwimmingPlayerTopHalf) {
-        bY = (b as any).yPosition;
-      } else {
-        // Use same Y-sorting logic as in useEntityFiltering
-        const entity = b.entity;
-        if (entity.positionY !== undefined) {
-          bY = entity.positionY + 48; // Player foot position
-        } else if (entity.posY !== undefined) {
-          bY = entity.posY;
-        } else {
-          bY = 0;
-        }
-      }
-      
-        return aY - bY;
+        
+                 // Insert swimming player at correct position with proper flag
+         limitedEntitiesExceptSwimming.splice(insertIndex, 0, {
+           ...swimmingPlayer,
+           isSwimmingPlayerTopHalf: true
+         } as any);
       });
+      
+      combinedEntities = limitedEntitiesExceptSwimming;
+    } else {
+      // Emergency mode or too many entities - just combine without sorting
+      if (entityCount > 150 || perf.isEmergencyMode) {
+        console.log(`⚡ Skipping Y-sort for ${entityCount} entities (emergency mode: ${perf.isEmergencyMode})`);
+      }
+      combinedEntities = [
+        ...limitedEntitiesExceptSwimming.map(entity => ({ ...entity, isSwimmingPlayerTopHalf: false })),
+        ...swimmingPlayers.map(player => ({ ...player, isSwimmingPlayerTopHalf: true }))
+      ];
     }
 
     // Render all combined entities in proper Y-sorted order

@@ -8,11 +8,13 @@
  *   - Reduces collision checks from O(n²) to O(n)
  *   - Significantly improves performance with multiple players/entities
  *   - Scales better as the world gets more populated
+ *   - CRITICAL PERFORMANCE FIX: Uses cached grid to avoid 18k+ DB iterations per movement
  */
 
-use spacetimedb::Identity;
+use spacetimedb::{Identity, Timestamp};
 use spacetimedb::Table;
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 // Importing constants from parent module
 use crate::{
@@ -38,8 +40,11 @@ use crate::furnace::furnace as FurnaceTableTrait;
 use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
 
 // Cell size should be larger than the largest collision radius to ensure
-// we only need to check adjacent cells. We use 4x the player radius as a safe default.
-pub const GRID_CELL_SIZE: f32 = PLAYER_RADIUS * 4.0;
+// we only need to check adjacent cells. We use 8x the player radius for better performance with larger worlds.
+pub const GRID_CELL_SIZE: f32 = PLAYER_RADIUS * 8.0;
+
+// PERFORMANCE: Cache refresh interval - rebuild grid every 100ms instead of every collision
+const CACHE_REFRESH_INTERVAL_MICROS: i64 = 100_000; // 100ms in microseconds
 
 // Changed from const to functions to avoid using ceil() in constants
 pub fn grid_width() -> usize {
@@ -84,6 +89,16 @@ pub struct SpatialGrid {
     height: usize,
 }
 
+// PERFORMANCE CRITICAL: Cached spatial grid to avoid rebuilding every collision check
+#[derive(Debug)]
+struct CachedSpatialGrid {
+    grid: SpatialGrid,
+    last_refresh: Timestamp,
+}
+
+// Global cache - SpacetimeDB is single-threaded per database so this is safe
+static mut CACHED_GRID: Option<CachedSpatialGrid> = None;
+
 impl SpatialGrid {
     // Create a new empty spatial grid
     pub fn new() -> Self {
@@ -94,6 +109,22 @@ impl SpatialGrid {
             cells.push(GridCell { entities: Vec::new() });
         }
         SpatialGrid { cells, width, height }
+    }
+
+    // DEPRECATED: Use get_cached_spatial_grid() instead for performance
+    // Create a new spatial grid and immediately populate it (optimization)
+    pub fn new_populated<DB: PlayerTableTrait + TreeTableTrait + StoneTableTrait 
+                            + CampfireTableTrait + WoodenStorageBoxTableTrait 
+                            + HarvestableResourceTableTrait + DroppedItemTableTrait
+                            + ShelterTableTrait 
+                            + PlayerCorpseTableTrait
+                            + RainCollectorTableTrait
+                            + FurnaceTableTrait
+                            + WildAnimalTableTrait>
+                           (db: &DB, current_time: spacetimedb::Timestamp) -> Self {
+        let mut grid = Self::new();
+        grid.populate_from_world(db, current_time);
+        grid
     }
 
     // Get the cell index for a given world position
@@ -282,6 +313,57 @@ impl SpatialGrid {
             }
         }
     }
+}
+
+// PERFORMANCE CRITICAL: Get cached spatial grid, refreshing only when needed
+pub fn get_cached_spatial_grid<DB: PlayerTableTrait + TreeTableTrait + StoneTableTrait 
+                                 + CampfireTableTrait + WoodenStorageBoxTableTrait 
+                                 + HarvestableResourceTableTrait + DroppedItemTableTrait
+                                 + ShelterTableTrait 
+                                 + PlayerCorpseTableTrait
+                                 + RainCollectorTableTrait
+                                 + FurnaceTableTrait
+                                 + WildAnimalTableTrait>
+                              (db: &DB, current_time: spacetimedb::Timestamp) -> &'static SpatialGrid {
+    unsafe {
+        // Check if we need to refresh the cache
+        let needs_refresh = match &CACHED_GRID {
+            None => true,
+            Some(cached) => {
+                let time_diff_micros = current_time.to_micros_since_unix_epoch() - cached.last_refresh.to_micros_since_unix_epoch();
+                time_diff_micros >= CACHE_REFRESH_INTERVAL_MICROS
+            }
+        };
+
+        if needs_refresh {
+            log::debug!("🚀 [SpatialGrid] Refreshing cached spatial grid (last refresh: {}ms ago)", 
+                       match &CACHED_GRID {
+                           None => 0,
+                           Some(cached) => (current_time.to_micros_since_unix_epoch() - cached.last_refresh.to_micros_since_unix_epoch()) / 1000
+                       });
+            
+            // Create new grid and populate it
+            let mut new_grid = SpatialGrid::new();
+            new_grid.populate_from_world(db, current_time);
+            
+            // Update the cache
+            CACHED_GRID = Some(CachedSpatialGrid {
+                grid: new_grid,
+                last_refresh: current_time,
+            });
+        }
+
+        // Return reference to cached grid
+        &CACHED_GRID.as_ref().unwrap().grid
+    }
+}
+
+// PERFORMANCE: Invalidate cache when major world changes occur (optional optimization)
+pub fn invalidate_spatial_grid_cache() {
+    unsafe {
+        CACHED_GRID = None;
+    }
+    log::debug!("🚀 [SpatialGrid] Cache invalidated");
 }
 
 // Implement Default

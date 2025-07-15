@@ -9,7 +9,7 @@
 // Define base values first
 const TILE_SIZE = 48;
 export { TILE_SIZE };
-const MINIMAP_GRID_DIAGONAL_TILES = 51; // Use the user's desired value (tunable)
+const MINIMAP_GRID_DIAGONAL_TILES = 151; // Use the user's desired value (tunable)
 
 // --- Server World & Chunk Configuration (Client-Side Assumption - TODO: Make Server-Driven) ---
 // These values MUST match the server's current world generation settings.
@@ -30,8 +30,8 @@ export const gameConfig = {
   // Basic sprite and rendering dimensions
   spriteWidth: 48,
   spriteHeight: 48,
-  worldWidthTiles: 500,
-  worldHeightTiles: 500,
+  worldWidthTiles: SERVER_WORLD_WIDTH_TILES,
+  worldHeightTiles: SERVER_WORLD_HEIGHT_TILES,
   tileSize: 48,
 
   // Calculated world dimensions in pixels
@@ -63,8 +63,8 @@ export const gameConfig = {
   chunkSizePx: CHUNK_SIZE_PX,
   worldWidthChunks: WORLD_WIDTH_CHUNKS,
   worldHeightChunks: WORLD_HEIGHT_CHUNKS,
-  worldWidth: 500,
-  worldHeight: 500,
+  worldWidth: SERVER_WORLD_WIDTH_TILES,
+  worldHeight: SERVER_WORLD_HEIGHT_TILES,
   // --- End World & Chunk Config ---
 
   // --- Minimap Configuration ---

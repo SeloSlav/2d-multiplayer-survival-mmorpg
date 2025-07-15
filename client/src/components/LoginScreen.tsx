@@ -12,6 +12,7 @@
  */
 
 import React, { useRef, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 // Import the Player type from generated bindings
 import { Player } from '../generated'; // Adjusted path
@@ -70,6 +71,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
         loginRedirect,
         logout
     } = useAuth();
+
+    // React Router navigation hook
+    const navigate = useNavigate();
 
     // Local state for the username input field (only used for new players)
     const [inputUsername, setInputUsername] = useState<string>('');
@@ -155,6 +159,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
             usernameInputRef.current?.focus();
         }
     }, [isAuthenticated, loggedInPlayer]);
+
+
 
     // Validation: only needed for new players entering a username
     const validateNewUsername = (): boolean => {
@@ -1522,14 +1528,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                 backgroundColor: 'rgba(0, 0, 0, 0.95)',
                 backdropFilter: 'blur(20px)',
                 borderTop: '1px solid rgba(255, 165, 0, 0.3)',
-                padding: 'clamp(30px, 6vw, 60px) clamp(20px, 5vw, 40px) clamp(20px, 4vw, 40px) clamp(20px, 5vw, 40px)', // Responsive footer padding
+                padding: 'clamp(30px, 6vw, 60px) clamp(20px, 5vw, 40px) clamp(20px, 4vw, 40px) clamp(20px, 5vw, 40px)',
                 position: 'relative',
                 zIndex: 3,
                 width: '100%',
                 boxSizing: 'border-box',
                 overflowX: 'hidden',
-                contentVisibility: 'auto',
-                containIntrinsicSize: '1200px 400px',
+                marginTop: '60px',
             }}>
                 {/* Decorative line at top */}
                 <div style={{
@@ -1550,36 +1555,28 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     transform: 'translateX(-50%)',
                     width: '16px',
                     height: '16px',
-                    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                }}>
-                    <div style={{
-                        width: '8px',
-                        height: '8px',
-                        border: '1px solid rgba(255, 165, 0, 0.6)',
-                        borderRadius: '50%',
-                        transform: 'rotate(45deg)',
-                    }} />
-                </div>
+                    background: 'linear-gradient(135deg, #ff8c00 0%, #ff6600 100%)',
+                    borderRadius: '50%',
+                    border: '2px solid rgba(0, 0, 0, 0.95)',
+                    boxShadow: '0 0 15px rgba(255, 140, 0, 0.5)',
+                }} />
 
+                {/* Footer Grid */}
                 <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)',
+                    gap: isMobile ? '40px' : '30px',
                     maxWidth: '1200px',
                     margin: '0 auto',
-                    display: isMobile ? 'flex' : 'grid',
-                    flexDirection: isMobile ? 'column' : undefined,
-                    gridTemplateColumns: isMobile ? undefined : 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '40px',
                     alignItems: 'start',
                 }}>
-                    {/* Logo Section */}
+                    {/* Company Info */}
                     <div style={{
                         display: 'flex',
                         flexDirection: 'column',
-                        alignItems: 'flex-start',
+                        alignItems: isMobile ? 'center' : 'flex-start',
+                        textAlign: isMobile ? 'center' : 'left',
                     }}>
-
                         <img
                             src={logo}
                             alt="Broth & Bullets Logo"
@@ -1587,7 +1584,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 width: '160px',
                                 height: 'auto',
                                 marginBottom: '20px',
-                                filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))',
+                                filter: 'none',
+                                boxShadow: 'none',
+                                border: 'none',
+                                outline: 'none',
                             }}
                         />
                         <p style={{
@@ -1596,6 +1596,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             lineHeight: '1.6',
                             margin: '0',
                             textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                            fontFamily: "'Courier New', Consolas, Monaco, monospace",
                         }}>
                             Broth & Bullets is developed by{' '}
                             <a
@@ -1622,13 +1623,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             color: 'rgba(255, 255, 255, 0.5)',
                             margin: '10px 0 0 0',
                             textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                            fontFamily: "'Courier New', Consolas, Monaco, monospace",
                         }}>
                             © 2025 Selo Oils LLC
                         </p>
                     </div>
 
                     {/* Game Links */}
-                    <div>
+                    <div style={{
+                        textAlign: isMobile ? 'center' : 'left',
+                    }}>
                         <h4 style={{
                             fontSize: '14px',
                             color: '#ff8c00',
@@ -1637,6 +1641,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             letterSpacing: '2px',
                             marginBottom: '20px',
                             textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                            fontFamily: "'Courier New', Consolas, Monaco, monospace",
                         }}>
                             GAME
                         </h4>
@@ -1645,36 +1650,44 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             padding: 0,
                             margin: 0,
                         }}>
-                            {['ABOUT', 'BABUSHKA\'S TOOLS', 'FEATURES', 'FAQ', 'LORE', 'BLOG', 'CONTACT'].map((link) => (
-                                <li key={link} style={{ marginBottom: '12px' }}>
+                            {[
+                                { label: 'ABOUT', action: 'about' },
+                                { label: 'BABUSHKA\'S TOOLS', action: 'tools' },
+                                { label: 'FEATURES', action: 'features' },
+                                { label: 'FAQ', action: 'faq' },
+                                { label: 'LORE', action: 'https://www.babushkabook.com/', external: true },
+                                { label: 'BLOG', action: '/blog', internal: true },
+                                { label: 'CONTACT', action: 'mailto:martin@selooils.com', external: true },
+                            ].map((link) => (
+                                <li key={link.label} style={{ marginBottom: '12px' }}>
                                     <a
-                                        href="#"
+                                        href={link.external ? link.action : '#'}
+                                        target={link.external ? '_blank' : undefined}
+                                        rel={link.external ? 'noopener noreferrer' : undefined}
                                         onClick={(e) => {
+                                            if (link.external) return;
                                             e.preventDefault();
-                                            if (link === 'ABOUT') {
-                                                const aboutSection = document.querySelector('[data-about-section]');
-                                                if (aboutSection) {
-                                                    aboutSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                            if (link.internal) {
+                                                navigate(link.action);
+                                                // Scroll to top after navigation for internal links
+                                                window.scrollTo(0, 0);
+                                            } else {
+                                                const selector = `[data-${link.action}-section]`;
+                                                const section = document.querySelector(selector);
+                                                if (section) {
+                                                    // We're on the home page, scroll to the section
+                                                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                } else {
+                                                    // Section not found (probably on blog page), navigate to home first
+                                                    navigate('/');
+                                                    // Then scroll to the section after a delay
+                                                    setTimeout(() => {
+                                                        const homeSection = document.querySelector(selector);
+                                                        if (homeSection) {
+                                                            homeSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                        }
+                                                    }, 100);
                                                 }
-                                            } else if (link === 'BABUSHKA\'S TOOLS') {
-                                                const loadoutSection = document.querySelector('[data-tools-section]');
-                                                if (loadoutSection) {
-                                                    loadoutSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                }
-                                            } else if (link === 'FEATURES') {
-                                                const featuresSection = document.querySelector('[data-features-section]');
-                                                if (featuresSection) {
-                                                    featuresSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                }
-                                            } else if (link === 'FAQ') {
-                                                const faqSection = document.querySelector('[data-faq-section]');
-                                                if (faqSection) {
-                                                    faqSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                }
-                                            } else if (link === 'LORE') {
-                                                window.open('https://www.babushkabook.com/', '_blank');
-                                            } else if (link === 'CONTACT') {
-                                                window.location.href = 'mailto:martin@selooils.com';
                                             }
                                         }}
                                         style={{
@@ -1682,7 +1695,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                             textDecoration: 'none',
                                             fontSize: '13px',
                                             transition: 'color 0.2s ease',
-                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                            fontFamily: "'Courier New', Consolas, Monaco, monospace",
                                             textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
                                         }}
                                         onMouseEnter={(e) => {
@@ -1692,7 +1705,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                             e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
                                         }}
                                     >
-                                        {link}
+                                        {link.label}
                                     </a>
                                 </li>
                             ))}
@@ -1700,7 +1713,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                     </div>
 
                     {/* Legal Links */}
-                    <div>
+                    <div style={{
+                        textAlign: isMobile ? 'center' : 'left',
+                    }}>
                         <h4 style={{
                             fontSize: '14px',
                             color: '#ff8c00',
@@ -1709,6 +1724,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             letterSpacing: '2px',
                             marginBottom: '20px',
                             textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                            fontFamily: "'Courier New', Consolas, Monaco, monospace",
                         }}>
                             LEGAL
                         </h4>
@@ -1717,17 +1733,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             padding: 0,
                             margin: 0,
                         }}>
-                            {['PRIVACY POLICY', 'TERMS OF SERVICE', 'COOKIE DECLARATION'].map((link) => (
-                                <li key={link} style={{ marginBottom: '12px' }}>
+                            {[
+                                { label: 'PRIVACY POLICY', path: '/privacy' },
+                                { label: 'TERMS OF SERVICE', path: '/terms' },
+                                { label: 'COOKIE DECLARATION', path: '/cookies' },
+                            ].map((link) => (
+                                <li key={link.label} style={{ marginBottom: '12px' }}>
                                     <a
-                                        href="#"
-                                        onClick={(e) => e.preventDefault()}
+                                        href={link.path}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            navigate(link.path);
+                                            // Scroll to top after navigation for legal links
+                                            window.scrollTo(0, 0);
+                                        }}
                                         style={{
                                             color: 'rgba(255, 255, 255, 0.7)',
                                             textDecoration: 'none',
                                             fontSize: '13px',
                                             transition: 'color 0.2s ease',
-                                            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+                                            fontFamily: "'Courier New', Consolas, Monaco, monospace",
                                             textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
                                         }}
                                         onMouseEnter={(e) => {
@@ -1737,19 +1762,32 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                             e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
                                         }}
                                     >
-                                        {link}
+                                        {link.label}
                                     </a>
                                 </li>
                             ))}
                         </ul>
                     </div>
 
-                    {/* Social Links & Back to Top */}
+                    {/* Social Links */}
                     <div style={{
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: isMobile ? 'center' : 'flex-end',
                     }}>
+                        <h4 style={{
+                            fontSize: '14px',
+                            color: '#ff8c00',
+                            fontWeight: '600',
+                            textTransform: 'uppercase',
+                            letterSpacing: '2px',
+                            marginBottom: '20px',
+                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                            fontFamily: "'Courier New', Consolas, Monaco, monospace",
+                            textAlign: isMobile ? 'center' : 'right',
+                        }}>
+                            CONNECT
+                        </h4>
                         {/* Social Media Icons */}
                         <div style={{
                             display: 'flex',
@@ -1764,33 +1802,37 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                 <a
                                     key={social.name}
                                     href={social.href}
-                                    onClick={(e) => e.preventDefault()}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                     title={social.name}
                                     style={{
                                         width: '40px',
                                         height: '40px',
                                         borderRadius: '50%',
-                                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                                        border: '1px solid rgba(255, 140, 0, 0.4)',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         fontSize: '16px',
                                         textDecoration: 'none',
                                         transition: 'all 0.3s ease',
-                                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                        backgroundColor: 'rgba(255, 140, 0, 0.1)',
                                         color: 'rgba(255, 255, 255, 0.7)',
+                                        boxShadow: '0 0 10px rgba(255, 140, 0, 0.2)',
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.borderColor = '#ff8c00';
-                                        e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.1)';
+                                        e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.2)';
                                         e.currentTarget.style.transform = 'translateY(-2px)';
                                         e.currentTarget.style.color = '#ff8c00';
+                                        e.currentTarget.style.boxShadow = '0 0 20px rgba(255, 140, 0, 0.5)';
                                     }}
                                     onMouseLeave={(e) => {
-                                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                                        e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                                        e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.4)';
+                                        e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.1)';
                                         e.currentTarget.style.transform = 'translateY(0)';
                                         e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                                        e.currentTarget.style.boxShadow = '0 0 10px rgba(255, 140, 0, 0.2)';
                                     }}
                                 >
                                     <FontAwesomeIcon icon={social.icon} />
@@ -1798,7 +1840,45 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                             ))}
                         </div>
 
-
+                        {/* Back to Top Button */}
+                        <button
+                            onClick={() => {
+                                window.scrollTo({
+                                    top: 0,
+                                    behavior: 'smooth'
+                                });
+                            }}
+                            style={{
+                                width: '50px',
+                                height: '50px',
+                                borderRadius: '50%',
+                                border: '2px solid rgba(255, 140, 0, 0.6)',
+                                background: 'linear-gradient(135deg, rgba(255, 140, 0, 0.2) 0%, rgba(255, 100, 0, 0.4) 100%)',
+                                color: '#ff8c00',
+                                fontSize: '18px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s ease',
+                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                boxShadow: '0 4px 15px rgba(0,0,0,0.3), 0 0 10px rgba(255,140,0,0.4)',
+                                fontFamily: "'Courier New', Consolas, Monaco, monospace",
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(255, 140, 0, 0.3)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.9)';
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.4), 0 0 15px rgba(255,140,0,0.6)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'linear-gradient(135deg, rgba(255, 140, 0, 0.2) 0%, rgba(255, 100, 0, 0.4) 100%)';
+                                e.currentTarget.style.borderColor = 'rgba(255, 140, 0, 0.6)';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3), 0 0 10px rgba(255,140,0,0.4)';
+                            }}
+                            title="Back to Top"
+                        >
+                            ↑
+                        </button>
                     </div>
                 </div>
             </footer>

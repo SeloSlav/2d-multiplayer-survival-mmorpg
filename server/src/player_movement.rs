@@ -498,8 +498,8 @@ pub fn update_player_position_simple(
         let server_dx = clamped_x - current_player.position_x;
         let server_dy = clamped_y - current_player.position_y;
         
-        // Use sliding collision for smooth movement around obstacles
-        let (slid_x, slid_y) = player_collision::calculate_slide_collision(
+        // PERFORMANCE OPTIMIZED: Use single spatial grid for both slide and push-out collision
+        player_collision::calculate_optimized_collision(
             ctx, 
             sender_id, 
             current_player.position_x,
@@ -508,27 +508,7 @@ pub fn update_player_position_simple(
             clamped_y,
             server_dx,
             server_dy
-        );
-        
-        // 🚀 GRAVITY WELL FIX: Skip push-out if sliding provided significant correction
-        // This prevents double-correction conflicts that cause gravity wells
-        let slide_distance = ((slid_x - clamped_x).powi(2) + (slid_y - clamped_y).powi(2)).sqrt();
-        if slide_distance > 3.0 { // If sliding moved us significantly, trust the slide result
-            log::debug!("Player {:?} slide correction of {:.1}px applied, skipping push-out", sender_id, slide_distance);
-            (slid_x, slid_y)
-        } else {
-            // Only apply gentle push-out if sliding didn't resolve the collision
-            let push_result = player_collision::resolve_push_out_collision(ctx, sender_id, slid_x, slid_y);
-            
-            // Verify the push-out didn't move us too far from intended position
-            let push_distance = ((push_result.0 - slid_x).powi(2) + (push_result.1 - slid_y).powi(2)).sqrt();
-            if push_distance > 20.0 { // Don't allow push-out to move us more than 20px
-                log::debug!("Player {:?} push-out distance {:.1}px too large, using slide result", sender_id, push_distance);
-                (slid_x, slid_y)
-            } else {
-                push_result
-            }
-        }
+        )
     } else {
         // For large movements (teleports, lag spikes), trust the client more but still clamp
         log::debug!("Player {:?} large movement {:.1}px detected, skipping collision", sender_id, movement_distance);

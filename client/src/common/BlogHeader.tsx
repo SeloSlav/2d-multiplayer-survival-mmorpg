@@ -1,7 +1,14 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const BlogHeader: React.FC = () => {
+    const navigate = useNavigate();
+    
+    const handleNavigate = (path: string) => {
+        navigate(path);
+        window.scrollTo(0, 0);
+    };
+    
     return (
         <header style={{
             position: 'fixed',
@@ -28,13 +35,14 @@ const BlogHeader: React.FC = () => {
                 height: '100%',
             }}>
                 {/* Logo */}
-                <Link 
-                    to="/blog" 
+                <div 
+                    onClick={() => handleNavigate('/blog')}
                     style={{
                         display: 'flex',
                         alignItems: 'center',
                         textDecoration: 'none',
                         transition: 'all 0.3s ease',
+                        cursor: 'pointer',
                     }}
                     onMouseEnter={(e) => {
                         e.currentTarget.style.transform = 'scale(1.05)';
@@ -55,7 +63,7 @@ const BlogHeader: React.FC = () => {
                             outline: 'none',
                         }}
                     />
-                </Link>
+                </div>
 
                 {/* Right side buttons */}
                 <div style={{
@@ -64,8 +72,8 @@ const BlogHeader: React.FC = () => {
                     gap: '16px',
                 }}>
                     {/* Back to Blog Button */}
-                    <Link
-                        to="/blog"
+                    <button
+                        onClick={() => handleNavigate('/blog')}
                         style={{
                             display: 'inline-block',
                             background: 'linear-gradient(135deg, #2a2a2a 0%, #404040 100%)',
@@ -83,6 +91,7 @@ const BlogHeader: React.FC = () => {
                             fontFamily: "'Courier New', Consolas, Monaco, monospace",
                             minWidth: '120px',
                             textAlign: 'center',
+                            cursor: 'pointer',
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'linear-gradient(135deg, #404040 0%, #606060 100%)';
@@ -98,11 +107,11 @@ const BlogHeader: React.FC = () => {
                         }}
                     >
                         Blog
-                    </Link>
+                    </button>
 
                     {/* Play Now Button */}
-                    <Link
-                        to="/"
+                    <button
+                        onClick={() => handleNavigate('/')}
                         style={{
                             display: 'inline-block',
                             background: 'linear-gradient(135deg, #003366 0%, #00aaff 100%)',
@@ -120,6 +129,7 @@ const BlogHeader: React.FC = () => {
                             fontFamily: "'Courier New', Consolas, Monaco, monospace",
                             minWidth: '120px',
                             textAlign: 'center',
+                            cursor: 'pointer',
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'linear-gradient(135deg, #0066aa 0%, #00ddff 100%)';
@@ -135,7 +145,7 @@ const BlogHeader: React.FC = () => {
                         }}
                     >
                         Play Now
-                    </Link>
+                    </button>
                 </div>
             </div>
         </header>

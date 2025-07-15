@@ -1,15 +1,30 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDiscord, faXTwitter, faGithub } from '@fortawesome/free-brands-svg-icons';
 
 const BlogFooter: React.FC = () => {
     // Check if we're on mobile
     const isMobile = window.innerWidth <= 768;
+    
+    const navigate = useNavigate();
+    
+    const handleNavigate = (path: string) => {
+        navigate(path);
+        window.scrollTo(0, 0);
+    };
 
-    const scrollToSection = (sectionSelector: string) => {
-        // For blog, we'll link back to the main game page for sections
-        window.location.href = `/#${sectionSelector}`;
+    const handleSectionNavigate = (sectionName: string) => {
+        // Navigate to home page first
+        navigate('/');
+        // Then scroll to the section after a delay to ensure page loads
+        setTimeout(() => {
+            const selector = `[data-${sectionName}-section]`;
+            const section = document.querySelector(selector);
+            if (section) {
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100);
     };
 
     return (
@@ -140,18 +155,18 @@ const BlogFooter: React.FC = () => {
                         margin: 0,
                     }}>
                         {[
-                            { label: 'ABOUT', action: '/#about' },
-                            { label: 'BABUSHKA\'S TOOLS', action: '/#tools' },
-                            { label: 'FEATURES', action: '/#features' },
-                            { label: 'FAQ', action: '/#faq' },
+                            { label: 'ABOUT', action: 'about', section: true },
+                            { label: 'BABUSHKA\'S TOOLS', action: 'tools', section: true },
+                            { label: 'FEATURES', action: 'features', section: true },
+                            { label: 'FAQ', action: 'faq', section: true },
                             { label: 'LORE', action: 'https://www.babushkabook.com/', external: true },
                             { label: 'BLOG', action: '/blog', internal: true },
                             { label: 'CONTACT', action: 'mailto:martin@selooils.com', external: true },
                         ].map((link) => (
                             <li key={link.label} style={{ marginBottom: '12px' }}>
                                 {link.internal ? (
-                                    <Link
-                                        to={link.action}
+                                    <button
+                                        onClick={() => handleNavigate(link.action)}
                                         style={{
                                             color: 'rgba(255, 255, 255, 0.7)',
                                             textDecoration: 'none',
@@ -159,6 +174,9 @@ const BlogFooter: React.FC = () => {
                                             transition: 'color 0.2s ease',
                                             fontFamily: "'Courier New', Consolas, Monaco, monospace",
                                             textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
                                         }}
                                         onMouseEnter={(e) => {
                                             e.currentTarget.style.color = '#00aaff';
@@ -168,7 +186,30 @@ const BlogFooter: React.FC = () => {
                                         }}
                                     >
                                         {link.label}
-                                    </Link>
+                                    </button>
+                                ) : link.section ? (
+                                    <button
+                                        onClick={() => handleSectionNavigate(link.action)}
+                                        style={{
+                                            color: 'rgba(255, 255, 255, 0.7)',
+                                            textDecoration: 'none',
+                                            fontSize: '13px',
+                                            transition: 'color 0.2s ease',
+                                            fontFamily: "'Courier New', Consolas, Monaco, monospace",
+                                            textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.color = '#00aaff';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                                        }}
+                                    >
+                                        {link.label}
+                                    </button>
                                 ) : (
                                     <a
                                         href={link.action}
@@ -222,11 +263,14 @@ const BlogFooter: React.FC = () => {
                         padding: 0,
                         margin: 0,
                     }}>
-                        {['PRIVACY POLICY', 'TERMS OF SERVICE', 'COOKIE DECLARATION'].map((link) => (
-                            <li key={link} style={{ marginBottom: '12px' }}>
-                                <a
-                                    href="#"
-                                    onClick={(e) => e.preventDefault()}
+                        {[
+                            { label: 'PRIVACY POLICY', path: '/privacy' },
+                            { label: 'TERMS OF SERVICE', path: '/terms' },
+                            { label: 'COOKIE DECLARATION', path: '/cookies' },
+                        ].map((link) => (
+                            <li key={link.label} style={{ marginBottom: '12px' }}>
+                                <button
+                                    onClick={() => handleNavigate(link.path)}
                                     style={{
                                         color: 'rgba(255, 255, 255, 0.7)',
                                         textDecoration: 'none',
@@ -234,6 +278,9 @@ const BlogFooter: React.FC = () => {
                                         transition: 'color 0.2s ease',
                                         fontFamily: "'Courier New', Consolas, Monaco, monospace",
                                         textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.color = '#00aaff';
@@ -242,8 +289,8 @@ const BlogFooter: React.FC = () => {
                                         e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
                                     }}
                                 >
-                                    {link}
-                                </a>
+                                    {link.label}
+                                </button>
                             </li>
                         ))}
                     </ul>

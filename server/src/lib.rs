@@ -527,8 +527,8 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
         // Generate world with smaller size for better performance
         let world_config = crate::WorldGenConfig {
             seed: ctx.rng().gen::<u64>(), // Random seed each time using ctx.rng()
-            world_width_tiles: 500,  // Reduced from 250 for performance
-            world_height_tiles: 500, // Reduced from 250 for performance  
+            world_width_tiles: WORLD_WIDTH_TILES,  // Reduced from 250 for performance
+            world_height_tiles: WORLD_HEIGHT_TILES, // Reduced from 250 for performance  
             chunk_size: 10,
             island_border_width: 5,  // Adjusted for smaller world
             beach_width: 3,          // Adjusted for smaller world

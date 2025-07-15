@@ -205,6 +205,7 @@ const DEBUG_OVERRIDES: { [bitmask: number]: number } = {
     91: 47,
     142: 47,
     146: 14,
+    194: 12,
     // Add your test overrides here!
 };
 

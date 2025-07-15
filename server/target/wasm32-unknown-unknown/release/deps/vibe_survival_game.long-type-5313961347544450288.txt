@@ -1,0 +1,2 @@
+projectile::CollisionResult: spacetimedb::Deserialize<'_>
+std::option::Option<projectile::CollisionResult>

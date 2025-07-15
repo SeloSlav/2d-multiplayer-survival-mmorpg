@@ -2931,4 +2931,3 @@ pub fn play_weapon_hit_sound(
         sound_events::emit_torch_hit_combined_sound(ctx, hit_pos_x, hit_pos_y, attacker_id, torch_is_lit);
     }
 }
-

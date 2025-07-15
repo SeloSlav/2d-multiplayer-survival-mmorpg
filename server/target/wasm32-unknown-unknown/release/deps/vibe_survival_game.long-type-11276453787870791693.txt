@@ -1,0 +1,1 @@
+(f32, f32): spacetimedb::Serialize

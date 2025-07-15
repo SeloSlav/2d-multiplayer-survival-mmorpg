@@ -35,6 +35,23 @@ pub fn calculate_slide_collision(
     server_dx: f32, // Original displacement vector for this frame
     server_dy: f32,
 ) -> (f32, f32) {
+    // PERFORMANCE: Use cached spatial grid instead of creating new one
+    let grid = spatial_grid::get_cached_spatial_grid(&ctx.db, ctx.timestamp);
+    calculate_slide_collision_with_grid(grid, ctx, sender_id, current_player_pos_x, current_player_pos_y, proposed_x, proposed_y, server_dx, server_dy)
+}
+
+/// Optimized version that uses a pre-built spatial grid for slide collision
+pub fn calculate_slide_collision_with_grid(
+    grid: &spatial_grid::SpatialGrid,
+    ctx: &ReducerContext,
+    sender_id: Identity,
+    current_player_pos_x: f32,
+    current_player_pos_y: f32,
+    proposed_x: f32,
+    proposed_y: f32,
+    server_dx: f32, // Original displacement vector for this frame
+    server_dy: f32,
+) -> (f32, f32) {
     let mut final_x = proposed_x;
     let mut final_y = proposed_y;
     
@@ -58,8 +75,6 @@ pub fn calculate_slide_collision(
         PLAYER_RADIUS // Fallback to default radius
     };
 
-    let mut grid = spatial_grid::SpatialGrid::new();
-    grid.populate_from_world(&ctx.db, ctx.timestamp);
     let nearby_entities = grid.get_entities_in_range(final_x, final_y);
 
     for entity in &nearby_entities {
@@ -504,6 +519,19 @@ pub fn resolve_push_out_collision(
     initial_x: f32, // Position after potential slide
     initial_y: f32,
 ) -> (f32, f32) {
+    // PERFORMANCE: Use cached spatial grid instead of creating new one
+    let grid = spatial_grid::get_cached_spatial_grid(&ctx.db, ctx.timestamp);
+    resolve_push_out_collision_with_grid(grid, ctx, sender_id, initial_x, initial_y)
+}
+
+/// Optimized version that uses a pre-built spatial grid for push-out collision
+pub fn resolve_push_out_collision_with_grid(
+    grid: &spatial_grid::SpatialGrid,
+    ctx: &ReducerContext,
+    sender_id: Identity,
+    initial_x: f32, // Position after potential slide
+    initial_y: f32,
+) -> (f32, f32) {
     log::debug!("[PushOutStart] Player {:?} starting push-out at ({:.1}, {:.1})", sender_id, initial_x, initial_y);
     
     let mut resolved_x = initial_x;
@@ -529,9 +557,7 @@ pub fn resolve_push_out_collision(
         PLAYER_RADIUS // Fallback to default radius
     };
     
-    let mut grid = spatial_grid::SpatialGrid::new();
-    // Populate grid once before iterations, assuming entities don't move during resolution
-    grid.populate_from_world(&ctx.db, ctx.timestamp);
+    // Use the pre-built spatial grid for all push-out iterations
 
     for _iter in 0..resolution_iterations {
         let mut overlap_found_in_iter = false;
@@ -818,4 +844,46 @@ pub fn resolve_push_out_collision(
         }
     }
     (resolved_x, resolved_y)
+}
+
+/// PERFORMANCE OPTIMIZED: Combined collision function that creates spatial grid once
+/// This should be used instead of calling slide and push-out separately
+pub fn calculate_optimized_collision(
+    ctx: &ReducerContext,
+    sender_id: Identity,
+    current_player_pos_x: f32,
+    current_player_pos_y: f32,
+    proposed_x: f32,
+    proposed_y: f32,
+    server_dx: f32,
+    server_dy: f32,
+) -> (f32, f32) {
+    // PERFORMANCE CRITICAL: Create spatial grid only once for both operations
+    let grid = spatial_grid::get_cached_spatial_grid(&ctx.db, ctx.timestamp);
+    
+    // Step 1: Apply sliding collision
+    let (slid_x, slid_y) = calculate_slide_collision_with_grid(
+        grid, ctx, sender_id, current_player_pos_x, current_player_pos_y, 
+        proposed_x, proposed_y, server_dx, server_dy
+    );
+    
+    // Step 2: Apply push-out collision using same grid
+    let slide_distance = ((slid_x - proposed_x).powi(2) + (slid_y - proposed_y).powi(2)).sqrt();
+    if slide_distance > 3.0 {
+        // If sliding moved us significantly, trust the slide result (anti-gravity well)
+        log::debug!("Player {:?} slide correction of {:.1}px applied, skipping push-out", sender_id, slide_distance);
+        (slid_x, slid_y)
+    } else {
+        // Apply gentle push-out using the same spatial grid
+        let push_result = resolve_push_out_collision_with_grid(grid, ctx, sender_id, slid_x, slid_y);
+        
+        // Verify the push-out didn't move us too far from intended position
+        let push_distance = ((push_result.0 - slid_x).powi(2) + (push_result.1 - slid_y).powi(2)).sqrt();
+        if push_distance > 20.0 {
+            log::debug!("Player {:?} push-out distance {:.1}px too large, using slide result", sender_id, push_distance);
+            (slid_x, slid_y)
+        } else {
+            push_result
+        }
+    }
 }
