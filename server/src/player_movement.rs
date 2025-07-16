@@ -479,15 +479,15 @@ pub fn update_player_position_simple(
     current_player.last_update = ctx.timestamp;
 
     // OPTIMIZATION: Batch micro-movements to reduce collision checks during sprinting
-    if distance_moved < 1.0 {
-        // For tiny movements, just update without collision check to reduce server load
-        let is_on_water = is_player_on_water(ctx, new_x, new_y);
+    if distance_moved < 3.0 {
+        // For small movements, just update without expensive processing to reduce server load
+        // Skip water detection, sound processing, and other expensive operations
         current_player.position_x = new_x;
         current_player.position_y = new_y;
         current_player.is_sprinting = is_sprinting;
-        current_player.is_on_water = is_on_water;
+        // Keep existing water status for micro-movements
         
-        // Update player without collision processing
+        // Update player without expensive processing
         players.identity().update(current_player);
         return Ok(());
     }
@@ -512,8 +512,21 @@ pub fn update_player_position_simple(
     // Server collision creates micro-differences that cause rubber banding
     // Client collision is more responsive and handles prediction better
 
-    // --- Water detection for new position ---
-    let is_on_water = is_player_on_water(ctx, final_x, final_y);
+    // --- Water detection for new position (OPTIMIZED) ---
+    // Only check water status if player moved to a different tile to avoid expensive DB lookups
+    let old_tile_x = (current_player.position_x / crate::TILE_SIZE_PX as f32).floor() as i32;
+    let old_tile_y = (current_player.position_y / crate::TILE_SIZE_PX as f32).floor() as i32;
+    let new_tile_x = (final_x / crate::TILE_SIZE_PX as f32).floor() as i32;
+    let new_tile_y = (final_y / crate::TILE_SIZE_PX as f32).floor() as i32;
+    
+    let is_on_water = if old_tile_x != new_tile_x || old_tile_y != new_tile_y {
+        // Player moved to a different tile, check water status
+        is_player_on_water(ctx, final_x, final_y)
+    } else {
+        // Player is still on the same tile, keep current water status
+        current_player.is_on_water
+    };
+    
     let is_jumping = is_player_jumping(current_player.jump_start_time_ms, now_ms);
 
     // --- Extinguish burn effects and apply wet effect if player entered water ---
@@ -534,11 +547,10 @@ pub fn update_player_position_simple(
         log::info!("Player {:?} auto-disabled crouching when entering/moving in water", sender_id);
     }
 
-    // --- Movement Sound Logic (Walking & Swimming) ---
-    // Simplified sound detection - trust client movement entirely
-    
-    // Only emit movement sounds if player actually moved and conditions are right
-    if movement_distance > 3.0 && // Moved a meaningful distance
+    // --- Movement Sound Logic (Walking & Swimming) - OPTIMIZED ---
+    // Only process sounds for meaningful movements to reduce database load
+    // Increased threshold from 3.0 to 8.0 to reduce sound processing frequency
+    if movement_distance > 8.0 && // Only process sounds for larger movements
        !current_player.is_dead && 
        !current_player.is_knocked_out &&
        !is_jumping {   // No movement sounds while jumping

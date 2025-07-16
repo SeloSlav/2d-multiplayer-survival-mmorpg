@@ -92,6 +92,7 @@ export function renderPlayerCorpse({
     isKnockedOut: false,
     knockedOutAt: undefined,
     isOnWater: isCorpseOnWater, // ADD: Water status for sprite selection
+    clientMovementSequence: 0n, // ADD: Required field for client-side prediction
   };
 
   // Choose the appropriate hero sprite based on water status (corpses don't crouch)

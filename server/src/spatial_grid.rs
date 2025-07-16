@@ -43,9 +43,9 @@ use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
 // we only need to check adjacent cells. We use 8x the player radius for better performance with larger worlds.
 pub const GRID_CELL_SIZE: f32 = PLAYER_RADIUS * 8.0;
 
-// PERFORMANCE: Cache refresh interval - rebuild grid every 300ms instead of every collision
-// Reduced from 500ms to 300ms for fresher data without overload
-const CACHE_REFRESH_INTERVAL_MICROS: i64 = 300_000; // 300ms in microseconds
+// PERFORMANCE: Cache refresh interval - rebuild grid every 1000ms instead of every collision
+// Increased from 300ms to 1000ms to reduce expensive rebuilds in dense forests
+const CACHE_REFRESH_INTERVAL_MICROS: i64 = 1_000_000; // 1000ms in microseconds
 
 // Changed from const to functions to avoid using ceil() in constants
 pub fn grid_width() -> usize {
@@ -327,8 +327,22 @@ impl SpatialGrid {
                                            (&mut self, db: &DB, current_time: spacetimedb::Timestamp) {
         self.clear();
         
+        // PERFORMANCE: Quick entity count check - if too many entities, use emergency mode
+        let tree_count = db.tree().iter().count();
+        let stone_count = db.stone().iter().count();
+        let total_static_entities = tree_count + stone_count;
+        
+        // Emergency mode for dense forests - limit entity processing
+        let emergency_mode = total_static_entities > 500;
+        let entity_limit = if emergency_mode { 200 } else { 1000 };
+        
+        if emergency_mode {
+            log::debug!("🚨 [SpatialGrid] Emergency mode: {} total static entities, limiting to {}", 
+                       total_static_entities, entity_limit);
+        }
+        
         // Pre-allocate vectors to reduce reallocations
-        let mut entities_to_add: Vec<(EntityType, f32, f32)> = Vec::with_capacity(1000);
+        let mut entities_to_add: Vec<(EntityType, f32, f32)> = Vec::with_capacity(entity_limit);
         
         // Add players - only living ones
         for player in db.player().iter() {
@@ -337,17 +351,23 @@ impl SpatialGrid {
             }
         }
         
-        // Add trees - only healthy ones
+        // Add trees - only healthy ones (with emergency limiting)
+        let mut tree_count = 0;
+        let tree_limit = if emergency_mode { 100 } else { usize::MAX };
         for tree in db.tree().iter() {
-            if tree.health > 0 {
+            if tree.health > 0 && tree_count < tree_limit {
                 entities_to_add.push((EntityType::Tree(tree.id as u64), tree.pos_x, tree.pos_y));
+                tree_count += 1;
             }
         }
         
-        // Add stones - only healthy ones
+        // Add stones - only healthy ones (with emergency limiting)
+        let mut stone_count = 0;
+        let stone_limit = if emergency_mode { 50 } else { usize::MAX };
         for stone in db.stone().iter() {
-            if stone.health > 0 {
+            if stone.health > 0 && stone_count < stone_limit {
                 entities_to_add.push((EntityType::Stone(stone.id as u64), stone.pos_x, stone.pos_y));
+                stone_count += 1;
             }
         }
         
