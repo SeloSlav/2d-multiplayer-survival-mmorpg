@@ -169,10 +169,18 @@ pub fn drink_water(ctx: &ReducerContext) -> Result<(), String> {
     
     // Apply thirst change with bounds checking
     let old_thirst = player.thirst;
-    player.thirst = (player.thirst + thirst_change).clamp(0.0, 250.0); // Max thirst is 250
+    let new_thirst = (player.thirst + thirst_change).clamp(0.0, 250.0); // Max thirst is 250
     
-    // Update player in database
-    players.identity().update(player.clone());
+    // RE-FETCH the player record to get the latest position data before updating
+    if let Some(mut current_player) = players.identity().find(&player_id) {
+        // Only update thirst field, preserve position and other fields
+        current_player.thirst = new_thirst;
+        current_player.last_update = ctx.timestamp;
+        
+        players.identity().update(current_player);
+    } else {
+        return Err("Player not found during thirst update.".to_string());
+    }
     
     // Emit appropriate sound based on water type
     if is_inland_water {

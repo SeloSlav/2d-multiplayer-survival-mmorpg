@@ -444,6 +444,7 @@ pub struct Player {
     pub is_knocked_out: bool, // NEW: Tracks if the player is in knocked out state
     pub knocked_out_at: Option<Timestamp>, // NEW: When the player was knocked out
     pub is_on_water: bool, // NEW: Tracks if the player is currently standing on water
+    pub client_movement_sequence: u64,
 }
 
 // Table to store the last attack timestamp for each player
@@ -490,14 +491,14 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     crate::dropped_item::init_dropped_item_schedule(ctx)?;
     // Initialize the crafting finish check schedule
     crate::crafting_queue::init_crafting_schedule(ctx)?;
-    // ADD: Initialize the player stat update schedule
-    crate::player_stats::init_player_stat_schedule(ctx)?;
-    // ADD: Initialize the global tick schedule
-    crate::global_tick::init_global_tick_schedule(ctx)?;
+    // [TEMP DISABLED] Initialize the player stat update schedule - still causing race conditions
+    // crate::player_stats::init_player_stat_schedule(ctx)?;
+    // [TEMP DISABLED] Initialize the global tick schedule - testing if it affects rubber banding
+    // crate::global_tick::init_global_tick_schedule(ctx)?;
     // <<< UPDATED: Initialize StatThresholdsConfig table >>>
     crate::player_stats::init_stat_thresholds_config(ctx)?;
-    // ADD: Initialize active effects processing schedule
-    crate::active_effects::schedule_effect_processing(ctx)?;
+    // [TEMP DISABLED] Initialize active effects processing schedule - still causing race conditions
+    // crate::active_effects::schedule_effect_processing(ctx)?;
     crate::projectile::init_projectile_system(ctx)?;
     // ADD: Initialize plant growth system
     crate::planted_seeds::init_plant_growth_system(ctx)?;
@@ -1009,6 +1010,7 @@ pub fn register_player(ctx: &ReducerContext, username: String) -> Result<(), Str
         is_knocked_out: false, // NEW: Initialize knocked out state
         knocked_out_at: None, // NEW: Initialize knocked out time
         is_on_water: false, // NEW: Initialize is_on_water
+        client_movement_sequence: 0,
     };
 
     // Insert the new player

@@ -79,11 +79,18 @@ pub fn send_message(ctx: &ReducerContext, text: String) -> Result<(), String> {
                     if player.is_dead {
                         return Err("You are already dead.".to_string());
                     }
-                    player.health = 0.0;
-                    player.is_dead = true;
-                    player.death_timestamp = Some(current_time);
-                    player.last_update = current_time; // Update timestamp
-                    players.identity().update(player.clone()); // Update player state
+                    // RE-FETCH the player record to get the latest position data before updating
+                    if let Some(mut current_player) = players.identity().find(&sender_id) {
+                        // Only update death-related fields, preserve position and other fields
+                        current_player.health = 0.0;
+                        current_player.is_dead = true;
+                        current_player.death_timestamp = Some(current_time);
+                        current_player.last_update = current_time;
+                        
+                        players.identity().update(current_player);
+                    } else {
+                        return Err("Player not found during death update.".to_string());
+                    }
 
                     // Clear all active effects on death (bleed, venom, burns, healing, etc.)
                     crate::active_effects::clear_all_effects_on_death(ctx, sender_id);

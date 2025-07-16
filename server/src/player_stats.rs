@@ -180,8 +180,12 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
         .ok_or_else(|| "WorldState not found during stat processing".to_string())?;
 
     for player_ref in players.iter() {
-        let mut player = player_ref.clone();
-        let player_id = player.identity;
+        let player_id = player_ref.identity;
+
+        // CRITICAL FIX: Re-fetch player record at START to get latest position
+        // This ensures all position-dependent calculations use current position
+        let mut player = players.identity().find(&player_id)
+            .expect("Player should exist during stats processing");
 
         // --- Skip stat processing for offline players --- 
         if !player.is_online {
@@ -461,25 +465,32 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
                             player.is_dead; // Also update if other stats changed OR if player died
 
         if stats_changed {
-            player.health = final_health;
-            player.hunger = new_hunger;
-            player.thirst = new_thirst;
-            player.warmth = new_warmth;
-            player.is_dead = player.is_dead;
-            player.death_timestamp = player.death_timestamp;
-            // Note: We don't update position, direction here
+            // CRITICAL FIX: Only update the specific fields that changed to prevent race conditions
+            // with movement system that updates position simultaneously
+            
+            // Re-fetch the current player record to get the latest position/direction
+            let mut current_player = players.identity().find(&player_id)
+                .expect("Player should exist during stats update");
+            
+            // Only update the stats fields, preserving position and direction
+            current_player.health = final_health;
+            current_player.hunger = new_hunger;
+            current_player.thirst = new_thirst;
+            current_player.warmth = new_warmth;
+            current_player.is_dead = player.is_dead;
+            current_player.death_timestamp = player.death_timestamp;
+            current_player.last_stat_update = current_time;
 
-            // ALWAYS update last_stat_update timestamp after processing
-            player.last_stat_update = current_time;
-
-            players.identity().update(player.clone());
+            players.identity().update(current_player);
             log::trace!("[StatsUpdate] Updated stats for player {:?}. Health: {:.1}, Hunger: {:.1}, Thirst: {:.1}, Warmth: {:.1}, Dead: {}",
-                      player_id, player.health, player.hunger, player.thirst, player.warmth, player.is_dead);
+                      player_id, final_health, new_hunger, new_thirst, new_warmth, player.is_dead);
         } else {
              log::trace!("No significant stat changes for player {:?}, skipping update.", player_id);
-             // Still update the stat timestamp even if nothing changed, to prevent large future deltas
-             player.last_stat_update = current_time;
-             players.identity().update(player.clone());
+             // Re-fetch current player record to avoid overwriting position updates
+             let mut current_player = players.identity().find(&player_id)
+                 .expect("Player should exist during stats update");
+             current_player.last_stat_update = current_time;
+             players.identity().update(current_player);
              log::trace!("Updated player {:?} last_stat_update timestamp anyway.", player_id);
         }
     }
@@ -488,4 +499,4 @@ pub fn process_player_stats(ctx: &ReducerContext, _schedule: PlayerStatSchedule)
     Ok(())
 }
 
-pub const PLAYER_MAX_HEALTH: f32 = 100.0; // Define MAX_HEALTH here 
+pub const PLAYER_MAX_HEALTH: f32 = 100.0; // Define MAX_HEALTH here

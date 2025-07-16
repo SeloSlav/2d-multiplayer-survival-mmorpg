@@ -37,6 +37,7 @@ export type UpdatePlayerPositionSimple = {
   clientTimestampMs: bigint,
   isSprinting: boolean,
   facingDirection: string,
+  clientSequence: bigint,
 };
 
 /**
@@ -54,6 +55,7 @@ export namespace UpdatePlayerPositionSimple {
       new ProductTypeElement("clientTimestampMs", AlgebraicType.createU64Type()),
       new ProductTypeElement("isSprinting", AlgebraicType.createBoolType()),
       new ProductTypeElement("facingDirection", AlgebraicType.createStringType()),
+      new ProductTypeElement("clientSequence", AlgebraicType.createU64Type()),
     ]);
   }
 

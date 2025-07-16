@@ -161,4 +161,4 @@ export const cleanupOldProjectileTracking = () => {
   if (toDelete.length > 0) {
     console.log(`🏹 [CLIENT CLEANUP] Removed ${toDelete.length} old projectile tracking entries`);
   }
-}; 
+};

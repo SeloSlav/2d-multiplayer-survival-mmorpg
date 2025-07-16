@@ -51,10 +51,31 @@ const DISTURBANCE_CACHE_DURATION_MS = 50; // Cache for 50ms (20fps cache rate)
 const VIEWPORT_MARGIN_PX = 100; // Extra margin around viewport for smooth scrolling
 
 // PERFORMANCE: Level-of-detail (LOD) system
-const LOD_NEAR_DISTANCE_SQ = 300 * 300;    // Increased from 200x200 - Full detail
-const LOD_MID_DISTANCE_SQ = 500 * 500;     // Increased from 400x400 - Reduced effects  
-const LOD_FAR_DISTANCE_SQ = 800 * 800;     // Increased from 600x600 - Minimal effects
-const LOD_CULL_DISTANCE_SQ = 1200 * 1200;  // Increased from 800x800 - Don't render at all
+const LOD_NEAR_DISTANCE_SQ = 200 * 200;    // Reduced from 300x300 - Full detail
+const LOD_MID_DISTANCE_SQ = 400 * 400;     // Reduced from 500x500 - Reduced effects  
+const LOD_FAR_DISTANCE_SQ = 600 * 600;     // Reduced from 800x800 - Minimal effects
+const LOD_CULL_DISTANCE_SQ = 800 * 800;    // Reduced from 1200x1200 - Don't render at all (more aggressive)
+
+// PERFORMANCE: Enhanced frame-based throttling
+const FRAME_THROTTLE_SETTINGS = {
+  NEAR_GRASS_INTERVAL: 1,   // Update every frame
+  MID_GRASS_INTERVAL: 2,    // Update every 2 frames
+  FAR_GRASS_INTERVAL: 5,    // Update every 5 frames
+  EMERGENCY_INTERVAL: 10,   // Update every 10 frames in emergency mode
+};
+
+// PERFORMANCE: Grass density control
+const GRASS_DENSITY_LIMITS = {
+  NEAR_MAX_COUNT: 50,       // Max grass entities to render at near distance
+  MID_MAX_COUNT: 30,        // Max grass entities to render at mid distance
+  FAR_MAX_COUNT: 15,        // Max grass entities to render at far distance
+  EMERGENCY_MAX_COUNT: 5,   // Max grass entities in emergency mode
+};
+
+// PERFORMANCE: Emergency mode detection
+let emergencyModeActive = false;
+let lastEmergencyCheck = 0;
+let totalGrassCount = 0;
 
 // PERFORMANCE: Pre-computed sin/cos lookup table for common angles
 const SIN_COS_LOOKUP: { [key: number]: { sin: number; cos: number } } = {};
@@ -64,14 +85,16 @@ for (let deg = -20; deg <= 20; deg += LOOKUP_PRECISION) {
     SIN_COS_LOOKUP[deg] = { sin: Math.sin(rad), cos: Math.cos(rad) };
 }
 
-// PERFORMANCE: Fast sin/cos approximation for small angles
-function fastSinCos(degrees: number): { sin: number; cos: number } {
-    // Round to nearest lookup value
-    const rounded = Math.round(degrees / LOOKUP_PRECISION) * LOOKUP_PRECISION;
-    return SIN_COS_LOOKUP[rounded] || { sin: Math.sin(degrees * Math.PI / 180), cos: Math.cos(degrees * Math.PI / 180) };
-}
+// PERFORMANCE: Spatial partitioning for grass rendering
+const grassSpatialCache = new Map<string, {
+  grassEntities: InterpolatedGrassData[];
+  lastUpdateFrame: number;
+  centerX: number;
+  centerY: number;
+  lodLevel: 'near' | 'mid' | 'far' | 'cull';
+}>();
 
-// PERFORMANCE: Frame-based throttling for distant grass updates
+// Frame counter for throttling
 let frameCounter = 0;
 
 // PERFORMANCE FLAGS: Control rendering complexity
@@ -240,7 +263,7 @@ function isInViewport(
     viewportWidth: number, 
     viewportHeight: number
 ): boolean {
-    const margin = VIEWPORT_MARGIN_PX;
+    const margin = emergencyModeActive ? 50 : VIEWPORT_MARGIN_PX; // Reduced margin in emergency mode
     const left = cameraX - viewportWidth / 2 - margin;
     const right = cameraX + viewportWidth / 2 + margin;
     const top = cameraY - viewportHeight / 2 - margin;
@@ -249,12 +272,119 @@ function isInViewport(
     return grassX >= left && grassX <= right && grassY >= top && grassY <= bottom;
 }
 
-// PERFORMANCE: Determine LOD level based on distance
+// PERFORMANCE: Level-of-detail (LOD) system
 function getLODLevel(distanceSq: number): 'near' | 'mid' | 'far' | 'cull' {
-    if (distanceSq <= LOD_NEAR_DISTANCE_SQ) return 'near';
-    if (distanceSq <= LOD_MID_DISTANCE_SQ) return 'mid';
-    if (distanceSq <= LOD_FAR_DISTANCE_SQ) return 'far';
+  if (emergencyModeActive) {
+    // In emergency mode, use much more aggressive culling
+    if (distanceSq <= LOD_NEAR_DISTANCE_SQ / 4) return 'near';
+    if (distanceSq <= LOD_MID_DISTANCE_SQ / 4) return 'mid';
+    if (distanceSq <= LOD_FAR_DISTANCE_SQ / 4) return 'far';
     return 'cull';
+  }
+  
+  if (distanceSq <= LOD_NEAR_DISTANCE_SQ) return 'near';
+  if (distanceSq <= LOD_MID_DISTANCE_SQ) return 'mid';
+  if (distanceSq <= LOD_FAR_DISTANCE_SQ) return 'far';
+  return 'cull';
+}
+
+// PERFORMANCE: Check if grass should be rendered this frame based on LOD and throttling
+function shouldRenderGrassThisFrame(lodLevel: 'near' | 'mid' | 'far' | 'cull'): boolean {
+  if (lodLevel === 'cull') return false;
+  
+  const interval = emergencyModeActive ? FRAME_THROTTLE_SETTINGS.EMERGENCY_INTERVAL : 
+                   lodLevel === 'near' ? FRAME_THROTTLE_SETTINGS.NEAR_GRASS_INTERVAL :
+                   lodLevel === 'mid' ? FRAME_THROTTLE_SETTINGS.MID_GRASS_INTERVAL :
+                   FRAME_THROTTLE_SETTINGS.FAR_GRASS_INTERVAL;
+  
+  return frameCounter % interval === 0;
+}
+
+// PERFORMANCE: Spatial partitioning for grass entities
+function getGrassEntitiesInRegion(
+  grassEntities: InterpolatedGrassData[],
+  centerX: number,
+  centerY: number,
+  radius: number
+): InterpolatedGrassData[] {
+  const regionKey = `${Math.floor(centerX / 200)},${Math.floor(centerY / 200)}`;
+  const cache = grassSpatialCache.get(regionKey);
+  
+  // Check if we can use cached result
+  if (cache && 
+      (frameCounter - cache.lastUpdateFrame) < 30 && // Cache for 30 frames
+      Math.abs(cache.centerX - centerX) < 100 &&
+      Math.abs(cache.centerY - centerY) < 100) {
+    return cache.grassEntities;
+  }
+  
+  // Filter grass entities in the region
+  const radiusSq = radius * radius;
+  const filteredEntities = grassEntities.filter(grass => {
+    const dx = grass.serverPosX - centerX;
+    const dy = grass.serverPosY - centerY;
+    return (dx * dx + dy * dy) <= radiusSq;
+  });
+  
+  // Update cache
+  grassSpatialCache.set(regionKey, {
+    grassEntities: filteredEntities,
+    lastUpdateFrame: frameCounter,
+    centerX,
+    centerY,
+    lodLevel: getLODLevel(0) // Default LOD level
+  });
+  
+  return filteredEntities;
+}
+
+// PERFORMANCE: Optimized grass entity distance sorting and limiting
+function sortAndLimitGrassByDistance(
+  grassEntities: InterpolatedGrassData[],
+  cameraX: number,
+  cameraY: number
+): InterpolatedGrassData[] {
+  // Calculate distances and sort by distance
+  const withDistance = grassEntities.map(grass => {
+    const dx = grass.serverPosX - cameraX;
+    const dy = grass.serverPosY - cameraY;
+    const distanceSq = dx * dx + dy * dy;
+    return { grass, distanceSq, lodLevel: getLODLevel(distanceSq) };
+  });
+  
+  // Separate by LOD level and apply limits
+  const nearGrass = withDistance.filter(item => item.lodLevel === 'near').slice(0, GRASS_DENSITY_LIMITS.NEAR_MAX_COUNT);
+  const midGrass = withDistance.filter(item => item.lodLevel === 'mid').slice(0, GRASS_DENSITY_LIMITS.MID_MAX_COUNT);
+  const farGrass = withDistance.filter(item => item.lodLevel === 'far').slice(0, GRASS_DENSITY_LIMITS.FAR_MAX_COUNT);
+  
+  // Combine and sort by distance
+  const allGrass = [...nearGrass, ...midGrass, ...farGrass]
+    .sort((a, b) => a.distanceSq - b.distanceSq)
+    .map(item => item.grass);
+  
+  // Apply emergency limits
+  if (emergencyModeActive) {
+    return allGrass.slice(0, GRASS_DENSITY_LIMITS.EMERGENCY_MAX_COUNT);
+  }
+  
+  return allGrass;
+}
+
+// PERFORMANCE: Emergency mode detection
+function updateEmergencyMode(grassEntityCount: number): void {
+  totalGrassCount = grassEntityCount;
+  
+  // Check emergency mode every 60 frames (1 second at 60fps)
+  if (frameCounter - lastEmergencyCheck >= 60) {
+    const shouldBeEmergencyMode = grassEntityCount > 100; // Threshold for emergency mode
+    
+    if (shouldBeEmergencyMode !== emergencyModeActive) {
+      emergencyModeActive = shouldBeEmergencyMode;
+      console.log(`🌱 [GRASS] Emergency mode ${emergencyModeActive ? 'ACTIVATED' : 'DEACTIVATED'} - ${grassEntityCount} grass entities`);
+    }
+    
+    lastEmergencyCheck = frameCounter;
+  }
 }
 
 // Configuration for rendering grass using the generic renderer
@@ -596,7 +726,7 @@ export function renderGrass(
     }
 }
 
-// PERFORMANCE: Batch render multiple grass entities efficiently with simplified rendering for distant grass
+// PERFORMANCE: Batch render multiple grass entities efficiently with aggressive optimization
 export function renderGrassEntities(
     ctx: CanvasRenderingContext2D,
     grassEntities: InterpolatedGrassData[],
@@ -609,45 +739,51 @@ export function renderGrassEntities(
     onlyDrawShadow?: boolean,
     skipDrawingShadow?: boolean
 ) {
+    // PERFORMANCE: Increment frame counter and check emergency mode
+    frameCounter++;
+    updateEmergencyMode(grassEntities.length);
+    
     // PERFORMANCE: Start timing for grass rendering
     const startTime = ENABLE_GRASS_PERF_LOGGING ? performance.now() : 0;
     
-    // PERFORMANCE: Pre-filter grass entities that are definitely out of view
-    const visibleGrassEntities = grassEntities.filter(grass => 
+    // PERFORMANCE: Use spatial partitioning to get relevant grass entities
+    const viewport_radius = Math.max(viewportWidth, viewportHeight);
+    const regionEntities = getGrassEntitiesInRegion(grassEntities, cameraX, cameraY, viewport_radius);
+    
+    // PERFORMANCE: Pre-filter grass entities that are definitely out of view and healthy
+    const visibleGrassEntities = regionEntities.filter(grass => 
         grass.health > 0 && 
         isInViewport(grass.serverPosX, grass.serverPosY, cameraX, cameraY, viewportWidth, viewportHeight)
     );
     
+    // PERFORMANCE: Sort and limit grass entities by distance with LOD-based density control
+    const optimizedGrassEntities = sortAndLimitGrassByDistance(visibleGrassEntities, cameraX, cameraY);
+    
     if (ENABLE_GRASS_PERF_LOGGING && frameCounter % 60 === 0) { // Log every 60 frames (~1 second)
-        console.log(`🌱 [GRASS_RENDER] Total: ${grassEntities.length}, Visible: ${visibleGrassEntities.length}, Culled: ${grassEntities.length - visibleGrassEntities.length}`);
+        console.log(`🌱 [GRASS_RENDER] Total: ${grassEntities.length}, Visible: ${visibleGrassEntities.length}, Optimized: ${optimizedGrassEntities.length}, Emergency: ${emergencyModeActive}`);
     }
-
-    // PERFORMANCE: Sort by LOD level to batch similar rendering operations
-    const sortedGrass = visibleGrassEntities
-        .map(grass => {
-            const dx = grass.serverPosX - cameraX;
-            const dy = grass.serverPosY - cameraY;
-            const distanceSq = dx * dx + dy * dy;
-            return { grass, distanceSq, lodLevel: getLODLevel(distanceSq) };
-        })
-        .filter(item => item.lodLevel !== 'cull')
-        .sort((a, b) => {
-            // Sort by LOD level first (near, mid, far), then by distance within each level
-            const lodOrder = { near: 0, mid: 1, far: 2, cull: 3 };
-            const lodDiff = lodOrder[a.lodLevel] - lodOrder[b.lodLevel];
-            return lodDiff !== 0 ? lodDiff : a.distanceSq - b.distanceSq;
-        });
 
     // PERFORMANCE: Batch render by LOD level to minimize canvas state changes
     let currentLodLevel: 'near' | 'mid' | 'far' | 'cull' | null = null;
+    let renderedCount = 0;
     
-    for (const { grass, lodLevel } of sortedGrass) {
+    for (const grass of optimizedGrassEntities) {
+        const dx = grass.serverPosX - cameraX;
+        const dy = grass.serverPosY - cameraY;
+        const distanceSq = dx * dx + dy * dy;
+        const lodLevel = getLODLevel(distanceSq);
+        
+        // PERFORMANCE: Skip rendering if throttled for this LOD level
+        if (!shouldRenderGrassThisFrame(lodLevel)) {
+            continue;
+        }
+        
         // PERFORMANCE: Setup canvas optimizations when LOD level changes
         if (currentLodLevel !== lodLevel) {
             currentLodLevel = lodLevel;
             
             // Optimize canvas state for this LOD level
-            if (lodLevel === 'far') {
+            if (lodLevel === 'far' || emergencyModeActive) {
                 // Disable anti-aliasing for distant grass (performance boost)
                 ctx.imageSmoothingEnabled = false;
                 // Use simpler composite operation
@@ -670,6 +806,8 @@ export function renderGrassEntities(
             viewportWidth,
             viewportHeight
         );
+        
+        renderedCount++;
     }
     
     // PERFORMANCE: Reset canvas state after batch rendering
@@ -683,7 +821,7 @@ export function renderGrassEntities(
         
         // Log if rendering takes too long or periodically
         if (renderTime > 2.0 || frameCounter % 300 === 0) { // Log if >2ms or every 5 seconds
-            console.log(`🌱 [GRASS_RENDER] Rendered ${sortedGrass.length} grass entities in ${renderTime.toFixed(2)}ms`);
+            console.log(`🌱 [GRASS_RENDER] Rendered ${renderedCount}/${optimizedGrassEntities.length} grass entities in ${renderTime.toFixed(2)}ms (Emergency: ${emergencyModeActive})`);
         }
     }
 }

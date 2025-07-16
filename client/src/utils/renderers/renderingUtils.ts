@@ -106,6 +106,221 @@ const MOVEMENT_BUFFER_MS = 150;
 const DODGE_ROLL_DURATION_MS = 250;
 const DODGE_ROLL_DISTANCE = 120;
 
+// --- MEMORY OPTIMIZATION: Object Pools ---
+// Reduces garbage collection pressure by reusing objects instead of creating new ones
+
+// Position object pool
+const positionPool: Array<{ x: number; y: number }> = [];
+const maxPoolSize = 100;
+
+function getPooledPosition(x: number, y: number): { x: number; y: number } {
+  const pos = positionPool.pop() || { x: 0, y: 0 };
+  pos.x = x;
+  pos.y = y;
+  return pos;
+}
+
+function releasePooledPosition(pos: { x: number; y: number }): void {
+  if (positionPool.length < maxPoolSize) {
+    positionPool.push(pos);
+  }
+}
+
+// Cached transform values to avoid recalculation
+const transformCache = new Map<string, {
+  lastUpdate: number;
+  transforms: { x: number; y: number; rotation: number; scale: number };
+}>();
+
+// Render state cache to avoid object creation
+const renderStateCache = {
+  lastViewportBounds: { minX: 0, maxX: 0, minY: 0, maxY: 0 },
+  lastCameraX: 0,
+  lastCameraY: 0,
+  lastFrameTime: 0,
+  boundsUpdateThreshold: 10, // Only update bounds if camera moved more than this
+};
+
+// PERFORMANCE: Cached sprite coordinate calculations
+const spriteCoordCache = new Map<string, {
+  spriteCol: number;
+  spriteRow: number;
+  lastUpdate: number;
+}>();
+
+// PERFORMANCE: Reduce object creation in hot paths
+function getCachedSpriteCoordinates(
+  playerId: string,
+  direction: string,
+  frameIndex: number,
+  isIdle: boolean
+): { spriteCol: number; spriteRow: number } {
+  const cacheKey = `${playerId}_${direction}_${frameIndex}_${isIdle}`;
+  const cached = spriteCoordCache.get(cacheKey);
+  
+  // Cache coordinates for 100ms to avoid recalculation
+  const now = performance.now();
+  if (cached && (now - cached.lastUpdate) < 100) {
+    return { spriteCol: cached.spriteCol, spriteRow: cached.spriteRow };
+  }
+  
+  // Calculate coordinates (original logic)
+  let spriteCol = 0;
+  let spriteRow = 0;
+  
+  if (isIdle) {
+    spriteCol = frameIndex % 4; // Cycle through 4 idle frames
+    // Use direction to determine sprite row (maintain consistent facing)
+    switch (direction) {
+      case 'right': spriteRow = 0; break;
+      case 'left': spriteRow = 1; break;
+      case 'up': spriteRow = 2; break;
+      case 'down': spriteRow = 3; break;
+      default: spriteRow = 3; break;
+    }
+  } else {
+    spriteCol = frameIndex % 4; // Walking frames
+    switch (direction) {
+      case 'right': spriteRow = 4; break;
+      case 'left': spriteRow = 5; break;
+      case 'up': spriteRow = 6; break;
+      case 'down': spriteRow = 7; break;
+      default: spriteRow = 7; break;
+    }
+  }
+  
+  // Update cache
+  spriteCoordCache.set(cacheKey, {
+    spriteCol,
+    spriteRow,
+    lastUpdate: now
+  });
+  
+  return { spriteCol, spriteRow };
+}
+
+// PERFORMANCE: Optimize viewport bounds checking
+function getOptimizedViewportBounds(
+  canvasWidth: number,
+  canvasHeight: number,
+  cameraX: number,
+  cameraY: number
+): { minX: number; maxX: number; minY: number; maxY: number } {
+  // Check if we can reuse cached bounds
+  const deltaX = Math.abs(cameraX - renderStateCache.lastCameraX);
+  const deltaY = Math.abs(cameraY - renderStateCache.lastCameraY);
+  
+  if (deltaX < renderStateCache.boundsUpdateThreshold && 
+      deltaY < renderStateCache.boundsUpdateThreshold) {
+    return renderStateCache.lastViewportBounds;
+  }
+  
+  // Calculate new bounds
+  const buffer = 200; // Render buffer around viewport
+  const bounds = {
+    minX: cameraX - canvasWidth / 2 - buffer,
+    maxX: cameraX + canvasWidth / 2 + buffer,
+    minY: cameraY - canvasHeight / 2 - buffer,
+    maxY: cameraY + canvasHeight / 2 + buffer
+  };
+  
+  // Update cache
+  renderStateCache.lastViewportBounds = bounds;
+  renderStateCache.lastCameraX = cameraX;
+  renderStateCache.lastCameraY = cameraY;
+  
+  return bounds;
+}
+
+// PERFORMANCE: Reduce function call overhead in hot paths
+function isEntityInViewportBounds(
+  entityX: number,
+  entityY: number,
+  bounds: { minX: number; maxX: number; minY: number; maxY: number }
+): boolean {
+  return entityX >= bounds.minX && 
+         entityX <= bounds.maxX && 
+         entityY >= bounds.minY && 
+         entityY <= bounds.maxY;
+}
+
+// PERFORMANCE: Cache frequently accessed player data
+const playerDataCache = new Map<string, {
+  lastPosition: { x: number; y: number };
+  lastDirection: string;
+  lastUpdateTime: number;
+  isMoving: boolean;
+}>();
+
+// PERFORMANCE: Optimized player movement detection
+function hasPlayerMoved(
+  playerId: string,
+  currentX: number,
+  currentY: number,
+  threshold: number = 1.0
+): boolean {
+  const cached = playerDataCache.get(playerId);
+  if (!cached) {
+    // First time seeing this player
+    playerDataCache.set(playerId, {
+      lastPosition: { x: currentX, y: currentY },
+      lastDirection: 'down',
+      lastUpdateTime: performance.now(),
+      isMoving: false
+    });
+    return false;
+  }
+  
+  const deltaX = Math.abs(currentX - cached.lastPosition.x);
+  const deltaY = Math.abs(currentY - cached.lastPosition.y);
+  const moved = deltaX > threshold || deltaY > threshold;
+  
+  // Update cache
+  cached.lastPosition.x = currentX;
+  cached.lastPosition.y = currentY;
+  cached.lastUpdateTime = performance.now();
+  cached.isMoving = moved;
+  
+  return moved;
+}
+
+// PERFORMANCE: Cleanup cached data periodically
+let lastCleanupTime = 0;
+const CLEANUP_INTERVAL = 10000; // 10 seconds
+
+function cleanupCaches(): void {
+  const now = performance.now();
+  if (now - lastCleanupTime < CLEANUP_INTERVAL) {
+    return;
+  }
+  
+  // Clean up sprite coordinate cache
+  const spriteExpiration = 5000; // 5 seconds
+  for (const [key, value] of spriteCoordCache) {
+    if (now - value.lastUpdate > spriteExpiration) {
+      spriteCoordCache.delete(key);
+    }
+  }
+  
+  // Clean up player data cache
+  const playerExpiration = 30000; // 30 seconds
+  for (const [key, value] of playerDataCache) {
+    if (now - value.lastUpdateTime > playerExpiration) {
+      playerDataCache.delete(key);
+    }
+  }
+  
+  // Clean up transform cache
+  const transformExpiration = 15000; // 15 seconds
+  for (const [key, value] of transformCache) {
+    if (now - value.lastUpdate > transformExpiration) {
+      transformCache.delete(key);
+    }
+  }
+  
+  lastCleanupTime = now;
+}
+
 // Ghost trail constants
 const GHOST_TRAIL_LENGTH = 8;
 const GHOST_TRAIL_SPACING_MS = 15; // Add new ghost every 15ms
@@ -223,6 +438,9 @@ export const renderYSortedEntities = ({
     closestInteractableTarget,
     shelterClippingData,
 }: RenderYSortedEntitiesProps) => {
+    // PERFORMANCE: Clean up memory caches periodically
+    cleanupCaches();
+    
     // First Pass: Render all entities. Trees and stones will skip their dynamic ground shadows.
     // Other entities (players, boxes, etc.) render as normal.
     ySortedEntities.forEach(({ type, entity }) => {

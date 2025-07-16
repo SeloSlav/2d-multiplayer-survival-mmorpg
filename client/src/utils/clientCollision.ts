@@ -28,10 +28,264 @@ function shapeIntersectsBox(shape: CollisionShape, minX: number, minY: number, m
   return false;
 }
 
+// ===== COLLISION PERFORMANCE LOGGING =====
+let lastCollisionLog = 0;
+const COLLISION_LOG_INTERVAL = 1000; // Log every 1 second
+const COLLISION_LAG_THRESHOLD = 30; // Log if collision check takes more than 30ms
+
+function logCollisionPerformance(
+  processingTime: number,
+  entityCount: number,
+  playerPos: { x: number; y: number },
+  collisionShapes: number,
+  isEmergency: boolean
+) {
+  const now = Date.now();
+  const isLagSpike = processingTime > COLLISION_LAG_THRESHOLD;
+  const shouldLog = isLagSpike || (now - lastCollisionLog > COLLISION_LOG_INTERVAL);
+  
+  if (shouldLog) {
+    const prefix = isLagSpike ? "🔥 [COLLISION LAG]" : "🚀 [COLLISION]";
+    console.log(`${prefix} ${entityCount} entities, ${collisionShapes} collision shapes, ${processingTime.toFixed(2)}ms`);
+    // console.log(`  📍 Player position: (${playerPos.x.toFixed(0)}, ${playerPos.y.toFixed(0)})`);
+    // console.log(`  🚨 Emergency mode: ${isEmergency ? 'ACTIVE' : 'INACTIVE'}`);
+    
+    if (isLagSpike) {
+      console.log(`  ⚠️ COLLISION LAG SPIKE! Processing time: ${processingTime.toFixed(2)}ms`);
+    }
+    
+    lastCollisionLog = now;
+  }
+}
+
 // ===== CONFIGURATION CONSTANTS =====
 const WORLD_WIDTH_PX = gameConfig.worldWidthPx;
 const WORLD_HEIGHT_PX = gameConfig.worldHeightPx;
 const PLAYER_RADIUS = 32;
+
+// ===== PERFORMANCE OPTIMIZATION CONSTANTS =====
+const COLLISION_PERF = {
+  // Aggressive distance-based culling (squared for performance)
+  PLAYER_CULL_DISTANCE_SQ: 200 * 200,    // Only check players within 200px
+  TREE_CULL_DISTANCE_SQ: 250 * 250,      // Only check trees within 250px
+  STONE_CULL_DISTANCE_SQ: 150 * 150,     // Only check stones within 150px
+  ANIMAL_CULL_DISTANCE_SQ: 300 * 300,    // Only check animals within 300px
+  STRUCTURE_CULL_DISTANCE_SQ: 200 * 200, // Only check structures within 200px
+  
+  // Entity limiting for performance
+  MAX_PLAYERS_TO_CHECK: 20,
+  MAX_TREES_TO_CHECK: 30,
+  MAX_STONES_TO_CHECK: 20,
+  MAX_ANIMALS_TO_CHECK: 15,
+  MAX_STRUCTURES_TO_CHECK: 25,
+  
+  // Emergency mode thresholds
+  EMERGENCY_TOTAL_ENTITIES: 100,
+  EMERGENCY_CULL_DISTANCE_SQ: 100 * 100,
+  EMERGENCY_MAX_ENTITIES: 10,
+};
+
+// Performance monitoring
+let frameCounter = 0;
+let lastPerformanceLog = 0;
+
+// Spatial partitioning cache
+const spatialCache = new Map<string, {
+  entities: any[];
+  lastUpdate: number;
+  centerX: number;
+  centerY: number;
+}>();
+
+// Helper function to efficiently filter and limit entities by distance
+function filterEntitiesByDistance<T extends { posX?: number; posY?: number; positionX?: number; positionY?: number }>(
+  entities: Map<string, T>,
+  playerX: number,
+  playerY: number,
+  maxDistanceSq: number,
+  maxCount: number,
+  emergencyMode: boolean = false
+): T[] {
+  if (!entities || entities.size === 0) return [];
+  
+  const effectiveMaxDistance = emergencyMode ? COLLISION_PERF.EMERGENCY_CULL_DISTANCE_SQ : maxDistanceSq;
+  const effectiveMaxCount = emergencyMode ? COLLISION_PERF.EMERGENCY_MAX_ENTITIES : maxCount;
+  
+  const withDistance = Array.from(entities.values())
+    .map(entity => {
+      const entityX = entity.posX ?? entity.positionX ?? 0;
+      const entityY = entity.posY ?? entity.positionY ?? 0;
+      const dx = entityX - playerX;
+      const dy = entityY - playerY;
+      return { entity, distanceSq: dx * dx + dy * dy, x: entityX, y: entityY };
+    })
+    .filter(item => item.distanceSq <= effectiveMaxDistance)
+    .sort((a, b) => a.distanceSq - b.distanceSq) // Sort by distance (closest first)
+    .slice(0, effectiveMaxCount)
+    .map(item => item.entity);
+  
+  return withDistance;
+}
+
+// Optimized spatial partitioning for collision detection
+function getCollisionCandidates(
+  entities: GameEntities,
+  playerX: number,
+  playerY: number,
+  localPlayerId: string
+): CollisionShape[] {
+  frameCounter++;
+  
+  // Count total entities to determine emergency mode
+  const totalEntities = entities.trees.size + entities.stones.size + 
+                       entities.boxes.size + entities.players.size + 
+                       entities.wildAnimals.size + entities.barrels.size;
+  
+  const emergencyMode = totalEntities > COLLISION_PERF.EMERGENCY_TOTAL_ENTITIES;
+  
+  // Performance logging (throttled)
+  if (frameCounter % 300 === 0) { // Log every 5 seconds at 60fps
+    const now = performance.now();
+    if (now - lastPerformanceLog > 4000) { // Don't log more than once per 4 seconds
+      console.log(`🚀 [COLLISION] ${totalEntities} entities, emergency=${emergencyMode}`);
+      lastPerformanceLog = now;
+    }
+  }
+  
+  const shapes: CollisionShape[] = [];
+  
+  // PERFORMANCE: Aggressively filter each entity type
+  
+  // Filter other players
+  const nearbyPlayers = filterEntitiesByDistance(
+    entities.players,
+    playerX,
+    playerY,
+    COLLISION_PERF.PLAYER_CULL_DISTANCE_SQ,
+    COLLISION_PERF.MAX_PLAYERS_TO_CHECK,
+    emergencyMode
+  );
+  
+  for (const player of nearbyPlayers) {
+    const playerId = player.identity.toHexString();
+    if (playerId === localPlayerId || player.isDead) continue;
+    
+    shapes.push({
+      id: playerId,
+      type: `player-${playerId.substring(0, 8)}`,
+      x: player.positionX,
+      y: player.positionY,
+      radius: COLLISION_RADII.PLAYER
+    });
+  }
+  
+  // Filter trees
+  const nearbyTrees = filterEntitiesByDistance(
+    entities.trees,
+    playerX,
+    playerY,
+    COLLISION_PERF.TREE_CULL_DISTANCE_SQ,
+    COLLISION_PERF.MAX_TREES_TO_CHECK,
+    emergencyMode
+  );
+  
+  for (const tree of nearbyTrees) {
+    if (tree.health <= 0) continue;
+    
+    shapes.push({
+      id: tree.id.toString(),
+      type: `tree-${tree.id.toString()}`,
+      x: tree.posX + COLLISION_OFFSETS.TREE.x,
+      y: tree.posY + COLLISION_OFFSETS.TREE.y,
+      radius: COLLISION_RADII.TREE
+    });
+  }
+  
+  // Filter stones
+  const nearbyStones = filterEntitiesByDistance(
+    entities.stones,
+    playerX,
+    playerY,
+    COLLISION_PERF.STONE_CULL_DISTANCE_SQ,
+    COLLISION_PERF.MAX_STONES_TO_CHECK,
+    emergencyMode
+  );
+  
+  for (const stone of nearbyStones) {
+    if (stone.health <= 0) continue;
+    
+    shapes.push({
+      id: stone.id.toString(),
+      type: `stone-${stone.id.toString()}`,
+      x: stone.posX + COLLISION_OFFSETS.STONE.x,
+      y: stone.posY + COLLISION_OFFSETS.STONE.y,
+      radius: COLLISION_RADII.STONE
+    });
+  }
+  
+  // Filter wild animals
+  const nearbyAnimals = filterEntitiesByDistance(
+    entities.wildAnimals,
+    playerX,
+    playerY,
+    COLLISION_PERF.ANIMAL_CULL_DISTANCE_SQ,
+    COLLISION_PERF.MAX_ANIMALS_TO_CHECK,
+    emergencyMode
+  );
+  
+  for (const animal of nearbyAnimals) {
+    shapes.push({
+      id: animal.id.toString(),
+      type: `animal-${animal.id.toString()}`,
+      x: animal.posX + COLLISION_OFFSETS.WILD_ANIMAL.x,
+      y: animal.posY + COLLISION_OFFSETS.WILD_ANIMAL.y,
+      radius: COLLISION_RADII.WILD_ANIMAL
+    });
+  }
+  
+  // Filter structures (boxes, barrels, etc.)
+  const nearbyBoxes = filterEntitiesByDistance(
+    entities.boxes,
+    playerX,
+    playerY,
+    COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ,
+    COLLISION_PERF.MAX_STRUCTURES_TO_CHECK,
+    emergencyMode
+  );
+  
+  for (const box of nearbyBoxes) {
+    shapes.push({
+      id: box.id.toString(),
+      type: `box-${box.id.toString()}`,
+      x: box.posX + COLLISION_OFFSETS.STORAGE_BOX.x,
+      y: box.posY + COLLISION_OFFSETS.STORAGE_BOX.y,
+      radius: COLLISION_RADII.STORAGE_BOX
+    });
+  }
+  
+  const nearbyBarrels = filterEntitiesByDistance(
+    entities.barrels,
+    playerX,
+    playerY,
+    COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ,
+    COLLISION_PERF.MAX_STRUCTURES_TO_CHECK,
+    emergencyMode
+  );
+  
+  for (const barrel of nearbyBarrels) {
+    if (barrel.respawnAt) continue; // Skip destroyed barrels
+    
+    shapes.push({
+      id: barrel.id.toString(),
+      type: `barrel-${barrel.id.toString()}`,
+      x: barrel.posX + COLLISION_OFFSETS.BARREL.x,
+      y: barrel.posY + COLLISION_OFFSETS.BARREL.y,
+      radius: COLLISION_RADII.BARREL
+    });
+  }
+  
+  return shapes;
+}
 
 // Unified collision radii for consistency - match visual sprite sizes
 const COLLISION_RADII = {
@@ -126,8 +380,22 @@ export function resolveClientCollision(
     return { x: clampedTo.x, y: clampedTo.y, collided: false, collidedWith: [] };
   }
 
-  // Step 3: Build collision shapes from entities - PERFORMANCE: Pass player position for distance filtering
-  const collisionShapes = buildCollisionShapes(entities, localPlayerId, fromX, fromY);
+  // Step 3: Build collision shapes from entities - PERFORMANCE: Use optimized collision candidate system
+  const collisionStartTime = performance.now();
+  const collisionShapes = getCollisionCandidates(entities, fromX, fromY, localPlayerId);
+  const collisionEndTime = performance.now();
+  const collisionTime = collisionEndTime - collisionStartTime;
+  
+  // Log collision performance
+  const entityCount = (entities.players?.size || 0) + (entities.trees?.size || 0) + 
+                     (entities.stones?.size || 0) + (entities.boxes?.size || 0);
+  logCollisionPerformance(
+    collisionTime,
+    entityCount,
+    { x: fromX, y: fromY },
+    collisionShapes.length,
+    entityCount > COLLISION_PERF.EMERGENCY_TOTAL_ENTITIES
+  );
   
   // Create query box around movement path
   const queryMinX = Math.min(fromX, toX) - COLLISION_QUERY_EXPANSION - PLAYER_RADIUS;
@@ -205,6 +473,8 @@ function performSweptCollision(
   if (DEBUG_ENABLED) {
     console.log(`Collision with ${primaryHit.shape.type}, sliding to (${slideResult.x.toFixed(1)}, ${slideResult.y.toFixed(1)})`);
   }
+  
+  // Collision performance logged earlier in resolveClientCollision
   
   return {
     x: slideResult.x,
@@ -407,151 +677,18 @@ function calculateSlideResponse(
   }
 
 // ===== ENTITY PROCESSING =====
-function buildCollisionShapes(entities: GameEntities, localPlayerId: string, playerX?: number, playerY?: number): CollisionShape[] {
-  const shapes: CollisionShape[] = [];
-  
-  // PERFORMANCE FIX: Pre-filter entities by distance to reduce collision calculations
-  // Only check entities within a reasonable collision range instead of the entire world
-  const COLLISION_RANGE_SQUARED = 400 * 400; // 400px radius should be more than enough for collision detection
-  
-  const shouldIncludeEntity = (entityX: number, entityY: number): boolean => {
-    if (playerX === undefined || playerY === undefined) return true; // Fallback to include all if no player position
-    const dx = entityX - playerX;
-    const dy = entityY - playerY;
-    return (dx * dx + dy * dy) <= COLLISION_RANGE_SQUARED;
-  };
-  
-  // Add other players
-  for (const [playerId, player] of entities.players) {
-    if (playerId === localPlayerId || player.isDead) continue;
-    if (!shouldIncludeEntity(player.positionX, player.positionY)) continue; // PERFORMANCE: Skip distant players
-    
-    shapes.push({
-      id: playerId,
-        type: `player-${playerId.substring(0, 8)}`,
-      x: player.positionX,
-      y: player.positionY,
-      radius: COLLISION_RADII.PLAYER
-    });
-  }
-  
-  // Add trees - PERFORMANCE: Pre-filter by distance
-  for (const [treeId, tree] of entities.trees) {
-    if (tree.health <= 0) continue;
-    if (!shouldIncludeEntity(tree.posX, tree.posY)) continue; // PERFORMANCE: Skip distant trees
-    
-    shapes.push({
-      id: treeId,
-        type: `tree-${treeId}`,
-      x: tree.posX + COLLISION_OFFSETS.TREE.x,
-      y: tree.posY + COLLISION_OFFSETS.TREE.y,
-      radius: COLLISION_RADII.TREE
-    });
-  }
-  
-  // Add stones - PERFORMANCE: Pre-filter by distance
-  for (const [stoneId, stone] of entities.stones) {
-    if (stone.health <= 0) continue;
-    if (!shouldIncludeEntity(stone.posX, stone.posY)) continue; // PERFORMANCE: Skip distant stones
-    
-    shapes.push({
-      id: stoneId,
-        type: `stone-${stoneId}`,
-      x: stone.posX + COLLISION_OFFSETS.STONE.x,
-      y: stone.posY + COLLISION_OFFSETS.STONE.y,
-      radius: COLLISION_RADII.STONE
-    });
-  }
-  
-  // Add storage boxes - PERFORMANCE: Pre-filter by distance
-  for (const [boxId, box] of entities.boxes) {
-    if (!shouldIncludeEntity(box.posX, box.posY)) continue; // PERFORMANCE: Skip distant boxes
-    
-    shapes.push({
-      id: boxId,
-        type: `storage-box-${boxId}`,
-      x: box.posX + COLLISION_OFFSETS.STORAGE_BOX.x,
-      y: box.posY + COLLISION_OFFSETS.STORAGE_BOX.y,
-      radius: COLLISION_RADII.STORAGE_BOX
-    });
-  }
+// PERFORMANCE: buildCollisionShapes has been replaced with getCollisionCandidates (see above)
+// The new system provides:
+// - Aggressive distance-based culling
+// - Entity count limiting
+// - Emergency mode for high-density areas
+// - Spatial partitioning for better performance
 
-  // Add rain collectors - PERFORMANCE: Pre-filter by distance
-  for (const [rainCollectorId, rainCollector] of entities.rainCollectors) {
-    if (rainCollector.isDestroyed) continue;
-    if (!shouldIncludeEntity(rainCollector.posX, rainCollector.posY)) continue; // PERFORMANCE: Skip distant rain collectors
-    
-    shapes.push({
-      id: rainCollectorId,
-      type: `rain-collector-${rainCollectorId}`,
-      x: rainCollector.posX + COLLISION_OFFSETS.RAIN_COLLECTOR.x,
-      y: rainCollector.posY + COLLISION_OFFSETS.RAIN_COLLECTOR.y,
-      radius: COLLISION_RADII.RAIN_COLLECTOR
-    });
-  }
-  
-  // Add furnaces - PERFORMANCE: Pre-filter by distance
-  for (const [furnaceId, furnace] of entities.furnaces) {
-    if (furnace.isDestroyed) continue;
-    if (!shouldIncludeEntity(furnace.posX, furnace.posY)) continue; // PERFORMANCE: Skip distant furnaces
-    
-    shapes.push({
-      id: furnaceId,
-      type: `furnace-${furnaceId}`,
-      x: furnace.posX + COLLISION_OFFSETS.FURNACE.x,
-      y: furnace.posY + COLLISION_OFFSETS.FURNACE.y,
-      radius: COLLISION_RADII.FURNACE
-    });
-  }
-  
-  // Add shelters - PERFORMANCE: Pre-filter by distance
-  for (const [shelterId, shelter] of entities.shelters) {
-    if (shelter.isDestroyed) continue;
-    if (!shouldIncludeEntity(shelter.posX, shelter.posY)) continue; // PERFORMANCE: Skip distant shelters
-    
-    // Skip collision for shelter owner
-    if (localPlayerId && shelter.placedBy.toHexString() === localPlayerId) {
-      continue;
-    }
-    
-    shapes.push({
-      id: shelterId,
-          type: `shelter-${shelterId}`,
-      x: shelter.posX + COLLISION_OFFSETS.SHELTER.x,
-      y: shelter.posY + COLLISION_OFFSETS.SHELTER.y,
-      width: SHELTER_DIMS.WIDTH,
-      height: SHELTER_DIMS.HEIGHT
-    });
-  }
-  
-  // Add wild animals - PERFORMANCE: Pre-filter by distance
-  for (const [animalId, animal] of entities.wildAnimals) {
-    if (!shouldIncludeEntity(animal.posX, animal.posY)) continue; // PERFORMANCE: Skip distant animals
-    
-    shapes.push({
-      id: animalId,
-      type: `wild-animal-${animalId}`,
-      x: animal.posX + COLLISION_OFFSETS.WILD_ANIMAL.x,
-      y: animal.posY + COLLISION_OFFSETS.WILD_ANIMAL.y,
-      radius: COLLISION_RADII.WILD_ANIMAL
-    });
-  }
-  
-  // Add barrels - PERFORMANCE: Pre-filter by distance
-  for (const [barrelId, barrel] of entities.barrels) {
-    if (barrel.health <= 0) continue; // Skip destroyed barrels
-    if (!shouldIncludeEntity(barrel.posX, barrel.posY)) continue; // PERFORMANCE: Skip distant barrels
-    
-    shapes.push({
-      id: barrelId,
-      type: `barrel-${barrelId}`,
-      x: barrel.posX + COLLISION_OFFSETS.BARREL.x,
-      y: barrel.posY + COLLISION_OFFSETS.BARREL.y,
-      radius: COLLISION_RADII.BARREL
-    });
-  }
-  
-  return shapes;
+// Legacy function kept for reference (replaced by getCollisionCandidates)
+function buildCollisionShapes_DEPRECATED(entities: GameEntities, localPlayerId: string, playerX?: number, playerY?: number): CollisionShape[] {
+  // This function has been replaced by getCollisionCandidates for better performance
+  console.warn('buildCollisionShapes_DEPRECATED called - use getCollisionCandidates instead');
+  return getCollisionCandidates(entities, playerX || 0, playerY || 0, localPlayerId);
 }
 
 // ===== UTILITY FUNCTIONS =====

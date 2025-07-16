@@ -4675,19 +4675,19 @@ export class RemoteReducers {
     this.connection.offReducer("update_cloud_positions", callback);
   }
 
-  updatePlayerPositionSimple(newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string) {
-    const __args = { newX, newY, clientTimestampMs, isSprinting, facingDirection };
+  updatePlayerPositionSimple(newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string, clientSequence: bigint) {
+    const __args = { newX, newY, clientTimestampMs, isSprinting, facingDirection, clientSequence };
     let __writer = new BinaryWriter(1024);
     UpdatePlayerPositionSimple.getTypeScriptAlgebraicType().serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
     this.connection.callReducer("update_player_position_simple", __argsBuffer, this.setCallReducerFlags.updatePlayerPositionSimpleFlags);
   }
 
-  onUpdatePlayerPositionSimple(callback: (ctx: ReducerEventContext, newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string) => void) {
+  onUpdatePlayerPositionSimple(callback: (ctx: ReducerEventContext, newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string, clientSequence: bigint) => void) {
     this.connection.onReducer("update_player_position_simple", callback);
   }
 
-  removeOnUpdatePlayerPositionSimple(callback: (ctx: ReducerEventContext, newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string) => void) {
+  removeOnUpdatePlayerPositionSimple(callback: (ctx: ReducerEventContext, newX: number, newY: number, clientTimestampMs: bigint, isSprinting: boolean, facingDirection: string, clientSequence: bigint) => void) {
     this.connection.offReducer("update_player_position_simple", callback);
   }
 

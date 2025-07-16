@@ -536,7 +536,7 @@ pub fn resolve_push_out_collision_with_grid(
     
     let mut resolved_x = initial_x;
     let mut resolved_y = initial_y;
-    let resolution_iterations = 5;
+    let resolution_iterations = 2; // REDUCED from 5 to 2 for performance in dense areas
     // 🚀 GRAVITY WELL FIX: Much larger separation to prevent trapping
     let separation_distance = 10.0; // Increased from 0.01 to 10.0 pixels for proper separation
 
@@ -557,14 +557,16 @@ pub fn resolve_push_out_collision_with_grid(
         PLAYER_RADIUS // Fallback to default radius
     };
     
-    // Use the pre-built spatial grid for all push-out iterations
+    // OPTIMIZATION: Pre-calculate nearby entities once
+    let nearby_entities_resolve = grid.get_entities_in_range(resolved_x, resolved_y);
+    
+    // OPTIMIZATION: Early exit if no entities nearby
+    if nearby_entities_resolve.is_empty() {
+        return (resolved_x, resolved_y);
+    }
 
     for _iter in 0..resolution_iterations {
         let mut overlap_found_in_iter = false;
-        // Re-querying grid for nearby entities can be intensive if called every iteration.
-        // For static objects, could query once. For players, it's more complex.
-        // Current spatial_grid.get_entities_in_range is cheap if grid is already populated.
-        let nearby_entities_resolve = grid.get_entities_in_range(resolved_x, resolved_y);
         
         log::debug!("[PushOutIter] Player {:?} iteration {} at ({:.1}, {:.1}), found {} nearby entities", 
                    sender_id, _iter, resolved_x, resolved_y, nearby_entities_resolve.len());
@@ -579,16 +581,19 @@ pub fn resolve_push_out_collision_with_grid(
                          let dx = resolved_x - other_player.position_x;
                          let dy = resolved_y - other_player.position_y;
                          let dist_sq = dx * dx + dy * dy;
-                         let min_dist = current_player_radius * 2.0 + separation_distance; // Add separation
+                         let min_dist = current_player_radius * 2.0 + separation_distance;
                          let min_dist_sq = min_dist * min_dist;
-                         if dist_sq < min_dist_sq && dist_sq > 0.0 { // Added dist_sq > 0.0 to avoid division by zero
-                             overlap_found_in_iter = true;
-                             let distance = dist_sq.sqrt();
-                             let overlap = (min_dist - distance) + separation_distance; // Ensure separation
-                             // Push current player by the full overlap amount for proper separation
-                             resolved_x += (dx / distance) * overlap;
-                             resolved_y += (dy / distance) * overlap;
+                         
+                         // OPTIMIZATION: Early exit with exact distance check
+                         if dist_sq >= min_dist_sq || dist_sq <= 0.0 {
+                             continue;
                          }
+                         
+                         overlap_found_in_iter = true;
+                         let distance = dist_sq.sqrt();
+                         let overlap = (min_dist - distance) + separation_distance;
+                         resolved_x += (dx / distance) * overlap;
+                         resolved_y += (dy / distance) * overlap;
                     }
                 },
                  spatial_grid::EntityType::Tree(tree_id) => {
@@ -599,15 +604,19 @@ pub fn resolve_push_out_collision_with_grid(
                          let dx = resolved_x - tree.pos_x;
                          let dy = resolved_y - tree_collision_y;
                          let dist_sq = dx * dx + dy * dy;
-                         let min_dist = current_player_radius + crate::tree::TREE_TRUNK_RADIUS + separation_distance; // Add separation
+                         let min_dist = current_player_radius + crate::tree::TREE_TRUNK_RADIUS + separation_distance;
                          let min_dist_sq = min_dist * min_dist;
-                         if dist_sq < min_dist_sq && dist_sq > 0.0 {
-                             overlap_found_in_iter = true;
-                             let distance = dist_sq.sqrt();
-                             let overlap = (min_dist - distance) + separation_distance; // Ensure separation
-                             resolved_x += (dx / distance) * overlap;
-                             resolved_y += (dy / distance) * overlap;
+                         
+                         // OPTIMIZATION: Early exit with exact distance check
+                         if dist_sq >= min_dist_sq || dist_sq <= 0.0 {
+                             continue;
                          }
+                         
+                         overlap_found_in_iter = true;
+                         let distance = dist_sq.sqrt();
+                         let overlap = (min_dist - distance) + separation_distance;
+                         resolved_x += (dx / distance) * overlap;
+                         resolved_y += (dy / distance) * overlap;
                      }
                 },
                  spatial_grid::EntityType::Stone(stone_id) => {
@@ -618,15 +627,19 @@ pub fn resolve_push_out_collision_with_grid(
                         let dx = resolved_x - stone.pos_x;
                         let dy = resolved_y - stone_collision_y;
                         let dist_sq = dx * dx + dy * dy;
-                        let min_dist = current_player_radius + crate::stone::STONE_RADIUS + separation_distance; // Add separation
+                        let min_dist = current_player_radius + crate::stone::STONE_RADIUS + separation_distance;
                         let min_dist_sq = min_dist * min_dist;
-                        if dist_sq < min_dist_sq && dist_sq > 0.0 {
-                             overlap_found_in_iter = true;
-                             let distance = dist_sq.sqrt();
-                             let overlap = (min_dist - distance) + separation_distance; // Ensure separation
-                             resolved_x += (dx / distance) * overlap;
-                             resolved_y += (dy / distance) * overlap;
+                        
+                        // OPTIMIZATION: Early exit with exact distance check
+                        if dist_sq >= min_dist_sq || dist_sq <= 0.0 {
+                            continue;
                         }
+                        
+                        overlap_found_in_iter = true;
+                        let distance = dist_sq.sqrt();
+                        let overlap = (min_dist - distance) + separation_distance;
+                        resolved_x += (dx / distance) * overlap;
+                        resolved_y += (dy / distance) * overlap;
                     }
                 },
                  spatial_grid::EntityType::WoodenStorageBox(box_id) => {
@@ -636,18 +649,22 @@ pub fn resolve_push_out_collision_with_grid(
                          let dx = resolved_x - box_instance.pos_x;
                          let dy = resolved_y - box_collision_y;
                          let dist_sq = dx * dx + dy * dy;
-                         let min_dist = current_player_radius + crate::wooden_storage_box::BOX_COLLISION_RADIUS + separation_distance; // Add separation
+                         let min_dist = current_player_radius + crate::wooden_storage_box::BOX_COLLISION_RADIUS + separation_distance;
                          let min_dist_sq = min_dist * min_dist;
-                         if dist_sq < min_dist_sq && dist_sq > 0.0 {
-                             overlap_found_in_iter = true;
-                             let distance = dist_sq.sqrt();
-                             let overlap = (min_dist - distance) + separation_distance; // Ensure separation
-                             resolved_x += (dx / distance) * overlap;
-                             resolved_y += (dy / distance) * overlap;
+                         
+                         // OPTIMIZATION: Early exit with exact distance check
+                         if dist_sq >= min_dist_sq || dist_sq <= 0.0 {
+                             continue;
                          }
+                         
+                         overlap_found_in_iter = true;
+                         let distance = dist_sq.sqrt();
+                         let overlap = (min_dist - distance) + separation_distance;
+                         resolved_x += (dx / distance) * overlap;
+                         resolved_y += (dy / distance) * overlap;
                      }
                 },
-                spatial_grid::EntityType::RainCollector(rain_collector_id) => { // ADDED RainCollector push-out logic
+                spatial_grid::EntityType::RainCollector(rain_collector_id) => {
                     log::debug!("[PushOutEntityType] Found RainCollector: {}", rain_collector_id);
                     if let Some(rain_collector) = rain_collectors.id().find(rain_collector_id) {
                         if rain_collector.is_destroyed { continue; }
@@ -655,18 +672,22 @@ pub fn resolve_push_out_collision_with_grid(
                         let dx = resolved_x - rain_collector.pos_x;
                         let dy = resolved_y - rain_collector_collision_y;
                         let dist_sq = dx * dx + dy * dy;
-                        let min_dist = current_player_radius + RAIN_COLLECTOR_COLLISION_RADIUS + separation_distance; // Add separation
+                        let min_dist = current_player_radius + RAIN_COLLECTOR_COLLISION_RADIUS + separation_distance;
                         let min_dist_sq = min_dist * min_dist;
-                        if dist_sq < min_dist_sq && dist_sq > 0.0 {
-                            overlap_found_in_iter = true;
-                            let distance = dist_sq.sqrt();
-                            let overlap = (min_dist - distance) + separation_distance; // Ensure separation
-                            resolved_x += (dx / distance) * overlap;
-                            resolved_y += (dy / distance) * overlap;
+                        
+                        // OPTIMIZATION: Early exit with exact distance check
+                        if dist_sq >= min_dist_sq || dist_sq <= 0.0 {
+                            continue;
                         }
+                        
+                        overlap_found_in_iter = true;
+                        let distance = dist_sq.sqrt();
+                        let overlap = (min_dist - distance) + separation_distance;
+                        resolved_x += (dx / distance) * overlap;
+                        resolved_y += (dy / distance) * overlap;
                     }
                 },
-                spatial_grid::EntityType::Shelter(shelter_id) => { // ADDED Shelter push-out logic
+                spatial_grid::EntityType::Shelter(shelter_id) => {
                     log::debug!("[PushOutEntityType] Found Shelter: {}", shelter_id);
                     log::debug!("[PushOutShelterFound] Player {:?} found shelter {} in push-out", sender_id, shelter_id);
                     if let Some(shelter) = shelters.id().find(shelter_id) {
@@ -692,6 +713,12 @@ pub fn resolve_push_out_collision_with_grid(
                         let dx_resolve = resolved_x - closest_x;
                         let dy_resolve = resolved_y - closest_y;
                         let dist_sq_resolve = dx_resolve * dx_resolve + dy_resolve * dy_resolve;
+                        let player_radius_sq = current_player_radius * current_player_radius;
+                        
+                        // OPTIMIZATION: Early exit with exact distance check
+                        if dist_sq_resolve >= player_radius_sq {
+                            continue;
+                        }
                         
                         log::debug!(
                             "[PushOutShelterAABB] Player {:?} vs Shelter {}: PlayerPos: ({:.1}, {:.1}), ShelterBase: ({:.1}, {:.1}), AABBCenter: ({:.1}, {:.1}), AABBBounds: ({:.1}-{:.1}, {:.1}-{:.1}), Closest: ({:.1}, {:.1}), DistSq: {:.1}, PlayerRadSq: {:.1}",
@@ -703,114 +730,93 @@ pub fn resolve_push_out_collision_with_grid(
                             shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT, shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT,
                             closest_x, closest_y,
                             dist_sq_resolve,
-                            current_player_radius * current_player_radius
+                            player_radius_sq
                         );
                         
-                        if dist_sq_resolve < current_player_radius * current_player_radius {
-                            overlap_found_in_iter = true;
-                            if dist_sq_resolve > 0.0 {
-                                let distance = dist_sq_resolve.sqrt();
-                                let overlap = (current_player_radius - distance) + separation_distance; // Push out by the overlap plus separation
-                                resolved_x += (dx_resolve / distance) * overlap;
-                                resolved_y += (dy_resolve / distance) * overlap;
-                                log::debug!(
-                                    "[ShelterPushNormal] Player {:?} vs Shelter {}: ResolvedXY: ({:.1}, {:.1}), Distance: {:.1}, Overlap: {:.1}",
-                                    sender_id, shelter.id, resolved_x, resolved_y, distance, overlap
-                                );
-                            } else { // Player center is inside the AABB - push to nearest face
-                                log::debug!(
-                                    "[ShelterPushInside] Player {:?} vs Shelter {}: ResolvedXY: ({:.1}, {:.1}), AABBCenter: ({:.1}, {:.1}), AABBHalfSize: ({:.1}, {:.1})",
-                                    sender_id, shelter.id, resolved_x, resolved_y, shelter_aabb_center_x, shelter_aabb_center_y, SHELTER_AABB_HALF_WIDTH, SHELTER_AABB_HALF_HEIGHT
-                                );
-                                
-                                // Calculate AABB bounds for clarity
-                                let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
-                                let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
-                                let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
-                                let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
-                                
-                                log::debug!(
-                                    "[ShelterPushBounds] AABB bounds: Left: {:.1}, Right: {:.1}, Top: {:.1}, Bottom: {:.1}",
-                                    aabb_left, aabb_right, aabb_top, aabb_bottom
-                                );
-                                
-                                // Calculate penetration depth on each axis
-                                let penetration_left = (resolved_x - aabb_left).abs();
-                                let penetration_right = (aabb_right - resolved_x).abs();
-                                let penetration_top = (resolved_y - aabb_top).abs();
-                                let penetration_bottom = (aabb_bottom - resolved_y).abs();
-                                
-                                log::debug!(
-                                    "[ShelterPushPenetration] Penetrations - Left: {:.1}, Right: {:.1}, Top: {:.1}, Bottom: {:.1}",
-                                    penetration_left, penetration_right, penetration_top, penetration_bottom
-                                );
-                                
-                                // Find the minimum penetration (closest face)
-                                let min_x_penetration = penetration_left.min(penetration_right);
-                                let min_y_penetration = penetration_top.min(penetration_bottom);
-                                
-                                let old_resolved_x = resolved_x;
-                                let old_resolved_y = resolved_y;
-                                
-                                if min_x_penetration < min_y_penetration {
-                                    // Push out horizontally (left or right face is closer)
-                                    if penetration_left < penetration_right {
-                                        // Push out through left face
-                                        resolved_x = aabb_left - current_player_radius - separation_distance;
-                                        log::debug!("[ShelterPushDirection] Pushing LEFT: new X = {:.1}", resolved_x);
-                                    } else {
-                                        // Push out through right face
-                                        resolved_x = aabb_right + current_player_radius + separation_distance;
-                                        log::debug!("[ShelterPushDirection] Pushing RIGHT: new X = {:.1}", resolved_x);
-                                    }
-                                } else {
-                                    // Push out vertically (top or bottom face is closer)
-                                    if penetration_top < penetration_bottom {
-                                        // Push out through top face
-                                        resolved_y = aabb_top - current_player_radius - separation_distance;
-                                        log::debug!("[ShelterPushDirection] Pushing UP: new Y = {:.1}", resolved_y);
-                                    } else {
-                                        // Push out through bottom face
-                                        resolved_y = aabb_bottom + current_player_radius + separation_distance;
-                                        log::debug!("[ShelterPushDirection] Pushing DOWN: new Y = {:.1}", resolved_y);
-                                    }
-                                }
-                                
-                                log::debug!(
-                                    "[ShelterPushResult] Player {:?} vs Shelter {}: Old: ({:.1}, {:.1}) -> New: ({:.1}, {:.1})",
-                                    sender_id, shelter.id, old_resolved_x, old_resolved_y, resolved_x, resolved_y
-                                );
-                            }
-                        } else {
+                        overlap_found_in_iter = true;
+                        if dist_sq_resolve > 0.0 {
+                            let distance = dist_sq_resolve.sqrt();
+                            let overlap = (current_player_radius - distance) + separation_distance;
+                            resolved_x += (dx_resolve / distance) * overlap;
+                            resolved_y += (dy_resolve / distance) * overlap;
                             log::debug!(
-                                "[ShelterPushNOCollision] Player {:?} vs Shelter {}: ResolvedXY: ({:.1}, {:.1}), DistSq: {:.1} >= PlayerRadSq: {:.1}",
-                                sender_id, shelter.id, resolved_x, resolved_y, dist_sq_resolve, current_player_radius * current_player_radius
+                                "[ShelterPushNormal] Player {:?} vs Shelter {}: ResolvedXY: ({:.1}, {:.1}), Distance: {:.1}, Overlap: {:.1}",
+                                sender_id, shelter.id, resolved_x, resolved_y, distance, overlap
                             );
+                        } else {
+                            // Player center is inside the AABB - push to nearest face
+                            log::debug!(
+                                "[ShelterPushInside] Player {:?} vs Shelter {}: ResolvedXY: ({:.1}, {:.1}), AABBCenter: ({:.1}, {:.1}), AABBHalfSize: ({:.1}, {:.1})",
+                                sender_id, shelter.id, resolved_x, resolved_y, shelter_aabb_center_x, shelter_aabb_center_y, SHELTER_AABB_HALF_WIDTH, SHELTER_AABB_HALF_HEIGHT
+                            );
+                            
+                            // Calculate AABB bounds for clarity
+                            let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
+                            let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
+                            let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
+                            let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
+                            
+                            log::debug!(
+                                "[ShelterPushBounds] AABB bounds: Left: {:.1}, Right: {:.1}, Top: {:.1}, Bottom: {:.1}",
+                                aabb_left, aabb_right, aabb_top, aabb_bottom
+                            );
+                            
+                            // Calculate penetration depth on each axis
+                            let penetration_left = (resolved_x - aabb_left).abs();
+                            let penetration_right = (aabb_right - resolved_x).abs();
+                            let penetration_top = (resolved_y - aabb_top).abs();
+                            let penetration_bottom = (aabb_bottom - resolved_y).abs();
+                            
+                            log::debug!(
+                                "[ShelterPushPenetration] Penetrations - Left: {:.1}, Right: {:.1}, Top: {:.1}, Bottom: {:.1}",
+                                penetration_left, penetration_right, penetration_top, penetration_bottom
+                            );
+                            
+                            // Find the minimum penetration (closest face)
+                            let min_x_penetration = penetration_left.min(penetration_right);
+                            let min_y_penetration = penetration_top.min(penetration_bottom);
+                            
+                            if min_x_penetration < min_y_penetration {
+                                // Push horizontally
+                                if penetration_left < penetration_right {
+                                    resolved_x = aabb_left - current_player_radius - separation_distance;
+                                } else {
+                                    resolved_x = aabb_right + current_player_radius + separation_distance;
+                                }
+                            } else {
+                                // Push vertically
+                                if penetration_top < penetration_bottom {
+                                    resolved_y = aabb_top - current_player_radius - separation_distance;
+                                } else {
+                                    resolved_y = aabb_bottom + current_player_radius + separation_distance;
+                                }
+                            }
                         }
                     }
                 },
-                spatial_grid::EntityType::PlayerCorpse(corpse_id) => { // ADDED PlayerCorpse push-out logic
+                spatial_grid::EntityType::PlayerCorpse(corpse_id) => {
                     log::debug!("[PushOutEntityType] Found PlayerCorpse: {}", corpse_id);
                     if let Some(corpse) = player_corpses.id().find(corpse_id) {
                         let corpse_collision_y = corpse.pos_y - CORPSE_COLLISION_Y_OFFSET;
                         let dx = resolved_x - corpse.pos_x;
                         let dy = resolved_y - corpse_collision_y;
                         let dist_sq = dx * dx + dy * dy;
-                        let min_dist = current_player_radius + CORPSE_COLLISION_RADIUS + separation_distance; // Add separation
+                        let min_dist = current_player_radius + CORPSE_COLLISION_RADIUS + separation_distance;
                         let min_dist_sq = min_dist * min_dist;
-                        if dist_sq < min_dist_sq && dist_sq > 0.0 {
-                            overlap_found_in_iter = true;
-                            let distance = dist_sq.sqrt();
-                            let overlap = (min_dist - distance) + separation_distance; // Ensure separation
-                            resolved_x += (dx / distance) * overlap;
-                            resolved_y += (dy / distance) * overlap;
-                        } else if dist_sq == 0.0 { // Player center is exactly on corpse center (unlikely)
-                            overlap_found_in_iter = true;
-                            resolved_x += separation_distance; // Minimal push
+                        
+                        // OPTIMIZATION: Early exit with exact distance check
+                        if dist_sq >= min_dist_sq || dist_sq <= 0.0 {
+                            continue;
                         }
+                        
+                        overlap_found_in_iter = true;
+                        let distance = dist_sq.sqrt();
+                        let overlap = (min_dist - distance) + separation_distance;
+                        resolved_x += (dx / distance) * overlap;
+                        resolved_y += (dy / distance) * overlap;
                     }
                 },
-                spatial_grid::EntityType::Furnace(furnace_id) => { // ADDED Furnace push-out logic
+                spatial_grid::EntityType::Furnace(furnace_id) => {
                     log::debug!("[PushOutEntityType] Found Furnace: {}", furnace_id);
                     if let Some(furnace) = furnaces.id().find(furnace_id) {
                         if furnace.is_destroyed { continue; }
@@ -818,15 +824,19 @@ pub fn resolve_push_out_collision_with_grid(
                         let dx = resolved_x - furnace.pos_x;
                         let dy = resolved_y - furnace_collision_y;
                         let dist_sq = dx * dx + dy * dy;
-                        let min_dist = current_player_radius + crate::furnace::FURNACE_COLLISION_RADIUS + separation_distance; // Add separation
+                        let min_dist = current_player_radius + crate::furnace::FURNACE_COLLISION_RADIUS + separation_distance;
                         let min_dist_sq = min_dist * min_dist;
-                        if dist_sq < min_dist_sq && dist_sq > 0.0 {
-                            overlap_found_in_iter = true;
-                            let distance = dist_sq.sqrt();
-                            let overlap = (min_dist - distance) + separation_distance; // Ensure separation
-                            resolved_x += (dx / distance) * overlap;
-                            resolved_y += (dy / distance) * overlap;
+                        
+                        // OPTIMIZATION: Early exit with exact distance check
+                        if dist_sq >= min_dist_sq || dist_sq <= 0.0 {
+                            continue;
                         }
+                        
+                        overlap_found_in_iter = true;
+                        let distance = dist_sq.sqrt();
+                        let overlap = (min_dist - distance) + separation_distance;
+                        resolved_x += (dx / distance) * overlap;
+                        resolved_y += (dy / distance) * overlap;
                     }
                 },
                 _ => {} // Campfire, etc. - no push-out resolution

@@ -764,9 +764,9 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_cloud_count = (total_tiles as f32 * CLOUD_DENSITY_PERCENT) as u32;
     let max_cloud_attempts = target_cloud_count * MAX_CLOUD_SEEDING_ATTEMPTS_FACTOR;
 
-    // Wild animal seeding parameters - REDUCED for better performance (30% reduction)
-    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.00015; // 0.015% of tiles (reduced from 0.1% for better performance)
-    const MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR: u32 = 5;
+    // Wild animal seeding parameters - COMPLETELY DISABLED for performance testing
+    const WILD_ANIMAL_DENSITY_PERCENT: f32 = 0.0; // DISABLED - no animals will spawn
+    const MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR: u32 = 0;
     let target_wild_animal_count = (total_tiles as f32 * WILD_ANIMAL_DENSITY_PERCENT) as u32;
     let max_wild_animal_attempts = target_wild_animal_count * MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR;
 
@@ -1086,8 +1086,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         );
     }
 
-    // --- Seed Wild Animals ---
-    log::info!("Seeding Wild Animals...");
+    // --- DISABLED: Seed Wild Animals ---
+    log::info!("Wild Animal seeding DISABLED for performance testing...");
     
     // Define species distribution (weighted probabilities)
     let species_weights = [
@@ -1108,6 +1108,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     // Track animals spawned per chunk (used to prevent clustering, not to force filling)
     let mut animals_per_chunk_map: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
     
+    // DISABLED: Wild animal spawning loop - will never execute since target_wild_animal_count is 0
     while spawned_wild_animal_count < target_wild_animal_count && wild_animal_attempts < max_wild_animal_attempts {
         wild_animal_attempts += 1;
         
@@ -1619,9 +1620,9 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
     // If they were to drift or change, a similar `check_and_respawn_resource!` or a dedicated
     // scheduled reducer would be needed here or in `cloud.rs`.
 
-    // --- NEW: Wild Animal Population Maintenance ---
-    // Maintain minimum animal population levels with gradual respawn
-    crate::wild_animal_npc::respawn::maintain_wild_animal_population(ctx)?;
+    // --- DISABLED: Wild Animal Population Maintenance ---
+    // Completely disabled for performance testing - no animals will respawn
+    // crate::wild_animal_npc::respawn::maintain_wild_animal_population(ctx)?;
 
     Ok(())
 }

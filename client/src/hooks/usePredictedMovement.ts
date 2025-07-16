@@ -9,8 +9,7 @@ const PLAYER_SPEED = 400; // pixels per second - balanced for 60s world traversa
 const SPRINT_MULTIPLIER = 2.0; // 2x speed for sprinting (800 px/s)
 const WATER_SPEED_PENALTY = 0.5; // Half speed in water (matches server WATER_SPEED_PENALTY)
 const EXHAUSTED_SPEED_PENALTY = 0.75; // 25% speed reduction when exhausted (matches server EXHAUSTED_SPEED_PENALTY)
-const RUBBER_BAND_THRESHOLD = 200; // Increased threshold for sprinting tolerance (Croatia-Netherlands ~50-100ms latency)
-const SMOOTH_INTERPOLATION_SPEED = 0.3; // Faster interpolation for less noticeable rubber banding
+// REMOVED: Rubber banding constants - proper prediction shouldn't need them
 
 // Helper function to check if a player has the exhausted effect
 const hasExhaustedEffect = (connection: DbConnection | null, playerId: string): boolean => {
@@ -89,6 +88,8 @@ class SimpleMovementMonitor {
 
 const movementMonitor = new SimpleMovementMonitor();
 
+// REMOVED: Rubber band logging - proper prediction shouldn't need it
+
 // Simple client-authoritative movement hook with optimized rendering
 export const usePredictedMovement = ({ connection, localPlayer, inputState, isUIFocused, entities }: SimpleMovementProps) => {
   // Use refs instead of state to avoid re-renders during movement
@@ -102,7 +103,6 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
   
   // Only use state for values that need to trigger re-renders
   const [, forceUpdate] = useState({}); // For manual re-renders when needed
-  const [isRubberBanding, setIsRubberBanding] = useState(false);
 
   // Get player actions from context
   const { 
@@ -113,6 +113,10 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
     toggleAutoAttack,
     jump
   } = usePlayerActions();
+
+  // Add sequence tracking
+  const clientSequenceRef = useRef(0n);
+  const lastAckedSequenceRef = useRef(0n);
 
   // Initialize position from server
   useEffect(() => {
@@ -128,69 +132,34 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
     }
   }, [localPlayer?.identity]);
 
-  // Listen for server position updates with smooth interpolation
+  // Listen for server position updates - PROPER CLIENT-SIDE PREDICTION
   useEffect(() => {
     if (!localPlayer || !clientPositionRef.current || !serverPositionRef.current) return;
 
-    const newServerPos = { x: localPlayer.positionX, y: localPlayer.positionY };
+    const receivedSequence = localPlayer.clientMovementSequence ?? 0n;
     
-    // Check if server position changed significantly
-    const distance = Math.sqrt(
-      Math.pow(newServerPos.x - clientPositionRef.current.x, 2) + 
-      Math.pow(newServerPos.y - clientPositionRef.current.y, 2)
-    );
-
-    // Handle rubber banding with smooth interpolation
-    if (distance > RUBBER_BAND_THRESHOLD) {
-      console.warn(`🔄 [SimpleMovement] RUBBER BANDING: Distance ${distance.toFixed(1)}px`);
-      setIsRubberBanding(true);
+    if (receivedSequence > lastAckedSequenceRef.current) {
+      lastAckedSequenceRef.current = receivedSequence;
+      const newServerPos = { x: localPlayer.positionX, y: localPlayer.positionY };
       
-      // Smooth interpolation instead of instant snap
-      const startPos = { ...clientPositionRef.current };
-      const targetPos = newServerPos;
-      let progress = 0;
+      // PROPER PREDICTION: Server update is an acknowledgment, not a correction
+      // Only update our server reference for future comparisons
+      serverPositionRef.current = newServerPos;
       
-      const velocity = {
-        x: (targetPos.x - startPos.x) / (RUBBER_BAND_THRESHOLD / PLAYER_SPEED),
-        y: (targetPos.y - startPos.y) / (RUBBER_BAND_THRESHOLD / PLAYER_SPEED)
-      };
+      // CLIENT STAYS AUTHORITATIVE: No position correction unless there's actual desync
+      // The client prediction continues uninterrupted
       
-      const interpolate = () => {
-        const now = performance.now();
-        const deltaTime = Math.min((now - lastUpdateTime.current) / 1000, 0.1);
-        lastUpdateTime.current = now;
-        progress += SMOOTH_INTERPOLATION_SPEED;
-        if (progress >= 1) {
-          clientPositionRef.current = targetPos;
-          pendingPosition.current = targetPos;
-          setIsRubberBanding(false);
-          forceUpdate({});
-          return;
-        }
-        
-        // Smooth interpolation using easing
-        const easedProgress = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-        clientPositionRef.current = {
-          x: startPos.x + (targetPos.x - startPos.x) * easedProgress + velocity.x * deltaTime,
-          y: startPos.y + (targetPos.y - startPos.y) * easedProgress + velocity.y * deltaTime
-        };
-        
-        forceUpdate({});
-        requestAnimationFrame(interpolate);
-      };
+      // Optional: Log for debugging (remove in production)
+      const distance = Math.sqrt(
+        Math.pow(newServerPos.x - clientPositionRef.current.x, 2) + 
+        Math.pow(newServerPos.y - clientPositionRef.current.y, 2)
+      );
       
-      requestAnimationFrame(interpolate);
-      movementMonitor.logUpdate(0, false, true);
+      if (distance > 50) { // Only log significant differences for debugging
+        console.log(`[PREDICT] Server ack distance: ${distance.toFixed(1)}px (client ahead)`);
+      }
+      
     }
-
-    // CLIENT IS AUTHORITATIVE FOR DIRECTION - No server override needed
-    // The server just echoes back our client-calculated direction with latency,
-    // which causes twitching in production. Client direction is already accurate.
-    // if (localPlayer.direction && localPlayer.direction !== lastFacingDirection.current) {
-    //   lastFacingDirection.current = localPlayer.direction;
-    // }
-
-    serverPositionRef.current = newServerPos;
   }, [localPlayer?.positionX, localPlayer?.positionY, localPlayer?.direction]);
 
   // Optimized position update function
@@ -218,8 +187,8 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       // For knocked out players, also check for facing direction updates even with minimal movement
       const hasDirectionalInput = Math.abs(direction.x) > 0.01 || Math.abs(direction.y) > 0.01;
       
-      // Calculate new position with more stable movement
-      if (isMoving.current && !isRubberBanding) {
+              // Calculate new position with more stable movement
+        if (isMoving.current) {
         // Calculate speed multipliers (must match server logic)
         let speedMultiplier = 1.0;
         
@@ -306,15 +275,17 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
           const clientTimestamp = BigInt(Date.now());
           try {
             if (connection.reducers.updatePlayerPositionSimple && pendingPosition.current) {
+              clientSequenceRef.current += 1n;
+              console.log(`[KnockedOut] Facing direction updated to: ${newFacingDirection}`);
               connection.reducers.updatePlayerPositionSimple(
                 pendingPosition.current.x,
                 pendingPosition.current.y,
                 clientTimestamp,
                 false, // Never sprinting when knocked out
-                lastFacingDirection.current
+                lastFacingDirection.current,
+                clientSequenceRef.current
               );
               lastSentTime.current = now;
-              console.log(`[KnockedOut] Facing direction updated to: ${newFacingDirection}`);
             }
           } catch (error) {
             console.error(`❌ [KnockedOut] Failed to send facing direction update:`, error);
@@ -338,12 +309,15 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
             return;
           }
           
+          clientSequenceRef.current += 1n;
+          // console.log(`[PREDICT] Sending update with sequence: ${clientSequenceRef.current}`);
           connection.reducers.updatePlayerPositionSimple(
             pendingPosition.current.x,
             pendingPosition.current.y,
             clientTimestamp,
             sprinting && isMoving.current && !localPlayer.isKnockedOut, // Can't sprint when knocked out
-            lastFacingDirection.current
+            lastFacingDirection.current,
+            clientSequenceRef.current
           );
           
           lastSentTime.current = now;
@@ -360,7 +334,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       console.error(`❌ [SimpleMovement] Error in updatePosition:`, error);
       movementMonitor.logUpdate(performance.now() - updateStartTime, false);
     }
-  }, [connection, localPlayer, inputState, isAutoWalking, stopAutoWalk, isUIFocused, isRubberBanding]);
+  }, [connection, localPlayer, inputState, isAutoWalking, stopAutoWalk, isUIFocused]);
 
   // Run position updates with optimized timing
   useEffect(() => {
@@ -387,7 +361,6 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
   // Return the current position and state
   return { 
     predictedPosition: clientPositionRef.current,
-    isRubberBanding,
     isAutoWalking,
     isAutoAttacking,
     facingDirection: lastFacingDirection.current

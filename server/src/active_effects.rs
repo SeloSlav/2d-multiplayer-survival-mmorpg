@@ -489,8 +489,19 @@ pub fn process_active_consumable_effects_tick(ctx: &ReducerContext, _args: Proce
 
     // --- Apply all accumulated player updates to the database ---
     for (player_id, player) in player_updates {
-        ctx.db.player().identity().update(player); // This 'player' has the final health after all effects for them this tick
-        log::debug!("[EffectTick] Final update for player {:?} applied to DB.", player_id);
+        // RE-FETCH the player record to get the latest position data before updating
+        if let Some(mut current_player) = ctx.db.player().identity().find(&player_id) {
+            // Only update health-related fields, preserve position and other fields
+            current_player.health = player.health;
+            current_player.is_dead = player.is_dead;
+            current_player.death_timestamp = player.death_timestamp;
+            current_player.last_update = player.last_update;
+            
+            ctx.db.player().identity().update(current_player);
+            log::debug!("[EffectTick] Final update for player {:?} applied to DB (health fields only).", player_id);
+        } else {
+            log::warn!("[EffectTick] Player {:?} not found during final update - skipping.", player_id);
+        }
     }
 
     // --- Cancel BandageBurst effects for players who took EXTERNALLY sourced damage this tick ---

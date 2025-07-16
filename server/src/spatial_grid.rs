@@ -43,8 +43,9 @@ use crate::wild_animal_npc::wild_animal as WildAnimalTableTrait;
 // we only need to check adjacent cells. We use 8x the player radius for better performance with larger worlds.
 pub const GRID_CELL_SIZE: f32 = PLAYER_RADIUS * 8.0;
 
-// PERFORMANCE: Cache refresh interval - rebuild grid every 100ms instead of every collision
-const CACHE_REFRESH_INTERVAL_MICROS: i64 = 100_000; // 100ms in microseconds
+// PERFORMANCE: Cache refresh interval - rebuild grid every 300ms instead of every collision
+// Reduced from 500ms to 300ms for fresher data without overload
+const CACHE_REFRESH_INTERVAL_MICROS: i64 = 300_000; // 300ms in microseconds
 
 // Changed from const to functions to avoid using ceil() in constants
 pub fn grid_width() -> usize {
@@ -313,6 +314,135 @@ impl SpatialGrid {
             }
         }
     }
+    
+    // PERFORMANCE OPTIMIZED: Faster population method for high-density areas
+    pub fn populate_from_world_optimized<DB: PlayerTableTrait + TreeTableTrait + StoneTableTrait 
+                                            + CampfireTableTrait + WoodenStorageBoxTableTrait 
+                                            + HarvestableResourceTableTrait + DroppedItemTableTrait
+                                            + ShelterTableTrait 
+                                            + PlayerCorpseTableTrait
+                                            + RainCollectorTableTrait
+                                            + FurnaceTableTrait
+                                            + WildAnimalTableTrait>
+                                           (&mut self, db: &DB, current_time: spacetimedb::Timestamp) {
+        self.clear();
+        
+        // Pre-allocate vectors to reduce reallocations
+        let mut entities_to_add: Vec<(EntityType, f32, f32)> = Vec::with_capacity(1000);
+        
+        // Add players - only living ones
+        for player in db.player().iter() {
+            if !player.is_dead {
+                entities_to_add.push((EntityType::Player(player.identity), player.position_x, player.position_y));
+            }
+        }
+        
+        // Add trees - only healthy ones
+        for tree in db.tree().iter() {
+            if tree.health > 0 {
+                entities_to_add.push((EntityType::Tree(tree.id as u64), tree.pos_x, tree.pos_y));
+            }
+        }
+        
+        // Add stones - only healthy ones
+        for stone in db.stone().iter() {
+            if stone.health > 0 {
+                entities_to_add.push((EntityType::Stone(stone.id as u64), stone.pos_x, stone.pos_y));
+            }
+        }
+        
+        // Add campfires - all active ones
+        for campfire in db.campfire().iter() {
+            entities_to_add.push((EntityType::Campfire(campfire.id as u32), campfire.pos_x, campfire.pos_y));
+        }
+        
+        // Add wooden storage boxes - all active ones
+        for box_instance in db.wooden_storage_box().iter() {
+            entities_to_add.push((EntityType::WoodenStorageBox(box_instance.id as u32), box_instance.pos_x, box_instance.pos_y));
+        }
+        
+        // Add harvestable resources - only non-respawning ones
+        for resource in db.harvestable_resource().iter() {
+            if resource.respawn_at.is_none() {
+                entities_to_add.push((EntityType::HarvestableResource(resource.id), resource.pos_x, resource.pos_y));
+            }
+        }
+        
+        // Add dropped items - all active ones
+        for item in db.dropped_item().iter() {
+            entities_to_add.push((EntityType::DroppedItem(item.id), item.pos_x, item.pos_y));
+        }
+        
+        // Add player corpses - all active ones
+        for corpse in db.player_corpse().iter() {
+            entities_to_add.push((EntityType::PlayerCorpse(corpse.id), corpse.pos_x, corpse.pos_y));
+        }
+        
+        // Add rain collectors - only non-destroyed ones
+        for rain_collector in db.rain_collector().iter() {
+            if !rain_collector.is_destroyed {
+                entities_to_add.push((EntityType::RainCollector(rain_collector.id), rain_collector.pos_x, rain_collector.pos_y));
+            }
+        }
+        
+        // Add furnaces - only non-destroyed ones
+        for furnace in db.furnace().iter() {
+            if !furnace.is_destroyed {
+                entities_to_add.push((EntityType::Furnace(furnace.id), furnace.pos_x, furnace.pos_y));
+            }
+        }
+        
+        // Add wild animals - only visible ones
+        for animal in db.wild_animal().iter() {
+            if animal.hide_until.is_none() || animal.hide_until.unwrap() <= current_time {
+                entities_to_add.push((EntityType::WildAnimal(animal.id), animal.pos_x, animal.pos_y));
+            }
+        }
+        
+        // Batch add all simple entities
+        for (entity_type, x, y) in entities_to_add {
+            self.add_entity(entity_type, x, y);
+        }
+        
+        // Handle shelters separately due to their complex AABB logic
+        self.add_shelters_optimized(db);
+    }
+    
+    // Optimized shelter addition with reduced calculations
+    fn add_shelters_optimized<DB: ShelterTableTrait>(&mut self, db: &DB) {
+        use crate::shelter::{SHELTER_AABB_HALF_WIDTH, SHELTER_AABB_HALF_HEIGHT, SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y};
+        
+        for shelter in db.shelter().iter() {
+            if shelter.is_destroyed {
+                continue;
+            }
+            
+            let shelter_aabb_center_x = shelter.pos_x;
+            let shelter_aabb_center_y = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+            
+            // Calculate AABB bounds
+            let aabb_left = shelter_aabb_center_x - SHELTER_AABB_HALF_WIDTH;
+            let aabb_right = shelter_aabb_center_x + SHELTER_AABB_HALF_WIDTH;
+            let aabb_top = shelter_aabb_center_y - SHELTER_AABB_HALF_HEIGHT;
+            let aabb_bottom = shelter_aabb_center_y + SHELTER_AABB_HALF_HEIGHT;
+            
+            // Calculate which grid cells the AABB overlaps (optimized)
+            let start_cell_x = ((aabb_left / GRID_CELL_SIZE).floor() as isize).max(0) as usize;
+            let end_cell_x = ((aabb_right / GRID_CELL_SIZE).ceil() as isize).min(self.width as isize - 1) as usize;
+            let start_cell_y = ((aabb_top / GRID_CELL_SIZE).floor() as isize).max(0) as usize;
+            let end_cell_y = ((aabb_bottom / GRID_CELL_SIZE).ceil() as isize).min(self.height as isize - 1) as usize;
+            
+            // Add shelter to all overlapping cells
+            for cell_y in start_cell_y..=end_cell_y {
+                for cell_x in start_cell_x..=end_cell_x {
+                    let index = cell_y * self.width + cell_x;
+                    if index < self.cells.len() {
+                        self.cells[index].entities.push(EntityType::Shelter(shelter.id));
+                    }
+                }
+            }
+        }
+    }
 }
 
 // PERFORMANCE CRITICAL: Get cached spatial grid, refreshing only when needed
@@ -336,15 +466,16 @@ pub fn get_cached_spatial_grid<DB: PlayerTableTrait + TreeTableTrait + StoneTabl
         };
 
         if needs_refresh {
-            log::debug!("🚀 [SpatialGrid] Refreshing cached spatial grid (last refresh: {}ms ago)", 
-                       match &CACHED_GRID {
-                           None => 0,
-                           Some(cached) => (current_time.to_micros_since_unix_epoch() - cached.last_refresh.to_micros_since_unix_epoch()) / 1000
-                       });
+            let last_refresh_ms = match &CACHED_GRID {
+                None => 0,
+                Some(cached) => (current_time.to_micros_since_unix_epoch() - cached.last_refresh.to_micros_since_unix_epoch()) / 1000
+            };
             
-            // Create new grid and populate it
+            log::debug!("🚀 [SpatialGrid] Refreshing cached spatial grid (last refresh: {}ms ago)", last_refresh_ms);
+            
+            // Create new grid and populate it with optimized logic
             let mut new_grid = SpatialGrid::new();
-            new_grid.populate_from_world(db, current_time);
+            new_grid.populate_from_world_optimized(db, current_time);
             
             // Update the cache
             CACHED_GRID = Some(CachedSpatialGrid {

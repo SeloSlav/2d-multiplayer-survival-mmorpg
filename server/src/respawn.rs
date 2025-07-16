@@ -14,6 +14,9 @@ use crate::items;
 // Import global constants from lib.rs
 use crate::{TILE_SIZE_PX, WORLD_WIDTH_PX, WORLD_HEIGHT_PX, TileType};
 
+// Import player starting constants
+use crate::player_stats::{PLAYER_STARTING_HUNGER, PLAYER_STARTING_THIRST};
+
 // Import table traits for database access
 use crate::tree::tree as TreeTableTrait;
 use crate::stone::stone as StoneTableTrait;
@@ -24,7 +27,6 @@ use crate::world_tile as WorldTileTableTrait;
 // Import necessary modules and constants
 use crate::{Player, WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, world_pos_to_tile_coords, get_tile_type_at_position, PLAYER_RADIUS};
 use crate::environment::calculate_chunk_index;
-use crate::player_stats::{PLAYER_STARTING_HUNGER, PLAYER_STARTING_THIRST};
 use crate::death_marker::{DeathMarker, death_marker as DeathMarkerTableTrait};
 
 // Respawn Collision Check Constants
@@ -308,32 +310,36 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
                player.username, spawn_x, spawn_y, final_tile_x, final_tile_y);
     // --- End Find Valid Coastal Beach Spawn Position ---
 
-    // --- Reset Stats and State ---
-    player.health = 100.0;
-    player.hunger = PLAYER_STARTING_HUNGER;
-    player.thirst = PLAYER_STARTING_THIRST;
-    player.warmth = 100.0;
-    player.stamina = 100.0;
-    player.jump_start_time_ms = 0;
-    player.is_sprinting = false;
-    player.is_dead = false; // Mark as alive again
-    player.death_timestamp = None; // Clear death timestamp
-    player.last_hit_time = None;
-    player.is_torch_lit = false; // Ensure torch is unlit on respawn
-    player.is_knocked_out = false; // NEW: Reset knocked out state
-    player.knocked_out_at = None; // NEW: Clear knocked out timestamp
-
+    // --- RE-FETCH the player record to get the latest data before updating ---
+    let mut current_player = players.identity().find(&sender_id)
+        .ok_or_else(|| "Player not found during respawn update".to_string())?;
+    
     // --- Set Position to Found Land Location ---
-    player.position_x = spawn_x;
-    player.position_y = spawn_y;
-    player.direction = "down".to_string();
+    current_player.position_x = spawn_x;
+    current_player.position_y = spawn_y;
+    current_player.direction = "down".to_string();
+
+    // --- Reset Stats and State ---
+    current_player.health = 100.0;
+    current_player.hunger = PLAYER_STARTING_HUNGER;
+    current_player.thirst = PLAYER_STARTING_THIRST;
+    current_player.warmth = 100.0;
+    current_player.stamina = 100.0;
+    current_player.jump_start_time_ms = 0;
+    current_player.is_sprinting = false;
+    current_player.is_dead = false; // Mark as alive again
+    current_player.death_timestamp = None; // Clear death timestamp
+    current_player.last_hit_time = None;
+    current_player.is_torch_lit = false; // Ensure torch is unlit on respawn
+    current_player.is_knocked_out = false; // Reset knocked out state
+    current_player.knocked_out_at = None; // Clear knocked out timestamp
 
     // --- Update Timestamp ---
-    player.last_update = ctx.timestamp;
-    player.last_stat_update = ctx.timestamp; // Reset stat timestamp on respawn
+    current_player.last_update = ctx.timestamp;
+    current_player.last_stat_update = ctx.timestamp; // Reset stat timestamp on respawn
 
     // --- Apply Player Changes ---
-    players.identity().update(player);
+    players.identity().update(current_player);
     log::info!("Player {:?} respawned on land at ({:.1}, {:.1}).", sender_id, spawn_x, spawn_y);
 
     // Ensure item is unequipped on respawn

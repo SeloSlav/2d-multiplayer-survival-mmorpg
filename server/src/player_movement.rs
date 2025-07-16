@@ -352,9 +352,9 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
 // === SIMPLE CLIENT-AUTHORITATIVE MOVEMENT SYSTEM ===
 
 /// Simple movement validation constants
-const BASE_MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 2.0; // 1600 px/s max (100% buffer over 800 px/s sprint speed for high latency)
-const MAX_TELEPORT_DISTANCE: f32 = 600.0; // Increased for high ping tolerance (Croatia-Netherlands)
-const POSITION_UPDATE_TIMEOUT_MS: u64 = 20000; // 20 seconds for users with 100+ ms ping
+const BASE_MAX_MOVEMENT_SPEED: f32 = PLAYER_SPEED * SPRINT_SPEED_MULTIPLIER * 6.0; // 4800 px/s max (INCREASED from 4.0x to 6.0x buffer for client prediction + rubber band prevention)
+const MAX_TELEPORT_DISTANCE: f32 = 1200.0; // Increased from 800px for better lag tolerance and high frame rates
+const POSITION_UPDATE_TIMEOUT_MS: u64 = 30000; // 30 seconds (increased from 20s for very high ping)
 
 /// Calculate the maximum allowed movement speed for a player, accounting for exhausted effect
 fn get_max_movement_speed_for_player(ctx: &ReducerContext, player_id: Identity) -> f32 {
@@ -389,6 +389,7 @@ pub fn update_player_position_simple(
     client_timestamp_ms: u64,
     is_sprinting: bool,
     facing_direction: String,
+    client_sequence: u64,
 ) -> Result<(), String> {
     let sender_id = ctx.sender;
     let players = ctx.db.player();
@@ -438,44 +439,60 @@ pub fn update_player_position_simple(
         return Err("Position out of world bounds".to_string());
     }
 
-    // 3. Check for teleporting (distance-based validation) - More lenient
+    // 3. Calculate movement distance for sound detection
     let distance_moved = ((new_x - current_player.position_x).powi(2) + 
                          (new_y - current_player.position_y).powi(2)).sqrt();
     
-    if distance_moved > MAX_TELEPORT_DISTANCE {
-        log::warn!("Player {:?} teleport detected: moved {:.1}px in one update (max: {})", sender_id, distance_moved, MAX_TELEPORT_DISTANCE);
-        return Err("Movement too large, possible teleport".to_string());
+    // DISABLED: Teleport and speed validation to prevent rubber banding
+    // Client prediction can legitimately create large movements during:
+    // - Network lag compensation
+    // - Frame rate variations  
+    // - Client prediction corrections
+    // - Server processing delays
+    // 
+    // Only log extremely large movements for debugging
+    if distance_moved > 2000.0 {
+        log::debug!("Player {:?} very large movement: {:.1}px (possible lag compensation)", sender_id, distance_moved);
     }
-
-    // 4. Speed hack detection (optimized for 30fps client updates)
-    let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
-    let last_update_ms = (current_player.last_update.to_micros_since_unix_epoch() / 1000) as u64;
-    let time_diff_ms = now_ms.saturating_sub(last_update_ms);
     
-    // Only validate speed for reasonable time intervals (avoid false positives from lag spikes)
-    // More lenient validation for high-latency connections (Croatia-Netherlands)
-    if time_diff_ms >= 20 && time_diff_ms <= 300 && distance_moved > 5.0 { // 20-300ms window, min 5px movement
-        let speed_px_per_sec = (distance_moved * 1000.0) / time_diff_ms as f32;
-        let max_speed_for_player = get_max_movement_speed_for_player(ctx, sender_id);
-        
-        if speed_px_per_sec > max_speed_for_player {
-            let has_exhausted = player_has_exhausted_effect(ctx, sender_id);
-            log::warn!("Player {:?} speed hack detected: {:.1}px/s (max: {:.1}{}) over {}ms", 
-                      sender_id, speed_px_per_sec, max_speed_for_player, 
-                      if has_exhausted { " - exhausted" } else { "" }, time_diff_ms);
-            return Err("Movement speed too high".to_string());
-        }
-    }
+    // Keep time calculation for other validations below
+    let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
+    
+    // DISABLED: Speed-based validation causes rubber banding due to client prediction
+    // The client has sophisticated prediction that can legitimately exceed speed limits
+    // during lag compensation, frame rate variations, and network irregularities
 
-    // 5. Check timestamp age (prevent replay attacks) - More lenient
-    if now_ms.saturating_sub(client_timestamp_ms) > POSITION_UPDATE_TIMEOUT_MS {
-        log::warn!("Player {:?} position update too old: {}ms", sender_id, now_ms.saturating_sub(client_timestamp_ms));
-        return Err("Position update too old".to_string());
-    }
+    // 5. Timestamp validation DISABLED to prevent rubber banding
+    // The client handles prediction and lag compensation better than server-side validation
+    // DISABLED: Check timestamp age (prevent replay attacks) - More lenient
+    // if now_ms.saturating_sub(client_timestamp_ms) > POSITION_UPDATE_TIMEOUT_MS {
+    //     log::warn!("Player {:?} position update too old: {}ms", sender_id, now_ms.saturating_sub(client_timestamp_ms));
+    //     return Err("Position update too old".to_string());
+    // }
 
     // --- Apply CLIENT-FRIENDLY collision detection ---
     // For client-authoritative movement, we need to be less aggressive to maintain smoothness
     
+    // Always update sequence and basics
+    current_player.client_movement_sequence = client_sequence;
+    current_player.direction = facing_direction;
+    current_player.last_update = ctx.timestamp;
+
+    // OPTIMIZATION: Batch micro-movements to reduce collision checks during sprinting
+    if distance_moved < 1.0 {
+        // For tiny movements, just update without collision check to reduce server load
+        let is_on_water = is_player_on_water(ctx, new_x, new_y);
+        current_player.position_x = new_x;
+        current_player.position_y = new_y;
+        current_player.is_sprinting = is_sprinting;
+        current_player.is_on_water = is_on_water;
+        
+        // Update player without collision processing
+        players.identity().update(current_player);
+        return Ok(());
+    }
+
+    // For larger movements, perform full collision detection
     // GET: Effective player radius based on crouching state
     let effective_radius = get_effective_player_radius(current_player.is_crouching);
 
@@ -486,34 +503,14 @@ pub fn update_player_position_simple(
     // Calculate how far the client wants to move
     let movement_distance = ((clamped_x - current_player.position_x).powi(2) + (clamped_y - current_player.position_y).powi(2)).sqrt();
     
-    // DEBUG: Reduced logging to avoid spam
-    if movement_distance > 50.0 {
-        log::debug!("Player {:?} large movement: distance={:.1}", sender_id, movement_distance);
-    }
+    // CLIENT-AUTHORITATIVE: Trust client collision detection entirely
+    // Server-side collision detection causes rubber banding due to minor differences
+    // The client has sophisticated prediction and collision - let it handle movement
+    let (final_x, final_y) = (clamped_x, clamped_y);
     
-    // Only apply collision correction for reasonable movements to avoid rubber banding
-    // Further increased threshold for sprinting with high latency (Croatia-Netherlands)
-    let (final_x, final_y) = if movement_distance < 200.0 { // Increased threshold for sprinting + latency tolerance
-        // Apply collision detection with improved separation
-        let server_dx = clamped_x - current_player.position_x;
-        let server_dy = clamped_y - current_player.position_y;
-        
-        // PERFORMANCE OPTIMIZED: Use single spatial grid for both slide and push-out collision
-        player_collision::calculate_optimized_collision(
-            ctx, 
-            sender_id, 
-            current_player.position_x,
-            current_player.position_y,
-            clamped_x,
-            clamped_y,
-            server_dx,
-            server_dy
-        )
-    } else {
-        // For large movements (teleports, lag spikes), trust the client more but still clamp
-        log::debug!("Player {:?} large movement {:.1}px detected, skipping collision", sender_id, movement_distance);
-        (clamped_x, clamped_y)
-    };
+    // DISABLED: Server collision detection
+    // Server collision creates micro-differences that cause rubber banding
+    // Client collision is more responsive and handles prediction better
 
     // --- Water detection for new position ---
     let is_on_water = is_player_on_water(ctx, final_x, final_y);
@@ -538,20 +535,10 @@ pub fn update_player_position_simple(
     }
 
     // --- Movement Sound Logic (Walking & Swimming) ---
-    // Calculate how much collision affected movement to detect if player is stuck
-    let intended_movement_distance = ((clamped_x - current_player.position_x).powi(2) + (clamped_y - current_player.position_y).powi(2)).sqrt();
-    let actual_movement_distance = ((final_x - current_player.position_x).powi(2) + (final_y - current_player.position_y).powi(2)).sqrt();
-    let collision_impact_ratio = if intended_movement_distance > 0.1 {
-        actual_movement_distance / intended_movement_distance
-    } else {
-        1.0 // No intended movement, so no collision impact
-    };
+    // Simplified sound detection - trust client movement entirely
     
     // Only emit movement sounds if player actually moved and conditions are right
-    // AND player isn't stuck against objects due to collision
     if movement_distance > 3.0 && // Moved a meaningful distance
-       actual_movement_distance > 2.0 && // Actually moved after collision correction
-       collision_impact_ratio > 0.6 && // Not severely impacted by collision (60% of intended movement achieved)
        !current_player.is_dead && 
        !current_player.is_knocked_out &&
        !is_jumping {   // No movement sounds while jumping
@@ -635,21 +622,16 @@ pub fn update_player_position_simple(
                 log::warn!("Failed to insert walking sound state for player {:?}: {}", sender_id, e);
             }
         }
-    } else if movement_distance > 3.0 && actual_movement_distance <= 2.0 {
-        // Debug log when collision suppresses walking sounds
-        log::debug!("Player {:?} collision-suppressed walking sound: intended={:.1}px, actual={:.1}px, ratio={:.2}", 
-                   sender_id, intended_movement_distance, actual_movement_distance, collision_impact_ratio);
     }
 
-    // --- Update player state ---
+    // --- Update player state directly (no re-fetch to avoid race conditions) ---
     current_player.position_x = final_x;
     current_player.position_y = final_y;
     current_player.is_sprinting = is_sprinting; // Allow sprinting in water
     current_player.is_on_water = is_on_water;
-    current_player.direction = facing_direction; // Accept client-provided direction
-    current_player.last_update = ctx.timestamp;
     // Note: is_crouching is already updated above when auto-disabled on water
 
+    // Always update the player
     players.identity().update(current_player);
 
     // Log crouching state changes for debugging

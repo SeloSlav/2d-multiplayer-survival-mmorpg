@@ -55,6 +55,7 @@ export type Player = {
   isKnockedOut: boolean,
   knockedOutAt: Timestamp | undefined,
   isOnWater: boolean,
+  clientMovementSequence: bigint,
 };
 
 /**
@@ -91,6 +92,7 @@ export namespace Player {
       new ProductTypeElement("isKnockedOut", AlgebraicType.createBoolType()),
       new ProductTypeElement("knockedOutAt", AlgebraicType.createOptionType(AlgebraicType.createTimestampType())),
       new ProductTypeElement("isOnWater", AlgebraicType.createBoolType()),
+      new ProductTypeElement("clientMovementSequence", AlgebraicType.createU64Type()),
     ]);
   }
 
