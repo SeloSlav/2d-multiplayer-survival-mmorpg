@@ -430,7 +430,7 @@ export function drawMinimapOntoCanvas({
     }
   } else {
     // Debug: Show what we actually have
-    console.log(`[Minimap] No cached minimap data available. minimapCache:`, minimapCache);
+    // console.log(`[Minimap] No cached minimap data available. minimapCache:`, minimapCache);
     
     // Show a message that minimap cache is not ready
     ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
@@ -936,7 +936,7 @@ export function drawMinimapOntoCanvas({
           const y = pinScreenCoords.y;
           const size = PIN_SIZE;
           
-          console.log(`[Minimap] Drawing pin - World coords: (${playerPin.pinX}, ${playerPin.pinY}) -> Screen coords: (${x}, ${y})`);
+          // console.log(`[Minimap] Drawing pin - World coords: (${playerPin.pinX}, ${playerPin.pinY}) -> Screen coords: (${x}, ${y})`);
           
           // Save context for styling
           ctx.save();
@@ -957,7 +957,7 @@ export function drawMinimapOntoCanvas({
                   imageHeight
               );
           } else {
-              console.log('[Minimap] Pin image not available, using fallback. Image:', !!pinMarkerImage, 'complete:', pinMarkerImage?.complete, 'naturalHeight:', pinMarkerImage?.naturalHeight);
+              // console.log('[Minimap] Pin image not available, using fallback. Image:', !!pinMarkerImage, 'complete:', pinMarkerImage?.complete, 'naturalHeight:', pinMarkerImage?.naturalHeight);
               // Fallback to drawn pin if image not loaded
               // Draw a classic map pin (long base with narrow triangle)
               const pinWidth = size * 0.4;   // Narrow width

@@ -491,14 +491,14 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     crate::dropped_item::init_dropped_item_schedule(ctx)?;
     // Initialize the crafting finish check schedule
     crate::crafting_queue::init_crafting_schedule(ctx)?;
-    // [TEMP DISABLED] Initialize the player stat update schedule - still causing race conditions
-    // crate::player_stats::init_player_stat_schedule(ctx)?;
+    // Re-enable the player stat update schedule for TreeCover effects
+    crate::player_stats::init_player_stat_schedule(ctx)?;
     // [TEMP DISABLED] Initialize the global tick schedule - testing if it affects rubber banding
     // crate::global_tick::init_global_tick_schedule(ctx)?;
     // <<< UPDATED: Initialize StatThresholdsConfig table >>>
     crate::player_stats::init_stat_thresholds_config(ctx)?;
-    // [TEMP DISABLED] Initialize active effects processing schedule - still causing race conditions
-    // crate::active_effects::schedule_effect_processing(ctx)?;
+    // Re-enable active effects processing - needed for health regen, bleeding, poisoning, etc.
+    crate::active_effects::schedule_effect_processing(ctx)?;
     crate::projectile::init_projectile_system(ctx)?;
     // ADD: Initialize plant growth system
     crate::planted_seeds::init_plant_growth_system(ctx)?;

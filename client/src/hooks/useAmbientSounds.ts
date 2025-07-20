@@ -553,7 +553,7 @@ const updateSeamlessLoopingSounds = () => {
             try {
                 // Check if current audio is still playing - if not, restart it
                 if (currentAudio.paused || currentAudio.ended) {
-                    console.warn(`🌊 Current audio stopped unexpectedly for ${soundType}, restarting...`);
+                    // console.warn(`🌊 Current audio stopped unexpectedly for ${soundType}, restarting...`);
                     currentAudio.currentTime = 0;
                     currentAudio.volume = volume;
                     currentAudio.play().catch(e => console.warn(`🌊 Failed to restart current audio: ${e}`));

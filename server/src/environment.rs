@@ -705,16 +705,16 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let wild_animals = ctx.db.wild_animal();
     let sea_stacks = ctx.db.sea_stack(); // Add sea stacks table
 
-    // Check if core environment is already seeded (exclude wild_animals since they can dynamically respawn)
+    // Check if core environment is already seeded (exclude wild_animals since they can dynamically respawn, exclude grass since it's temporarily disabled)
     if trees.iter().count() > 0 || stones.iter().count() > 0 || harvestable_resources.iter().count() > 0 || clouds.iter().count() > 0 {
         log::info!(
-            "Environment already seeded (Trees: {}, Stones: {}, Harvestable Resources: {}, Clouds: {}, Sea Stacks: {}, Wild Animals: {}). Grass spawning disabled. Skipping.",
-            trees.iter().count(), stones.iter().count(), harvestable_resources.iter().count(), clouds.iter().count(), sea_stacks.iter().count(), wild_animals.iter().count()
+            "Environment already seeded (Trees: {}, Stones: {}, Harvestable Resources: {}, Clouds: {}, Sea Stacks: {}, Wild Animals: {}, Grass: {} - grass seeding temporarily disabled). Skipping.",
+            trees.iter().count(), stones.iter().count(), harvestable_resources.iter().count(), clouds.iter().count(), sea_stacks.iter().count(), wild_animals.iter().count(), grasses.iter().count()
         );
         return Ok(());
     }
 
-    log::info!("Seeding environment (trees, stones, unified harvestable resources, clouds) - grass disabled for performance..." );
+    log::info!("Seeding environment (trees, stones, unified harvestable resources, clouds) - grass temporarily disabled..." );
 
     let fbm = Fbm::<Perlin>::new(ctx.rng().gen());
     let mut rng = StdRng::from_rng(ctx.rng()).map_err(|e| format!("Failed to seed RNG: {}", e))?;
@@ -770,7 +770,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let target_wild_animal_count = (total_tiles as f32 * WILD_ANIMAL_DENSITY_PERCENT) as u32;
     let max_wild_animal_attempts = target_wild_animal_count * MAX_WILD_ANIMAL_SEEDING_ATTEMPTS_FACTOR;
 
-    // DISABLED: Grass seeding parameters for performance optimization
+    // Grass seeding parameters - temporarily commented out
     // let target_grass_count = (total_tiles as f32 * crate::grass::GRASS_DENSITY_PERCENT) as u32;
     // let max_grass_attempts = target_grass_count * crate::grass::MAX_GRASS_SEEDING_ATTEMPTS_FACTOR;
 
@@ -795,7 +795,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     
     log::info!("Target Clouds: {}, Max Attempts: {}", target_cloud_count, max_cloud_attempts);
     log::info!("Target Wild Animals: {}, Max Attempts: {}", target_wild_animal_count, max_wild_animal_attempts);
-    // DISABLED: Grass spawning log - grass spawning disabled for performance optimization
+    // log::info!("Target Grass: {}, Max Attempts: {}", target_grass_count, max_grass_attempts);
     // Calculate spawn bounds using helper
     let (min_tile_x, max_tile_x, min_tile_y, max_tile_y) = 
         calculate_tile_bounds(WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, crate::tree::TREE_SPAWN_WORLD_MARGIN_TILES);
@@ -808,7 +808,7 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut spawned_harvestable_positions = Vec::<(f32, f32)>::new(); // Unified for all plants
     let mut spawned_cloud_positions = Vec::<(f32, f32)>::new();
     let mut spawned_wild_animal_positions = Vec::<(f32, f32)>::new();
-    // DISABLED: let mut spawned_grass_positions = Vec::<(f32, f32)>::new(); // Grass spawning disabled
+    // let mut spawned_grass_positions = Vec::<(f32, f32)>::new();
 
     let mut spawned_tree_count = 0;
     let mut tree_attempts = 0;
@@ -829,8 +829,8 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     let mut cloud_attempts = 0;
     let mut spawned_wild_animal_count = 0;
     let mut wild_animal_attempts = 0;
-    // DISABLED: let mut spawned_grass_count = 0; // Grass spawning disabled
-    // DISABLED: let mut grass_attempts = 0; // Grass spawning disabled
+    // let mut spawned_grass_count = 0;
+    // let mut grass_attempts = 0;
 
     // --- Seed Trees --- Use helper function --- 
     log::info!("Seeding Trees...");
@@ -1360,13 +1360,75 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         spawned_wild_animal_count, target_wild_animal_count, wild_animal_attempts
     );
 
-    // --- DISABLED: Grass Seeding for Performance Optimization ---
-    // Grass spawning has been completely disabled to prevent creation of thousands
-    // of grass entities that could cause server performance issues and rubber-banding.
-    // The client will handle grass rendering procedurally without server entities.
-    log::info!("Grass seeding DISABLED for performance optimization - no grass entities will be spawned.");
-    let spawned_grass_count = 0; // Set to 0 since we're not spawning any grass
-    // --- End Disabled Grass Seeding ---
+    // --- Seed Grass --- TEMPORARILY COMMENTED OUT
+    // log::info!("Seeding Grass...");
+    // while spawned_grass_count < target_grass_count && grass_attempts < max_grass_attempts {
+    //     grass_attempts += 1;
+
+    //     // Generate random grass properties
+    //     let sway_offset_seed = rng.gen::<u32>();
+    //     let sway_speed = rng.gen_range(0.5..2.0);
+        
+    //     // Choose grass appearance type with weighted distribution
+    //     let appearance_roll: f64 = rng.gen_range(0.0..1.0);
+    //     let appearance_type = if appearance_roll < 0.3 {
+    //         GrassAppearanceType::PatchA
+    //     } else if appearance_roll < 0.6 {
+    //         GrassAppearanceType::PatchB
+    //     } else if appearance_roll < 0.8 {
+    //         GrassAppearanceType::PatchC
+    //     } else if appearance_roll < 0.9 {
+    //         GrassAppearanceType::TallGrassA
+    //     } else {
+    //         GrassAppearanceType::TallGrassB
+    //     };
+
+    //     match attempt_single_spawn(
+    //         &mut rng,
+    //         &mut occupied_tiles,
+    //         &mut spawned_grass_positions,
+    //         &spawned_tree_positions,
+    //         &spawned_stone_positions,
+    //         min_tile_x, max_tile_x, min_tile_y, max_tile_y,
+    //         &fbm,
+    //         crate::grass::GRASS_SPAWN_NOISE_FREQUENCY,
+    //         crate::grass::GRASS_SPAWN_NOISE_THRESHOLD,
+    //         crate::grass::MIN_GRASS_DISTANCE_SQ,
+    //         crate::grass::MIN_GRASS_TREE_DISTANCE_SQ,
+    //         crate::grass::MIN_GRASS_STONE_DISTANCE_SQ,
+    //         |pos_x, pos_y, (appearance_type, sway_offset_seed, sway_speed): (GrassAppearanceType, u32, f32)| {
+    //             let chunk_idx = calculate_chunk_index(pos_x, pos_y);
+                
+    //             Grass {
+    //                 id: 0,
+    //                 pos_x,
+    //                 pos_y,
+    //                 health: crate::grass::GRASS_INITIAL_HEALTH,
+    //                 appearance_type,
+    //                 chunk_index: chunk_idx,
+    //                 last_hit_time: None,
+    //                 respawn_at: None,
+    //                 sway_offset_seed,
+    //                 sway_speed,
+    //                 disturbed_at: None,
+    //                 disturbance_direction_x: 0.0,
+    //                 disturbance_direction_y: 0.0,
+    //             }
+    //         },
+    //         (appearance_type, sway_offset_seed, sway_speed),
+    //         |pos_x, pos_y| is_position_on_water(ctx, pos_x, pos_y) || is_position_in_central_compound(pos_x, pos_y),
+    //         grasses,
+    //     ) {
+    //         Ok(true) => spawned_grass_count += 1,
+    //         Ok(false) => { /* Condition not met, continue */ }
+    //         Err(_) => { /* Error already logged in helper, continue */ }
+    //     }
+    // }
+    // log::info!(
+    //     "Finished seeding {} grass entities (target: {}, attempts: {}).",
+    //     spawned_grass_count, target_grass_count, grass_attempts
+    // );
+    let spawned_grass_count = 0; // Set to 0 since grass seeding is temporarily disabled
 
     // --- Seed Clouds ---
     log::info!("Seeding Clouds...");
@@ -1547,9 +1609,9 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
     }
     
     log::info!(
-        "Environment seeding complete! Summary: Trees: {}, Stones: {}, Sea Stacks: {}, Harvestable Resources: [{}], Clouds: {}, Wild Animals: {}, Barrels: {}",
+        "Environment seeding complete! Summary: Trees: {}, Stones: {}, Sea Stacks: {}, Harvestable Resources: [{}], Clouds: {}, Wild Animals: {}, Grass: {}, Barrels: {}",
         spawned_tree_count, spawned_stone_count, spawned_sea_stack_count, harvestable_summary,
-        spawned_cloud_count, spawned_wild_animal_count, ctx.db.barrel().iter().count()
+        spawned_cloud_count, spawned_wild_animal_count, spawned_grass_count, ctx.db.barrel().iter().count()
     );
     Ok(())
 }
@@ -1613,8 +1675,22 @@ pub fn check_resource_respawns(ctx: &ReducerContext) -> Result<(), String> {
         }
     );
 
-    // DISABLED: Grass respawn logic - grass spawning disabled for performance optimization
-    // No grass entities exist, so no respawn logic needed
+    // Respawn Grass - TEMPORARILY COMMENTED OUT
+    // check_and_respawn_resource!(
+    //     ctx,
+    //     grass,
+    //     crate::grass::Grass,
+    //     "Grass",
+    //     |g: &crate::grass::Grass| g.health == 0,
+    //     |g: &mut crate::grass::Grass| {
+    //         g.health = crate::grass::GRASS_INITIAL_HEALTH;
+    //         g.respawn_at = None;
+    //         g.last_hit_time = None;
+    //         g.disturbed_at = None;
+    //         g.disturbance_direction_x = 0.0;
+    //         g.disturbance_direction_y = 0.0;
+    //     }
+    // );
 
     // Note: Clouds are static for now, so no respawn logic needed in check_resource_respawns.
     // If they were to drift or change, a similar `check_and_respawn_resource!` or a dedicated

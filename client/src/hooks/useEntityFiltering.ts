@@ -140,11 +140,14 @@ const PERFORMANCE_MODE = {
   MAX_DECORATIONS_PER_FRAME: 150,  // Increased from 20 to 150
   
   // Emergency mode thresholds - MUCH HIGHER BEFORE EMERGENCY
-  EMERGENCY_TOTAL_ENTITIES: 500,   // Increased from 200 to 500
+  EMERGENCY_TOTAL_ENTITIES: 800,   // Increased from 200 to 500
   EMERGENCY_FPS_THRESHOLD: 30,     // Increased from 45 to 30
   
   // Viewport expansion for conservative culling - MUCH LARGER BUFFER
   VIEWPORT_EXPANSION_FACTOR: 2.5,  // Increased from 1.5 to 2.5 (show 2.5x viewport size)
+  EMERGENCY_MAX_TREES: 100,
+  EMERGENCY_MAX_RESOURCES: 40,
+  EMERGENCY_MAX_DECORATIONS: 50,
 };
 
 // Frame counters for throttling
@@ -288,7 +291,7 @@ function getCachedFilteredEntities<T extends { posX: number; posY: number }>(
     entityArray,
     playerPos,
     emergencyMode ? (800 * 800) : maxDistanceSq,
-    emergencyMode ? Math.floor(maxCount / 2) : maxCount
+    emergencyMode ? PERFORMANCE_MODE.EMERGENCY_MAX_TREES : maxCount
   );
   
   // Update cache
@@ -518,7 +521,7 @@ export function useEntityFiltering(
   const viewBounds = useMemo(() => getViewportBounds(), [getViewportBounds]);
 
   // PERFORMANCE: Use cached filtering for expensive entity types
-  const cachedVisibleTrees = useMemo(() => {
+  let cachedVisibleTrees = useMemo(() => {
     if (!playerPos) return [];
     
     return getCachedFilteredEntities(
@@ -532,7 +535,7 @@ export function useEntityFiltering(
     );
   }, [trees, playerPos, viewBounds, stableTimestamp, frameCounter]);
 
-  const cachedVisibleStones = useMemo(() => {
+  let cachedVisibleStones = useMemo(() => {
     if (!playerPos) return [];
     
     return getCachedFilteredEntities(
@@ -546,7 +549,7 @@ export function useEntityFiltering(
     );
   }, [stones, playerPos, viewBounds, stableTimestamp, frameCounter]);
 
-  const cachedVisibleResources = useMemo(() => {
+  let cachedVisibleResources = useMemo(() => {
     if (!playerPos) return [];
     
     return getCachedFilteredEntities(
@@ -562,9 +565,9 @@ export function useEntityFiltering(
   }, [harvestableResources, playerPos, viewBounds, stableTimestamp, frameCounter]);
 
   // Use cached results instead of original filtering
-  const visibleTrees = cachedVisibleTrees;
+  let visibleTrees = cachedVisibleTrees;
   const visibleStones = cachedVisibleStones;
-  const visibleHarvestableResources = cachedVisibleResources;
+  let visibleHarvestableResources = cachedVisibleResources;
 
   // Keep original filtering for less expensive entity types
   const visibleDroppedItems = useMemo(() => 
@@ -664,7 +667,7 @@ export function useEntityFiltering(
   }, [projectiles, viewBounds]);
 
   // PERFORMANCE: More aggressive grass culling
-  const visibleGrass = useMemo(() => {
+  let visibleGrass = useMemo(() => {
     if (!grass || !playerPos) return [];
     
     // In emergency mode, severely limit grass rendering
@@ -674,7 +677,7 @@ export function useEntityFiltering(
         'grass_emergency',
         PERFORMANCE_MODE.DECORATION_UPDATE_INTERVAL,
         (800 * 800),
-        10, // Only 10 grass entities in emergency mode
+        PERFORMANCE_MODE.EMERGENCY_MAX_DECORATIONS, // Only 10 grass entities in emergency mode
         playerPos,
         (grassEntity) => grassEntity.health > 0 && isEntityInView(grassEntity, viewBounds, stableTimestamp)
       );
@@ -1192,6 +1195,13 @@ export function useEntityFiltering(
     total: totalEntityCount
   }, playerPos || { x: -cameraOffsetX + canvasWidth / 2, y: -cameraOffsetY + canvasHeight / 2 }, emergencyMode);
 
+  if (emergencyMode) {
+    // Filter out grass and limit trees/resources
+    visibleGrass = [];
+    visibleHarvestableResources = visibleHarvestableResources.slice(0, PERFORMANCE_MODE.EMERGENCY_MAX_RESOURCES);
+    visibleTrees = visibleTrees.slice(0, PERFORMANCE_MODE.EMERGENCY_MAX_TREES);
+  }
+
   return {
     visibleHarvestableResources,
     visibleDroppedItems,
@@ -1200,70 +1210,6 @@ export function useEntityFiltering(
     visiblePlayers,
     visibleTrees,
     visibleStones,
-    visibleWoodenStorageBoxes,
-    visibleSleepingBags,
-    visiblePlayerCorpses,
-    visibleStashes,
-    visibleProjectiles,
-    visibleHarvestableResourcesMap,
-    visibleCampfiresMap,
-    visibleLanternsMap,
-    visibleDroppedItemsMap,
-    visibleBoxesMap,
-    visibleProjectilesMap,
-    visiblePlayerCorpsesMap,
-    visibleStashesMap,
-    visibleSleepingBagsMap,
-    visibleTreesMap,
-    groundItems,
-    ySortedEntities,
-    visibleGrass,
-    visibleGrassMap,
-    visibleShelters,
-    visibleSheltersMap,
-    visibleClouds,
-    visiblePlantedSeeds,
-    visiblePlantedSeedsMap,
-    visibleRainCollectors,
-    visibleRainCollectorsMap,
-    visibleWildAnimals,
-    visibleWildAnimalsMap,
-    visibleViperSpittles,
-    visibleViperSpittlesMap,
-    visibleAnimalCorpses,
-    visibleAnimalCorpsesMap,
-    visibleBarrels,
-    visibleBarrelsMap,
-    visibleSeaStacks, 
-    visibleSeaStacksMap,
-    visibleFurnaces,
-    visibleFurnacesMap,
-  };
-  
-  // END PERFORMANCE TIMING AND LOGGING
-  const filteringEndTime2 = performance.now();
-  const processingTime2 = filteringEndTime2 - filteringStartTime;
-  
-  // Log performance data
-  logPerformanceData(processingTime2, {
-    trees: visibleTrees.length,
-    stones: visibleStones.length,
-    resources: visibleHarvestableResources.length,
-    campfires: visibleCampfires.length,
-    furnaces: visibleFurnaces.length,
-    animals: visibleWildAnimals.length,
-    grass: visibleGrass.length,
-    total: totalEntityCount
-  }, playerPos || { x: -cameraOffsetX + canvasWidth / 2, y: -cameraOffsetY + canvasHeight / 2 }, emergencyMode);
-  
-  return {
-    visibleHarvestableResources,
-    visibleDroppedItems,
-    visibleCampfires,
-    visibleLanterns,
-    visibleStones,
-    visiblePlayers,
-    visibleTrees,
     visibleWoodenStorageBoxes,
     visibleSleepingBags,
     visiblePlayerCorpses,

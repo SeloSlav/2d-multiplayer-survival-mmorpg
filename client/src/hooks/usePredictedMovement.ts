@@ -149,16 +149,6 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       // CLIENT STAYS AUTHORITATIVE: No position correction unless there's actual desync
       // The client prediction continues uninterrupted
       
-      // Optional: Log for debugging (remove in production)
-      const distance = Math.sqrt(
-        Math.pow(newServerPos.x - clientPositionRef.current.x, 2) + 
-        Math.pow(newServerPos.y - clientPositionRef.current.y, 2)
-      );
-      
-      if (distance > 50) { // Only log significant differences for debugging
-        console.log(`[PREDICT] Server ack distance: ${distance.toFixed(1)}px (client ahead)`);
-      }
-      
     }
   }, [localPlayer?.positionX, localPlayer?.positionY, localPlayer?.direction]);
 
