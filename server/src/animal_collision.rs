@@ -17,6 +17,8 @@ use crate::rain_collector::{RainCollector, RAIN_COLLECTOR_COLLISION_RADIUS, RAIN
 use crate::rain_collector::rain_collector as RainCollectorTableTrait;
 use crate::player_corpse::{PlayerCorpse, CORPSE_COLLISION_RADIUS, CORPSE_COLLISION_Y_OFFSET};
 use crate::player_corpse::player_corpse as PlayerCorpseTableTrait;
+use crate::furnace::{Furnace, FURNACE_COLLISION_RADIUS, FURNACE_COLLISION_Y_OFFSET};
+use crate::furnace::furnace as FurnaceTableTrait;
 use crate::wild_animal_npc::{WildAnimal, wild_animal as WildAnimalTableTrait};
 use crate::fishing::is_water_tile;
 
@@ -245,7 +247,7 @@ pub fn check_environmental_collision_with_grid<DB>(
 ) -> Option<(f32, f32)> 
 where
     DB: TreeTableTrait + StoneTableTrait + WoodenStorageBoxTableTrait 
-        + RainCollectorTableTrait + PlayerCorpseTableTrait,
+        + RainCollectorTableTrait + PlayerCorpseTableTrait + FurnaceTableTrait,
 {
     let nearby_entities = grid.get_entities_in_range(proposed_x, proposed_y);
     
@@ -329,6 +331,24 @@ where
                     let dy = proposed_y - corpse_collision_y;
                     let distance_sq = dx * dx + dy * dy;
                     let min_distance = ANIMAL_COLLISION_RADIUS + CORPSE_COLLISION_RADIUS;
+                    let min_distance_sq = min_distance * min_distance;
+                    
+                    if distance_sq < min_distance_sq && distance_sq > 0.1 {
+                        let distance = distance_sq.sqrt();
+                        let pushback_x = (dx / distance) * COLLISION_PUSHBACK_FORCE;
+                        let pushback_y = (dy / distance) * COLLISION_PUSHBACK_FORCE;
+                        return Some((pushback_x, pushback_y));
+                    }
+                }
+            },
+            spatial_grid::EntityType::Furnace(furnace_id) => {
+                if let Some(furnace) = db.furnace().id().find(furnace_id) {
+                    if furnace.is_destroyed { continue; }
+                    let furnace_collision_y = furnace.pos_y - FURNACE_COLLISION_Y_OFFSET;
+                    let dx = proposed_x - furnace.pos_x;
+                    let dy = proposed_y - furnace_collision_y;
+                    let distance_sq = dx * dx + dy * dy;
+                    let min_distance = ANIMAL_COLLISION_RADIUS + FURNACE_COLLISION_RADIUS;
                     let min_distance_sq = min_distance * min_distance;
                     
                     if distance_sq < min_distance_sq && distance_sq > 0.1 {

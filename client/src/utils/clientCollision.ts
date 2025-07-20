@@ -284,6 +284,28 @@ function getCollisionCandidates(
     });
   }
   
+  // Filter furnaces
+  const nearbyFurnaces = filterEntitiesByDistance(
+    entities.furnaces,
+    playerX,
+    playerY,
+    COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ,
+    COLLISION_PERF.MAX_STRUCTURES_TO_CHECK,
+    emergencyMode
+  );
+  
+  for (const furnace of nearbyFurnaces) {
+    if (furnace.isDestroyed) continue; // Skip destroyed furnaces
+    
+    shapes.push({
+      id: furnace.id.toString(),
+      type: `furnace-${furnace.id.toString()}`,
+      x: furnace.posX + COLLISION_OFFSETS.FURNACE.x,
+      y: furnace.posY + COLLISION_OFFSETS.FURNACE.y,
+      radius: COLLISION_RADII.FURNACE
+    });
+  }
+  
   return shapes;
 }
 
