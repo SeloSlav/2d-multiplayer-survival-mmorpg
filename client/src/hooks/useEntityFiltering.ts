@@ -119,6 +119,77 @@ export type YSortedEntityType =
   | { type: 'barrel'; entity: SpacetimeDBBarrel }
   | { type: 'sea_stack'; entity: any }; // Server-provided sea stack entities
 
+// ===== HELPER FUNCTIONS FOR Y-SORTING =====
+const getEntityY = (item: YSortedEntityType, timestamp: number): number => {
+  const { entity, type } = item;
+  switch (type) {
+    case 'player':
+      return entity.positionY + 48;
+    case 'tree':
+    case 'stone':
+    case 'wooden_storage_box':
+    case 'stash':
+    case 'campfire':
+    case 'furnace':
+    case 'lantern':
+    case 'planted_seed':
+    case 'dropped_item':
+    case 'harvestable_resource':
+    case 'rain_collector':
+    case 'animal_corpse':
+    case 'player_corpse':
+    case 'wild_animal':
+    case 'barrel':
+      return entity.posY;
+    case 'grass':
+      return entity.serverPosY;
+    case 'projectile': {
+      const startTime = Number(entity.startTime.microsSinceUnixEpoch / 1000n);
+      const elapsedSeconds = (timestamp - startTime) / 1000.0;
+      return entity.startPosY + entity.velocityY * elapsedSeconds;
+    }
+    case 'viper_spittle': {
+      const startTime = Number(entity.startTime.microsSinceUnixEpoch / 1000n);
+      const elapsedSeconds = (timestamp - startTime) / 1000.0;
+      return entity.startPosY + entity.velocityY * elapsedSeconds;
+    }
+    case 'sea_stack':
+      return entity.posY - 55;
+    case 'shelter':
+      return entity.posY - 100;
+    default:
+      return 0;
+  }
+};
+
+const getEntityPriority = (item: YSortedEntityType): number => {
+  switch (item.type) {
+    case 'sea_stack': return 1;
+    case 'tree': return 2;
+    case 'stone': return 3;
+    case 'wild_animal': return 4;
+    case 'wooden_storage_box': return 5;
+    case 'stash': return 6;
+    case 'campfire': return 7;
+    case 'furnace': return 7.5;
+    case 'lantern': return 8;
+    case 'grass': return 9;
+    case 'planted_seed': return 10;
+    case 'dropped_item': return 11;
+    case 'harvestable_resource': return 12;
+    case 'barrel': return 15;
+    case 'rain_collector': return 18;
+    case 'projectile': return 19;
+    case 'viper_spittle': return 19;
+    case 'animal_corpse': return 20;
+    case 'player_corpse': return 20;
+    case 'player': return 21;
+    case 'shelter': return 25;
+    default: return 0;
+  }
+};
+
+
 // ===== PERFORMANCE OPTIMIZATION CONSTANTS =====
 const PERFORMANCE_MODE = {
   // Frame-based throttling for different entity types
@@ -931,234 +1002,60 @@ export function useEntityFiltering(
     }
     
     // PERFORMANCE: Pre-allocate array with known size to avoid dynamic resizing
-    const sortedEntities: Array<{ y: number; priority: number; item: YSortedEntityType }> = [];
-    sortedEntities.length = totalEntities; // Pre-allocate
+    const allEntities: YSortedEntityType[] = new Array(totalEntities);
     let index = 0;
     
-    // PERFORMANCE: Inline Y-calculation and priority assignment to avoid function calls
-    // Process each entity type with optimized inline logic
+    // Aggregate all entity types into a single array
+    visiblePlayers.forEach(e => allEntities[index++] = { type: 'player', entity: e });
+    visibleTrees.forEach(e => allEntities[index++] = { type: 'tree', entity: e });
+    visibleStones.forEach(e => { if (e.health > 0) allEntities[index++] = { type: 'stone', entity: e }; });
+    visibleWoodenStorageBoxes.forEach(e => allEntities[index++] = { type: 'wooden_storage_box', entity: e });
+    visibleStashes.forEach(e => allEntities[index++] = { type: 'stash', entity: e });
+    visibleCampfires.forEach(e => allEntities[index++] = { type: 'campfire', entity: e });
+    visibleFurnaces.forEach(e => allEntities[index++] = { type: 'furnace', entity: e });
+    visibleLanterns.forEach(e => allEntities[index++] = { type: 'lantern', entity: e });
+    visibleGrass.forEach(e => allEntities[index++] = { type: 'grass', entity: e });
+    visiblePlantedSeeds.forEach(e => allEntities[index++] = { type: 'planted_seed', entity: e });
+    visibleDroppedItems.forEach(e => allEntities[index++] = { type: 'dropped_item', entity: e });
+    visibleHarvestableResources.forEach(e => allEntities[index++] = { type: 'harvestable_resource', entity: e });
+    visibleRainCollectors.forEach(e => allEntities[index++] = { type: 'rain_collector', entity: e });
+    visibleProjectiles.forEach(e => allEntities[index++] = { type: 'projectile', entity: e });
+    visibleViperSpittles.forEach(e => allEntities[index++] = { type: 'viper_spittle', entity: e });
+    visibleAnimalCorpses.forEach(e => allEntities[index++] = { type: 'animal_corpse', entity: e });
+    visiblePlayerCorpses.forEach(e => allEntities[index++] = { type: 'player_corpse', entity: e });
+    visibleWildAnimals.forEach(e => allEntities[index++] = { type: 'wild_animal', entity: e });
+    visibleBarrels.forEach(e => allEntities[index++] = { type: 'barrel', entity: e });
+    visibleSeaStacks.forEach(e => allEntities[index++] = { type: 'sea_stack', entity: e });
+    visibleShelters.forEach(e => allEntities[index++] = { type: 'shelter', entity: e });
+
+    // Trim array to actual size in case some entities were filtered out (e.g., stones with 0 health)
+    allEntities.length = index;
     
-    // Players - Priority 21, Y = positionY + 48
-    for (const player of visiblePlayers) {
-      sortedEntities[index++] = {
-        y: player.positionY + 48,
-        priority: 21,
-        item: { type: 'player' as const, entity: player }
-      };
-    }
-    
-    // Trees - Priority 2, Y = posY
-    for (const tree of visibleTrees) {
-      sortedEntities[index++] = {
-        y: tree.posY,
-        priority: 2,
-        item: { type: 'tree' as const, entity: tree }
-      };
-    }
-    
-    // Stones - Priority 3, Y = posY (filter health > 0 inline)
-    for (const stone of visibleStones) {
-      if (stone.health > 0) {
-        sortedEntities[index++] = {
-          y: stone.posY,
-          priority: 3,
-          item: { type: 'stone' as const, entity: stone }
-        };
-      }
-    }
-    
-    // Storage boxes - Priority 5, Y = posY
-    for (const box of visibleWoodenStorageBoxes) {
-      sortedEntities[index++] = {
-        y: box.posY,
-        priority: 5,
-        item: { type: 'wooden_storage_box' as const, entity: box }
-      };
-    }
-    
-    // Stashes - Priority 6, Y = posY
-    for (const stash of visibleStashes) {
-      sortedEntities[index++] = {
-        y: stash.posY,
-        priority: 6,
-        item: { type: 'stash' as const, entity: stash }
-      };
-    }
-    
-    // Campfires - Priority 7, Y = posY
-    for (const campfire of visibleCampfires) {
-      sortedEntities[index++] = {
-        y: campfire.posY,
-        priority: 7,
-        item: { type: 'campfire' as const, entity: campfire }
-      };
-    }
-    
-    // Furnaces - Priority 7.5, Y = posY
-    for (const furnace of visibleFurnaces) {
-      sortedEntities[index++] = {
-        y: furnace.posY,
-        priority: 7.5,
-        item: { type: 'furnace' as const, entity: furnace }
-      };
-    }
-    
-    // Lanterns - Priority 8, Y = posY
-    for (const lantern of visibleLanterns) {
-      sortedEntities[index++] = {
-        y: lantern.posY,
-        priority: 8,
-        item: { type: 'lantern' as const, entity: lantern }
-      };
-    }
-    
-    // Grass - Priority 9, Y = serverPosY
-    for (const grass of visibleGrass) {
-      sortedEntities[index++] = {
-        y: grass.serverPosY,
-        priority: 9,
-        item: { type: 'grass' as const, entity: grass }
-      };
-    }
-    
-    // Planted seeds - Priority 10, Y = posY
-    for (const seed of visiblePlantedSeeds) {
-      sortedEntities[index++] = {
-        y: seed.posY,
-        priority: 10,
-        item: { type: 'planted_seed' as const, entity: seed }
-      };
-    }
-    
-    // Dropped items - Priority 11, Y = posY
-    for (const item of visibleDroppedItems) {
-      sortedEntities[index++] = {
-        y: item.posY,
-        priority: 11,
-        item: { type: 'dropped_item' as const, entity: item }
-      };
-    }
-    
-    // Harvestable resources - Priority 12, Y = posY
-    for (const resource of visibleHarvestableResources) {
-      sortedEntities[index++] = {
-        y: resource.posY,
-        priority: 12,
-        item: { type: 'harvestable_resource' as const, entity: resource }
-      };
-    }
-    
-    // Rain collectors - Priority 18, Y = posY
-    for (const collector of visibleRainCollectors) {
-      sortedEntities[index++] = {
-        y: collector.posY,
-        priority: 18,
-        item: { type: 'rain_collector' as const, entity: collector }
-      };
-    }
-    
-    // Projectiles - Priority 19, Y = calculated position
-    for (const projectile of visibleProjectiles) {
-        const startTime = Number(projectile.startTime.microsSinceUnixEpoch / 1000n);
-      const elapsedSeconds = (stableTimestamp - startTime) / 1000.0;
-      const currentY = projectile.startPosY + projectile.velocityY * elapsedSeconds;
-      sortedEntities[index++] = {
-        y: currentY,
-        priority: 19,
-        item: { type: 'projectile' as const, entity: projectile }
-      };
-    }
-    
-    // Viper spittles - Priority 19, Y = calculated position
-    for (const spittle of visibleViperSpittles) {
-      const startTime = Number(spittle.startTime.microsSinceUnixEpoch / 1000n);
-      const elapsedSeconds = (stableTimestamp - startTime) / 1000.0;
-      const currentY = spittle.startPosY + spittle.velocityY * elapsedSeconds;
-      sortedEntities[index++] = {
-        y: currentY,
-        priority: 19,
-        item: { type: 'viper_spittle' as const, entity: spittle }
-      };
-    }
-    
-    // Animal corpses - Priority 20, Y = posY
-    for (const corpse of visibleAnimalCorpses) {
-      sortedEntities[index++] = {
-        y: corpse.posY,
-        priority: 20,
-        item: { type: 'animal_corpse' as const, entity: corpse }
-      };
-    }
-    
-    // Player corpses - Priority 20, Y = posY
-    for (const corpse of visiblePlayerCorpses) {
-      sortedEntities[index++] = {
-        y: corpse.posY,
-        priority: 20,
-        item: { type: 'player_corpse' as const, entity: corpse }
-      };
-    }
-    
-    // Wild animals - Priority 4, Y = posY
-    for (const animal of visibleWildAnimals) {
-      sortedEntities[index++] = {
-        y: animal.posY,
-        priority: 4,
-        item: { type: 'wild_animal' as const, entity: animal }
-      };
-    }
-    
-    // Barrels - Priority 15, Y = posY
-    for (const barrel of visibleBarrels) {
-      sortedEntities[index++] = {
-        y: barrel.posY,
-        priority: 15,
-        item: { type: 'barrel' as const, entity: barrel }
-      };
-    }
-    
-    // Sea stacks - Priority 1, Y = posY - 55 (water line offset)
-    for (const seaStack of visibleSeaStacks) {
-      sortedEntities[index++] = {
-        y: seaStack.posY - 55,
-        priority: 1,
-        item: { type: 'sea_stack' as const, entity: seaStack }
-      };
-    }
-    
-    // Shelters - Priority 25, Y = posY - 200 (visual base is 200px from bottom of image)
-    for (const shelter of visibleShelters) {
-      sortedEntities[index++] = {
-        y: shelter.posY - 100, // Adjust for visual base position
-        priority: 25,
-        item: { type: 'shelter' as const, entity: shelter }
-      };
-    }
-    
-    // Trim array to actual size (in case some entities were filtered out)
-    sortedEntities.length = index;
-    
-    // PERFORMANCE: Use optimized sort with pre-calculated values
-    sortedEntities.sort((a, b) => {
+    // PERFORMANCE: Sort the array in-place.
+    // The comparator function will call helpers, which is computationally more expensive
+    // than the old method, but it avoids massive memory allocation, which is the
+    // likely cause of the garbage-collection lag spikes.
+    allEntities.sort((a, b) => {
+      const yA = getEntityY(a, stableTimestamp);
+      const yB = getEntityY(b, stableTimestamp);
+      
       // Primary sort by Y position
-      const yDiff = a.y - b.y;
+      const yDiff = yA - yB;
       if (Math.abs(yDiff) > 0.1) {
         return yDiff;
       }
+      
       // Secondary sort by priority when Y positions are close
-      return b.priority - a.priority; // Reversed for correct rendering order
+      return getEntityPriority(b) - getEntityPriority(a);
     });
     
-    // Extract just the items for rendering
-    const sortedItems = sortedEntities.map(entry => entry.item);
-    
     // PERFORMANCE: Update cache with new sorted result
-    ySortedCache.entities = sortedItems;
+    ySortedCache.entities = allEntities;
     ySortedCache.lastUpdateFrame = frameCounter;
     ySortedCache.lastEntityCounts = currentEntityCounts;
     ySortedCache.isDirty = false;
     
-    return sortedItems;
+    return allEntities;
   },
     // Dependencies for cached Y-sorting
     [visiblePlayers, visibleTrees, visibleStones, visibleWoodenStorageBoxes, 
