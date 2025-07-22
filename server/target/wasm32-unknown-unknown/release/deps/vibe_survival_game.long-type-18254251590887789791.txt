@@ -1,0 +1,1 @@
+std::option::Option<PlayerDodgeRollState>

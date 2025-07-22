@@ -135,6 +135,9 @@ interface GameScreenProps {
     // Add player drinking cooldowns for water interaction
     playerDrinkingCooldowns: Map<string, SpacetimeDBPlayerDrinkingCooldown>;
     
+    // Player dodge roll states for animation
+    playerDodgeRollStates: Map<string, any>; // PlayerDodgeRollState from generated types
+    
     // Rain collectors
     rainCollectors: Map<string, SpacetimeDBRainCollector>;
     
@@ -201,6 +204,9 @@ interface GameScreenProps {
     // Music panel state
     isMusicPanelVisible: boolean;
     setIsMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
+    
+    // Movement direction for dodge roll system
+    movementDirection: { x: number; y: number };
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -286,10 +292,12 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         onEnvironmentalVolumeChange,
         soundSystem,
         playerDrinkingCooldowns,
+        playerDodgeRollStates,
         rainCollectors,
         waterPatches,
         isMusicPanelVisible,
         setIsMusicPanelVisible,
+        movementDirection,
     } = props;
 
     const gameCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -808,6 +816,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 waterPatches={waterPatches}
                 setMusicPanelVisible={setIsMusicPanelVisible}
                 environmentalVolume={props.environmentalVolume}
+                movementDirection={movementDirection}
+                playerDodgeRollStates={props.playerDodgeRollStates}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

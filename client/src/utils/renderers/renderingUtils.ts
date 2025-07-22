@@ -562,20 +562,37 @@ export const renderYSortedEntities = ({
                lastKnownServerJumpTimes.delete(playerId);
            }
            
+           // Dodge roll detection logic (for animation only)
+           const dodgeRollState = playerDodgeRollStates.get(playerId);
+           let isDodgeRolling = false;
+           let dodgeRollProgress = 0;
+           
+           if (dodgeRollState) {
+               const elapsed = nowMs - Number(dodgeRollState.startTimeMs);
+               if (elapsed < 500) { // 500ms dodge roll duration (match server)
+                   isDodgeRolling = true;
+                   dodgeRollProgress = elapsed / 500.0;
+                   // console.log(`[DODGE DEBUG] Player ${playerId} dodge roll progress: ${(dodgeRollProgress * 100).toFixed(1)}%`);
+               }
+           }
+           
            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, playerForRendering);
            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
            
-           // Choose sprite based on water status FIRST (highest priority), then crouching, but don't switch to water sprite while jumping
+           // Choose sprite based on priority: dodge roll > water > crouching > default
            let heroImg: HTMLImageElement | null;
            // For local player, use immediate local crouch state; for others, use server state
            const effectiveIsCrouching = isLocalPlayer && localPlayerIsCrouching !== undefined 
                ? localPlayerIsCrouching 
                : playerForRendering.isCrouching;
            
-           // console.log(`[DEBUG] Player ${playerId} image selection - effectiveIsCrouching:`, effectiveIsCrouching, 'isOnWater:', playerForRendering.isOnWater, 'isCurrentlyJumping:', isCurrentlyJumping);
-           // console.log(`[DEBUG] Image refs available - heroImageRef:`, !!heroImageRef.current, 'heroWaterImageRef:', !!heroWaterImageRef.current, 'heroCrouchImageRef:', !!heroCrouchImageRef.current);
+           // console.log(`[DEBUG] Player ${playerId} image selection - isDodgeRolling:`, isDodgeRolling, 'effectiveIsCrouching:`, effectiveIsCrouching, 'isOnWater:', playerForRendering.isOnWater, 'isCurrentlyJumping:', isCurrentlyJumping);
+           // console.log(`[DEBUG] Image refs available - heroImageRef:`, !!heroImageRef.current, 'heroWaterImageRef:', !!heroWaterImageRef.current, 'heroCrouchImageRef:', !!heroCrouchImageRef.current, 'heroDodgeImageRef:', !!heroDodgeImageRef?.current);
            
-           if (playerForRendering.isOnWater && !isCurrentlyJumping) {
+           if (isDodgeRolling) {
+               heroImg = heroDodgeImageRef?.current || heroImageRef.current; // HIGHEST PRIORITY: Use dodge roll sprite when dodge rolling, fallback to normal
+               // console.log(`[DEBUG] Using dodge roll sprite for ${playerId}:`, !!heroImg);
+           } else if (playerForRendering.isOnWater && !isCurrentlyJumping) {
                heroImg = heroWaterImageRef.current; // HIGHEST PRIORITY: Use water sprite when on water (but not jumping)
               // console.log(`[DEBUG] Using water sprite for ${playerId}:`, !!heroImg);
            } else if (effectiveIsCrouching && !playerForRendering.isOnWater) {
@@ -639,9 +656,12 @@ export const renderYSortedEntities = ({
                 // For swimming players, render only the bottom half (underwater portion) - but skip underwater shadow since it was rendered earlier
                 const renderHalf = (playerForRendering.isOnWater && !playerForRendering.isDead && !playerForRendering.isKnockedOut) ? 'bottom' : 'full';
                 
+                // Use normal player position (movement system handles dodge roll speed)
+                const playerForRender = playerForRendering;
+                
                 renderPlayer(
                         ctx, 
-                        playerForRendering, 
+                        playerForRender, 
                         heroImg, 
                         heroSprintImageRef.current || heroImg, 
                         heroIdleImageRef.current || heroImg,
@@ -660,7 +680,9 @@ export const renderYSortedEntities = ({
                   false, // isCorpse
                   cycleProgress, // cycleProgress
                   localPlayerIsCrouching, // NEW: pass local crouch state for optimistic rendering
-                  renderHalf // Render full player for normal Y-sorting
+                  renderHalf, // Render full player for normal Y-sorting
+                  isDodgeRolling, // NEW: pass dodge roll state
+                  dodgeRollProgress // NEW: pass dodge roll progress
                 );
               } else {
                 console.log(`[DEBUG] heroImg is null for player ${playerId} - cannot render`);
@@ -687,14 +709,17 @@ export const renderYSortedEntities = ({
                 // For swimming players, render only the bottom half (underwater portion) - but skip underwater shadow since it was rendered earlier
                 const renderHalf = (playerForRendering.isOnWater && !playerForRendering.isDead && !playerForRendering.isKnockedOut) ? 'bottom' : 'full';
                 
+                // Use normal player position (movement system handles dodge roll speed)
+                const playerForRender = playerForRendering;
+                
                 renderPlayer(
                     ctx, 
-                    playerForRendering, 
+                    playerForRender, 
                     heroImg, 
                     heroSprintImageRef.current || heroImg, 
                     heroIdleImageRef.current || heroImg,
                     heroCrouchImageRef.current || heroImg, // crouch sprite
-                    heroSwimImageRef?.current || heroImg, // swim sprite
+                    heroSwimImageRef?.current || heroImg, // swim sprite  
                     heroDodgeImageRef?.current || heroImg, // NEW: dodge roll sprite
                     isOnline, 
                     isPlayerMoving, 
@@ -708,7 +733,9 @@ export const renderYSortedEntities = ({
                   false, // isCorpse
                   cycleProgress, // cycleProgress
                   localPlayerIsCrouching, // NEW: pass local crouch state for optimistic rendering
-                  renderHalf // Render full player for normal Y-sorting
+                  renderHalf, // Render full player for normal Y-sorting
+                  isDodgeRolling, // NEW: pass dodge roll state
+                  dodgeRollProgress // NEW: pass dodge roll progress
                 );
               } else {
                 console.log(`[DEBUG] heroImg is null for player ${playerId} (down/right) - cannot render`);

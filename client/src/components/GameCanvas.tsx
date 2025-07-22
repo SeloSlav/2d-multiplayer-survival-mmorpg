@@ -172,6 +172,8 @@ interface GameCanvasProps {
   setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
   // Add ambient sound volume control
   environmentalVolume?: number; // 0-1 scale for ambient/environmental sounds
+  movementDirection: { x: number; y: number };
+  playerDodgeRollStates: Map<string, any>; // PlayerDodgeRollState from generated types
 }
 
 /**
@@ -237,6 +239,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   seaStacks,
   setMusicPanelVisible,
   environmentalVolume,
+  movementDirection,
+  playerDodgeRollStates,
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -283,7 +287,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { canvasSize, cameraOffsetX, cameraOffsetY } = useGameViewport(localPlayer, predictedPosition);
   // console.log('[GameCanvas DEBUG] Camera offsets:', cameraOffsetX, cameraOffsetY, 'canvas size:', canvasSize);
   
-  const { heroImageRef, heroSprintImageRef, heroIdleImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
+  const { heroImageRef, heroSprintImageRef, heroIdleImageRef, heroWaterImageRef, heroCrouchImageRef, heroDodgeImageRef, grassImageRef, itemImagesRef, cloudImagesRef, shelterImageRef } = useAssetLoader();
   const doodadImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const { worldMousePos, canvasMousePos } = useMousePosition({ canvasRef: gameCanvasRef, cameraOffsetX, cameraOffsetY, canvasSize });
 
@@ -442,6 +446,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     isSearchingCraftRecipes,
     isFishing,
     setMusicPanelVisible,
+    movementDirection,
     // Individual entity IDs for consistency and backward compatibility
   });
 
@@ -981,8 +986,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           heroSprintImageRef.current || heroImg,
           heroIdleImageRef.current || heroImg,
           heroCrouchImageRef.current || heroImg,
-          heroWaterImageRef.current || heroImg,
-          heroImageRef.current || heroImg, // dodge fallback
+          heroWaterImageRef.current || heroImg, // heroSwimImg
+          heroDodgeImageRef.current || heroImg, // heroDodgeImg
           isOnline,
           isPlayerMoving,
           isHovered,
@@ -1012,8 +1017,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         heroImageRef,
         heroSprintImageRef,
         heroIdleImageRef,
-        heroWaterImageRef,
-        heroCrouchImageRef,
+                  heroWaterImageRef,
+          heroCrouchImageRef,
+        heroDodgeImageRef,
         lastPositionsRef,
         activeConnections,
         activeEquipments,
@@ -1242,8 +1248,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             heroSprintImageRef.current || heroImg,
             heroIdleImageRef.current || heroImg,
             heroCrouchImageRef.current || heroImg,
-            heroWaterImageRef.current || heroImg,
-            heroImageRef.current || heroImg, // dodge fallback
+            heroWaterImageRef.current || heroImg, // heroSwimImg
+            heroDodgeImageRef.current || heroImg, // heroDodgeImg
             isOnline,
             isPlayerMoving,
             isHovered,
@@ -1289,6 +1295,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           heroIdleImageRef,
           heroWaterImageRef,
           heroCrouchImageRef,
+          heroDodgeImageRef,
           lastPositionsRef,
           activeConnections,
           activeEquipments,
@@ -1602,7 +1609,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     ySortedEntities, visibleCampfiresMap, visibleDroppedItemsMap, visibleBoxesMap,
     players, itemDefinitions, inventoryItems, trees, stones,
     worldState, localPlayerId, localPlayer, activeEquipments, localPlayerPin, viewCenterOffset,
-    itemImagesRef, heroImageRef, heroSprintImageRef, heroWaterImageRef, heroCrouchImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
+         itemImagesRef, heroImageRef, heroSprintImageRef, heroWaterImageRef, heroCrouchImageRef, heroDodgeImageRef, grassImageRef, cloudImagesRef, cameraOffsetX, cameraOffsetY,
     canvasSize.width, canvasSize.height, worldMousePos.x, worldMousePos.y,
     animationFrame, placementInfo, placementError, overlayRgba, maskCanvasRef,
     closestInteractableHarvestableResourceId,
@@ -1681,13 +1688,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, [cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height]);
 
-  // Call useSpacetimeTables (replacing the previous faulty call)
-  // Extract playerDodgeRollStates from the hook
-  const { playerDodgeRollStates } = useSpacetimeTables({
-    connection,
-    cancelPlacement: placementActions.cancelPlacement,
-    viewport: worldViewport, // Pass calculated viewport (can be null)
-  });
+
 
   // --- Logic to detect player damage from campfires and trigger effects ---
   useEffect(() => {

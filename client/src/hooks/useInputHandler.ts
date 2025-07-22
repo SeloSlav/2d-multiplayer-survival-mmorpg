@@ -73,8 +73,7 @@ interface InputHandlerProps {
     isSearchingCraftRecipes?: boolean;
     isFishing: boolean;
     setMusicPanelVisible: React.Dispatch<React.SetStateAction<boolean>>;
-
-   
+    movementDirection: { x: number; y: number };
 }
 
 // --- Hook Return Value Interface ---
@@ -143,6 +142,7 @@ export const useInputHandler = ({
     isGameMenuOpen,
     isFishing,
     setMusicPanelVisible,
+    movementDirection,
 }: InputHandlerProps): InputHandlerState => {
     // console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
     // Get player actions from the context instead of props
@@ -170,6 +170,7 @@ export const useInputHandler = ({
     const currentJumpOffsetYRef = useRef<number>(0);
 
     const lastMovementDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 1 });
+    const movementDirectionRef = useRef(movementDirection);
 
     // Refs for dependencies to avoid re-running effect too often
     const placementActionsRef = useRef(placementActions);
@@ -218,6 +219,7 @@ export const useInputHandler = ({
     useEffect(() => { connectionRef.current = connection; }, [connection]);
     useEffect(() => { localPlayerRef.current = localPlayer; }, [localPlayer]);
     useEffect(() => { activeEquipmentsRef.current = activeEquipments; }, [activeEquipments]);
+    useEffect(() => { movementDirectionRef.current = movementDirection; }, [movementDirection]);
     
     // Synchronize local crouch state with server state to prevent desync
     // Don't override optimistic state while pending requests are in flight
@@ -556,13 +558,30 @@ export const useInputHandler = ({
 
                 if (localPlayerRef.current && !localPlayerRef.current.isDead && !localPlayerRef.current.isKnockedOut) {
                     event.preventDefault(); // Prevent spacebar from scrolling the page
-                    
-                    try {
-                        // Space always triggers jump - dodge roll is handled by movement system
-                        jump();
-                        console.log('[Input] Jump triggered');
-                    } catch (err) {
-                        console.error("[InputHandler] Error calling jump:", err);
+
+                    const isMoving = movementDirectionRef.current.x !== 0 || movementDirectionRef.current.y !== 0;
+
+                    if (isMoving) {
+                        // Dodge Roll
+                        try {
+                            if (connectionRef.current?.reducers) {
+                                connectionRef.current.reducers.dodgeRoll(
+                                    movementDirectionRef.current.x,
+                                    movementDirectionRef.current.y,
+                                );
+                                console.log('[Input] Dodge roll triggered in direction:', movementDirectionRef.current);
+                            }
+                        } catch (err) {
+                            console.error("[InputHandler] Error calling dodgeRoll:", err);
+                        }
+                    } else {
+                        // Jump (when stationary)
+                        try {
+                            jump();
+                            console.log('[Input] Jump triggered');
+                        } catch (err) {
+                            console.error("[InputHandler] Error calling jump:", err);
+                        }
                     }
                 }
             }
@@ -1409,7 +1428,7 @@ export const useInputHandler = ({
             //     eKeyHoldTimerRef.current = null;
             // }
         };
-    }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen, isFishing]);
+    }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen, isFishing, movementDirection]);
 
     // Auto-walk functionality removed - movement handled by usePredictedMovement hook
 
@@ -1509,7 +1528,7 @@ export const useInputHandler = ({
         localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
         closestInteractableTarget, onSetInteractingWith,
         isChatting, isSearchingCraftRecipes, setIsMinimapOpen, isInventoryOpen,
-        isAutoAttacking, isFishing
+        isAutoAttacking, isFishing, movementDirection
     ]);
 
     // Helper function to check if an item is throwable

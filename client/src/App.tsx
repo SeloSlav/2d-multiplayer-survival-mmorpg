@@ -197,9 +197,10 @@ function AppContent() {
       animalCorpses, // <<< ADD animalCorpses HERE (NON-SPATIAL)
       barrels, // <<< ADD barrels HERE
       seaStacks, // <<< ADD sea stacks HERE
+      playerDodgeRollStates,
     } = useSpacetimeTables({ 
         connection, 
-        cancelPlacement, 
+        cancelPlacement: placementActions.cancelPlacement,
         viewport: currentViewport, 
     });
 
@@ -222,6 +223,7 @@ function AppContent() {
         inputState,
         connection,
         isUIFocused,
+        playerDodgeRollStates, // Add dodge roll states for speed calculation
         entities: {
             trees: currentViewport ? new Map(filterVisibleTrees(trees, {
               viewMinX: currentViewport.minX,
@@ -863,6 +865,8 @@ function AppContent() {
                             waterPatches={waterPatches}
                             isMusicPanelVisible={isMusicPanelVisible}
                             setIsMusicPanelVisible={setIsMusicPanelVisible}
+                            playerDodgeRollStates={playerDodgeRollStates}
+                            movementDirection={inputState.direction}
                         />
                     );
                 })()

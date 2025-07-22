@@ -7,6 +7,7 @@ import { resolveClientCollision, GameEntities } from '../utils/clientCollision';
 const POSITION_UPDATE_INTERVAL_MS = 25; // 40fps for better prediction accuracy with high latency
 const PLAYER_SPEED = 400; // pixels per second - balanced for 60s world traversal
 const SPRINT_MULTIPLIER = 2.0; // 2x speed for sprinting (800 px/s)
+const DODGE_ROLL_SPEED_MULTIPLIER = 3.0; // 3x speed during dodge roll (1200 px/s for 450px in ~375ms)
 const WATER_SPEED_PENALTY = 0.5; // Half speed in water (matches server WATER_SPEED_PENALTY)
 const EXHAUSTED_SPEED_PENALTY = 0.75; // 25% speed reduction when exhausted (matches server EXHAUSTED_SPEED_PENALTY)
 // REMOVED: Rubber banding constants - proper prediction shouldn't need them
@@ -40,6 +41,7 @@ interface SimpleMovementProps {
   inputState: MovementInputState;
   isUIFocused: boolean; // Added for key handling
   entities: GameEntities;
+  playerDodgeRollStates?: Map<string, any>; // Add dodge roll states
 }
 
 // Performance monitoring for simple movement
@@ -91,7 +93,7 @@ const movementMonitor = new SimpleMovementMonitor();
 // REMOVED: Rubber band logging - proper prediction shouldn't need it
 
 // Simple client-authoritative movement hook with optimized rendering
-export const usePredictedMovement = ({ connection, localPlayer, inputState, isUIFocused, entities }: SimpleMovementProps) => {
+export const usePredictedMovement = ({ connection, localPlayer, inputState, isUIFocused, entities, playerDodgeRollStates }: SimpleMovementProps) => {
   // Use refs instead of state to avoid re-renders during movement
   const clientPositionRef = useRef<{ x: number; y: number } | null>(null);
   const serverPositionRef = useRef<{ x: number; y: number } | null>(null);
@@ -166,7 +168,33 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       const deltaTime = Math.min((now - lastUpdateTime.current) / 1000, 0.1); // Cap delta time
       lastUpdateTime.current = now;
 
-      const { direction, sprinting } = inputState;
+      let { direction, sprinting } = inputState;
+      
+      // Check for active dodge roll and override direction for consistent distance
+      const playerId = localPlayer.identity.toHexString();
+      const dodgeRollState = playerDodgeRollStates?.get(playerId);
+      const isDodgeRolling = dodgeRollState && 
+        (Date.now() - Number(dodgeRollState.startTimeMs)) < 500; // 500ms dodge roll duration
+      
+      if (isDodgeRolling && dodgeRollState) {
+        // Use server-calculated dodge roll direction instead of current input
+        const dodgeRollDx = dodgeRollState.targetX - dodgeRollState.startX;
+        const dodgeRollDy = dodgeRollState.targetY - dodgeRollState.startY;
+        const dodgeRollMagnitude = Math.sqrt(dodgeRollDx * dodgeRollDx + dodgeRollDy * dodgeRollDy);
+        
+        console.log(`[DODGE DEBUG] Input direction: (${direction.x.toFixed(3)}, ${direction.y.toFixed(3)})`);
+        console.log(`[DODGE DEBUG] Server dodge vector: (${dodgeRollDx.toFixed(1)}, ${dodgeRollDy.toFixed(1)}), magnitude: ${dodgeRollMagnitude.toFixed(1)}`);
+        
+        if (dodgeRollMagnitude > 0) {
+          // Override input direction with server's dodge roll direction
+          direction = { 
+            x: dodgeRollDx / dodgeRollMagnitude, 
+            y: dodgeRollDy / dodgeRollMagnitude 
+          };
+          console.log(`[DODGE DEBUG] Using server direction: (${direction.x.toFixed(3)}, ${direction.y.toFixed(3)})`);
+        }
+      }
+      
       isMoving.current = Math.abs(direction.x) > 0.01 || Math.abs(direction.y) > 0.01;
 
       // Cancel auto-walk if manual movement detected
@@ -186,9 +214,11 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         if (localPlayer.isKnockedOut) {
           speedMultiplier *= 0.05; // Extremely slow crawling movement (5% of normal speed)
         } else {
-          // Apply sprint multiplier (only if not knocked out)
-          if (sprinting) {
-            speedMultiplier *= SPRINT_MULTIPLIER;
+          if (isDodgeRolling) {
+            speedMultiplier *= DODGE_ROLL_SPEED_MULTIPLIER; // 3x speed for dodge roll
+            console.log(`[MOVEMENT] Dodge roll speed boost active: ${speedMultiplier}x`);
+          } else if (sprinting) {
+            speedMultiplier *= SPRINT_MULTIPLIER; // 2x speed for sprinting
           }
         }
         

@@ -192,126 +192,18 @@ export function renderTree(
     skipDrawingShadow?: boolean, // New flag
     localPlayerPosition?: { x: number; y: number } | null // Player position for transparency
 ) {
-    // Check if player is behind this tree's foliage area
-    // Tree base is at tree.posY, but the visual tree extends upward significantly
-    // We need to check if player is behind ANY portion of the tree image
-    
-    // First get the actual tree image dimensions to calculate the real tree bounds
-    const imageSource = treeConfig.getImageSource(tree);
-    const image = imageSource ? imageManager.getImage(imageSource) : null;
-    
-    let shouldApplyTransparency = false;
-    
-    if (image && localPlayerPosition) {
-        const dimensions = treeConfig.getTargetDimensions(image, tree);
-        const treeImageTop = tree.posY - dimensions.height; // Actual top of the tree image
-        const treeImageBottom = tree.posY; // Tree base position
-        
-        shouldApplyTransparency = localPlayerPosition.y >= treeImageTop && // Player is below the actual top of tree image
-                                 localPlayerPosition.y <= treeImageBottom && // Player is above the tree base
-                                 Math.abs(localPlayerPosition.x - tree.posX) < (dimensions.width * 0.6); // Within reasonable tree width
-    }
-
-    // Apply transparency by modifying canvas global alpha if needed
-    if (shouldApplyTransparency && !onlyDrawShadow) {
-        ctx.save();
-        // Render the tree in two parts: bottom opaque, top transparent
-        renderTreeWithPartialTransparency(ctx, tree, now_ms, cycleProgress, skipDrawingShadow);
-        ctx.restore();
-    } else {
-        // Normal rendering
-        renderConfiguredGroundEntity({
-            ctx,
-            entity: tree,
-            config: treeConfig,
-            nowMs: now_ms,
-            entityPosX: tree.posX,
-            entityPosY: tree.posY,
-            cycleProgress,
-            onlyDrawShadow,    // Pass flag
-            skipDrawingShadow  // Pass flag
-        });
-    }
-}
-
-// Helper function to render tree with partial transparency using a smooth opacity gradient
-function renderTreeWithPartialTransparency(
-    ctx: CanvasRenderingContext2D,
-    tree: Tree,
-    now_ms: number,
-    cycleProgress: number,
-    skipDrawingShadow?: boolean
-) {
-    // First render the shadow normally (if not skipped)
-    if (!skipDrawingShadow) {
-        renderConfiguredGroundEntity({
-            ctx,
-            entity: tree,
-            config: treeConfig,
-            nowMs: now_ms,
-            entityPosX: tree.posX,
-            entityPosY: tree.posY,
-            cycleProgress,
-            onlyDrawShadow: true,
-            skipDrawingShadow: false
-        });
-    }
-
-    // Get the image and calculate dimensions
-    const imageSource = treeConfig.getImageSource(tree);
-    if (!imageSource) return;
-    
-    const image = imageManager.getImage(imageSource);
-    if (!image) return;
-
-    const dimensions = treeConfig.getTargetDimensions(image, tree);
-    const position = treeConfig.calculateDrawPosition(tree, dimensions.width, dimensions.height);
-    const effects = treeConfig.applyEffects?.(ctx, tree, now_ms, position.drawX, position.drawY, cycleProgress, dimensions.width, dimensions.height) || { offsetX: 0, offsetY: 0 };
-
-    const finalX = position.drawX + effects.offsetX;
-    const finalY = position.drawY + effects.offsetY;
-
-    // Define transparency gradient zones
-    const gradientStartRatio = 0.8; // Start fading at 80% of tree height (only bottom 20% stays opaque)
-    const gradientEndRatio = 0.1;   // Maximum transparency at 10% from top
-    const gradientStartY = finalY + (dimensions.height * gradientStartRatio);
-    const gradientEndY = finalY + (dimensions.height * gradientEndRatio);
-
-    // Render tree in horizontal slices with varying opacity for smooth gradient
-    const numSlices = 20; // More slices = smoother gradient
-    const sliceHeight = dimensions.height / numSlices;
-
-    ctx.save();
-
-    for (let i = 0; i < numSlices; i++) {
-        const sliceY = finalY + (i * sliceHeight);
-        const sliceCenterY = sliceY + (sliceHeight / 2);
-        
-        // Calculate opacity based on position in the gradient zone
-        let opacity = 1.0; // Default fully opaque
-        
-        if (sliceCenterY <= gradientStartY && sliceCenterY >= gradientEndY) {
-            // We're in the gradient zone - calculate smooth opacity transition
-            const gradientProgress = (gradientStartY - sliceCenterY) / (gradientStartY - gradientEndY);
-            // Use a smooth curve for more natural transition
-            const easedProgress = 1 - Math.pow(1 - gradientProgress, 2); // Ease-out curve
-            opacity = 1.0 - (easedProgress * 0.6); // Maximum 60% transparency at top
-        } else if (sliceCenterY < gradientEndY) {
-            // Above gradient zone - maximum transparency
-            opacity = 0.4; // 60% transparent
-        }
-        // Below gradient zone stays fully opaque (opacity = 1.0)
-
-        ctx.globalAlpha = opacity;
-        
-        // Clip to current slice and draw
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(finalX, sliceY, dimensions.width, sliceHeight);
-        ctx.clip();
-        ctx.drawImage(image, finalX, finalY, dimensions.width, dimensions.height);
-        ctx.restore();
-    }
-
-    ctx.restore();
+    // The transparency effect was causing major performance issues.
+    // For now, we will render the tree normally without any transparency
+    // when the player is behind it.
+    renderConfiguredGroundEntity({
+        ctx,
+        entity: tree,
+        config: treeConfig,
+        nowMs: now_ms,
+        entityPosX: tree.posX,
+        entityPosY: tree.posY,
+        cycleProgress,
+        onlyDrawShadow,    // Pass flag
+        skipDrawingShadow  // Pass flag
+    });
 }

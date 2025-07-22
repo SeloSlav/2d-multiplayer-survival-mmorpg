@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useContext } from 'react';
+import { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import * as SpacetimeDB from '../generated';
 import {
     DbConnection,
@@ -198,6 +198,8 @@ export const useSpacetimeTables = ({
     const [animalCorpses, setAnimalCorpses] = useState<Map<string, SpacetimeDB.AnimalCorpse>>(() => new Map());
     const [barrels, setBarrels] = useState<Map<string, SpacetimeDB.Barrel>>(() => new Map()); // ADDED barrels
     const [seaStacks, setSeaStacks] = useState<Map<string, SpacetimeDB.SeaStack>>(() => new Map()); // ADDED sea stacks
+
+
 
     // Get local player identity for sound system
     const localPlayerIdentity = connection?.identity || null;
@@ -1233,6 +1235,8 @@ export const useSpacetimeTables = ({
             connection.db.seaStack.onUpdate(handleSeaStackUpdate);
             connection.db.seaStack.onDelete(handleSeaStackDelete);
 
+
+
             callbacksRegisteredRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
@@ -1567,5 +1571,5 @@ export const useSpacetimeTables = ({
         animalCorpses,
         barrels, // ADDED barrels
         seaStacks, // ADDED sea stacks
-      };
+    };
 }; 

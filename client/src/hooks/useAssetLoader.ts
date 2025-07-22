@@ -8,6 +8,7 @@ import heroSprintSpriteSheet from '../assets/hero_sprint.png';
 import heroIdleSpriteSheet from '../assets/hero_idle.png';
 import heroWaterSpriteSheet from '../assets/hero_swim.png';
 import heroCrouchSpriteSheet from '../assets/hero_crouch.png';
+import heroDodgeSpriteSheet from '../assets/hero_dodge.png';
 import grassTexture from '../assets/tiles/grass2.png';
 import campfireSprite from '../assets/doodads/campfire.png';
 import burlapSackUrl from '../assets/items/burlap_sack.png';
@@ -33,6 +34,7 @@ interface AssetLoaderResult {
   heroIdleImageRef: React.RefObject<HTMLImageElement | null>;
   heroWaterImageRef: React.RefObject<HTMLImageElement | null>;
   heroCrouchImageRef: React.RefObject<HTMLImageElement | null>;
+  heroDodgeImageRef: React.RefObject<HTMLImageElement | null>;
   grassImageRef: React.RefObject<HTMLImageElement | null>;
   campfireImageRef: React.RefObject<HTMLImageElement | null>;
   itemImagesRef: React.RefObject<Map<string, HTMLImageElement>>;
@@ -51,6 +53,7 @@ export function useAssetLoader(): AssetLoaderResult {
   const heroIdleImageRef = useRef<HTMLImageElement | null>(null);
   const heroWaterImageRef = useRef<HTMLImageElement | null>(null);
   const heroCrouchImageRef = useRef<HTMLImageElement | null>(null);
+  const heroDodgeImageRef = useRef<HTMLImageElement | null>(null);
   const grassImageRef = useRef<HTMLImageElement | null>(null);
   const campfireImageRef = useRef<HTMLImageElement | null>(null);
   const burlapSackImageRef = useRef<HTMLImageElement | null>(null);
@@ -101,6 +104,7 @@ export function useAssetLoader(): AssetLoaderResult {
     loadImage(heroIdleSpriteSheet, heroIdleImageRef);
     loadImage(heroWaterSpriteSheet, heroWaterImageRef);
     loadImage(heroCrouchSpriteSheet, heroCrouchImageRef);
+    loadImage(heroDodgeSpriteSheet, heroDodgeImageRef);
     loadImage(grassTexture, grassImageRef);
     loadImage(campfireSprite, campfireImageRef);
     loadImage(burlapSackUrl, burlapSackImageRef, itemImagesRef, 'burlap_sack.png');
@@ -185,6 +189,7 @@ export function useAssetLoader(): AssetLoaderResult {
     heroIdleImageRef,
     heroWaterImageRef,
     heroCrouchImageRef,
+    heroDodgeImageRef,
     grassImageRef,
     campfireImageRef,
     burlapSackImageRef,

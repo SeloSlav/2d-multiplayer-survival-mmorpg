@@ -34,9 +34,9 @@ use crate::sound_events::emit_walking_sound;
 use crate::sound_events::emit_swimming_sound;
 
 // === DODGE ROLL CONSTANTS ===
-pub const DODGE_ROLL_DISTANCE: f32 = 300.0; // Increased from 120 to 300 pixels (about 7.5x player radius)
-pub const DODGE_ROLL_DURATION_MS: u64 = 350; // Increased from 250 to 350ms for more dramatic effect
-pub const DODGE_ROLL_COOLDOWN_MS: u64 = 1000; // 1 second cooldown between dodge rolls
+pub const DODGE_ROLL_DISTANCE: f32 = 450.0; // Increased from 300 to 450 pixels for better PvP effectiveness
+pub const DODGE_ROLL_DURATION_MS: u64 = 500; // 500ms for complete animation
+pub const DODGE_ROLL_COOLDOWN_MS: u64 = 500; // 500ms cooldown - can dodge again immediately when animation finishes
 pub const DODGE_ROLL_SPEED: f32 = DODGE_ROLL_DISTANCE / (DODGE_ROLL_DURATION_MS as f32 / 1000.0); // Pixels per second
 
 // Table to track dodge roll state for each player
@@ -343,8 +343,9 @@ pub fn dodge_roll(ctx: &ReducerContext, move_x: f32, move_y: f32) -> Result<(), 
         }
     }
 
-    log::info!("Player {:?} started dodge roll in direction: {} (no stamina cost)", 
-               sender_id, direction_string);
+    log::info!("Player {:?} dodge rolled from ({:.1}, {:.1}) to ({:.1}, {:.1}) in direction: {}", 
+               sender_id, current_player.position_x, current_player.position_y, 
+               clamped_target_x, clamped_target_y, direction_string);
 
     Ok(())
 }

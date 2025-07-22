@@ -80,12 +80,15 @@ export const getSpriteCoordinates = (
   isIdle: boolean = false, // Flag to indicate idle animation
   isCrouching: boolean = false, // Flag to indicate crouch animation
   isSwimming: boolean = false, // Flag to indicate swimming animation
-  isDodgeRolling: boolean = false // NEW: Flag to indicate dodge roll animation
+  isDodgeRolling: boolean = false, // NEW: Flag to indicate dodge roll animation
+  dodgeRollProgress: number = 0 // NEW: Progress of dodge roll (0.0 to 1.0)
 ): { sx: number, sy: number } => {
   // Handle dodge roll animation (7x4 grid layout - 7 columns, 4 rows)
   if (isDodgeRolling) {
-    const dodgeFrame = currentAnimationFrame % totalFrames; // Ensure frame is within bounds (0-27)
-    const spriteCol = dodgeFrame % 7; // Cycle through 7 columns on the row
+    // Calculate frame based on dodge roll progress (0.0 to 1.0)
+    // We want to go through all 7 frames over the duration of the dodge roll
+    const frameIndex = Math.floor(dodgeRollProgress * 7); // Map progress to 0-6 frame range
+    const spriteCol = Math.min(frameIndex, 6); // Ensure we don't exceed 6 (0-6 = 7 frames)
     
     // Calculate row based on player's facing direction
     let spriteRow = 0; // Default Down
@@ -280,7 +283,9 @@ export const renderPlayer = (
   isCorpse?: boolean, // New flag for corpse rendering
   cycleProgress: number = 0.375, // Day/night cycle progress (0.0 to 1.0), default to noon-ish
   localPlayerIsCrouching?: boolean, // NEW: Add local crouch state for optimistic rendering
-  renderHalfMode?: 'top' | 'bottom' | 'full' // NEW: Control which part of sprite to render
+  renderHalfMode?: 'top' | 'bottom' | 'full', // NEW: Control which part of sprite to render
+  isDodgeRolling?: boolean, // NEW: Whether the player is currently dodge rolling
+  dodgeRollProgress?: number // NEW: Progress of the dodge roll (0.0 to 1.0)
 ) => {
   // REMOVE THE NAME TAG RENDERING BLOCK FROM HERE
   // const { positionX, positionY, direction, color, username } = player;
@@ -531,7 +536,7 @@ export const renderPlayer = (
     ? localPlayerIsCrouching 
     : player.isCrouching;
   const isCrouchingState = (!isCorpse && effectiveIsCrouching && !player.isOnWater);
-  const isDodgeRollingState = false; // TODO: Add actual dodge roll detection when integrated
+  const isDodgeRollingState = (!isCorpse && (isDodgeRolling || false)); // Use parameter, default to false
   
   let totalFrames: number;
   let isIdleAnimation = false;
@@ -569,7 +574,8 @@ export const renderPlayer = (
     isIdleAnimation,
     isCrouchingAnimation,
     isSwimmingAnimation,
-    isDodgeRollingAnimation
+    isDodgeRollingAnimation,
+    dodgeRollProgress || 0
   );
   
   // Shake Logic (directly uses elapsedSinceServerHitMs)
@@ -649,7 +655,8 @@ export const renderPlayer = (
       isIdleAnimation,
       isCrouchingAnimation,
       isSwimmingAnimation,
-      isDodgeRollingAnimation
+      isDodgeRollingAnimation,
+      dodgeRollProgress || 0
     );
     
     // Create a temporary canvas with just the current sprite frame

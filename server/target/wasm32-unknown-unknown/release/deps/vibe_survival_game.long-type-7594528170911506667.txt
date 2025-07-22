@@ -1,0 +1,2 @@
+PlayerDodgeRollState: spacetimedb::Serialize
+std::option::Option<PlayerDodgeRollState>
