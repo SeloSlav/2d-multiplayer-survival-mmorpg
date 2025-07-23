@@ -46,6 +46,8 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
     let players = ctx.db.player();
     let item_defs = ctx.db.item_definition();
 
+    log::info!("RESPAWN_RANDOMLY called by player {:?}", sender_id);
+
     // Find the player requesting respawn
     let mut player = players.identity().find(&sender_id)
         .ok_or_else(|| "Player not found".to_string())?;
@@ -334,6 +336,13 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
     current_player.is_knocked_out = false; // Reset knocked out state
     current_player.knocked_out_at = None; // Clear knocked out timestamp
 
+    // CRITICAL FIX: Reset client movement sequence to force position sync
+    // This prevents client-side prediction from overriding the respawn position
+    current_player.client_movement_sequence = 0;
+    
+    // Also reset water status since we're spawning on beach (land)
+    current_player.is_on_water = false;
+
     // --- Update Timestamp ---
     current_player.last_update = ctx.timestamp;
     current_player.last_stat_update = ctx.timestamp; // Reset stat timestamp on respawn
@@ -341,6 +350,7 @@ pub fn respawn_randomly(ctx: &ReducerContext) -> Result<(), String> { // Renamed
     // --- Apply Player Changes ---
     players.identity().update(current_player);
     log::info!("Player {:?} respawned on land at ({:.1}, {:.1}).", sender_id, spawn_x, spawn_y);
+    log::info!("RESPAWN SUCCESS: Player position updated to ({:.1}, {:.1})", spawn_x, spawn_y);
 
     // Ensure item is unequipped on respawn
     match active_equipment::clear_active_item_reducer(ctx, sender_id) {

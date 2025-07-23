@@ -102,6 +102,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
   const lastUpdateTime = useRef<number>(0);
   const pendingPosition = useRef<{ x: number; y: number } | null>(null);
   const lastFacingDirection = useRef<string>('down');
+  const wasDeadRef = useRef(localPlayer?.isDead ?? true);
   
   // Only use state for values that need to trigger re-renders
   const [, forceUpdate] = useState({}); // For manual re-renders when needed
@@ -128,6 +129,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
       serverPositionRef.current = serverPos;
       pendingPosition.current = serverPos;
       lastFacingDirection.current = localPlayer.direction || 'down';
+      wasDeadRef.current = localPlayer.isDead;
       
       // Force a re-render to update components that depend on position
       forceUpdate({});
@@ -138,21 +140,43 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
   useEffect(() => {
     if (!localPlayer || !clientPositionRef.current || !serverPositionRef.current) return;
 
-    const receivedSequence = localPlayer.clientMovementSequence ?? 0n;
-    
-    if (receivedSequence > lastAckedSequenceRef.current) {
-      lastAckedSequenceRef.current = receivedSequence;
+    const hasRespawned = wasDeadRef.current && !localPlayer.isDead;
+    if (hasRespawned) {
+      // Player has respawned. The server is now authoritative. Reset client state.
+      console.log('[usePredictedMovement] Player respawn detected. Resetting client position.');
       const newServerPos = { x: localPlayer.positionX, y: localPlayer.positionY };
+
+      clientPositionRef.current = { ...newServerPos };
+      serverPositionRef.current = { ...newServerPos };
+      pendingPosition.current = { ...newServerPos };
+      lastFacingDirection.current = localPlayer.direction || 'down';
       
-      // PROPER PREDICTION: Server update is an acknowledgment, not a correction
-      // Only update our server reference for future comparisons
-      serverPositionRef.current = newServerPos;
-      
-      // CLIENT STAYS AUTHORITATIVE: No position correction unless there's actual desync
-      // The client prediction continues uninterrupted
-      
+      // Reset sequence numbers to prevent server from ignoring updates
+      clientSequenceRef.current = 0n;
+      lastAckedSequenceRef.current = 0n;
+
+      forceUpdate({}); // Force a re-render for components that use position
+    } else {
+      const receivedSequence = localPlayer.clientMovementSequence ?? 0n;
+    
+      if (receivedSequence > lastAckedSequenceRef.current) {
+        lastAckedSequenceRef.current = receivedSequence;
+        const newServerPos = { x: localPlayer.positionX, y: localPlayer.positionY };
+        
+        // PROPER PREDICTION: Server update is an acknowledgment, not a correction
+        // Only update our server reference for future comparisons
+        serverPositionRef.current = newServerPos;
+        
+        // CLIENT STAYS AUTHORITATIVE: No position correction unless there's actual desync
+        // The client prediction continues uninterrupted
+        
+      }
     }
-  }, [localPlayer?.positionX, localPlayer?.positionY, localPlayer?.direction]);
+    
+    // Update wasDeadRef for the next render cycle
+    wasDeadRef.current = localPlayer.isDead;
+
+  }, [localPlayer?.positionX, localPlayer?.positionY, localPlayer?.direction, localPlayer?.isDead]);
 
   // Optimized position update function
   const updatePosition = useCallback(() => {

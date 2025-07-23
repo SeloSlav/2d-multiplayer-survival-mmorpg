@@ -16,6 +16,11 @@ use crate::private_message as PrivateMessageTableTrait; // Trait for private mes
 use crate::death_marker; // <<< ADDED for DeathMarker
 use crate::death_marker::death_marker as DeathMarkerTableTrait; // <<< ADDED DeathMarker table trait
 
+// --- Configuration Constants ---
+/// Set to false to disable kill command cooldown (useful for testing)
+/// Set to true to enable normal cooldown behavior
+const ENABLE_KILL_COMMAND_COOLDOWN: bool = false;
+
 // --- Table Definitions ---
 
 #[spacetimedb::table(name = message, public)]
@@ -54,22 +59,25 @@ pub fn send_message(ctx: &ReducerContext, text: String) -> Result<(), String> {
                 log::info!("[Command] Player {:?} used {} command.", sender_id, command);
                 let cooldown_table = ctx.db.player_kill_command_cooldown();
                 
-                if let Some(cooldown_record) = cooldown_table.player_id().find(&sender_id) {
-                    let micros_elapsed: u64 = (current_time.to_micros_since_unix_epoch().saturating_sub(cooldown_record.last_kill_command_at.to_micros_since_unix_epoch())).try_into().unwrap();
-                    let elapsed_seconds: u64 = micros_elapsed / 1_000_000u64;
-                    
-                    if elapsed_seconds < crate::KILL_COMMAND_COOLDOWN_SECONDS {
-                        let remaining_cooldown = crate::KILL_COMMAND_COOLDOWN_SECONDS - elapsed_seconds;
-                        let private_feedback = PrivateMessage {
-                            id: 0, // Auto-incremented
-                            recipient_identity: sender_id,
-                            sender_display_name: "SYSTEM".to_string(),
-                            text: format!("You can use {} again in {} seconds.", command, remaining_cooldown),
-                            sent: current_time,
-                        };
-                        ctx.db.private_message().insert(private_feedback);
-                        log::info!("Sent private cooldown message to {:?} for command {}. Remaining: {}s", sender_id, command, remaining_cooldown);
-                        return Ok(()); // Command processed by sending private feedback
+                // Only check cooldown if ENABLE_KILL_COMMAND_COOLDOWN is true
+                if ENABLE_KILL_COMMAND_COOLDOWN {
+                    if let Some(cooldown_record) = cooldown_table.player_id().find(&sender_id) {
+                        let micros_elapsed: u64 = (current_time.to_micros_since_unix_epoch().saturating_sub(cooldown_record.last_kill_command_at.to_micros_since_unix_epoch())).try_into().unwrap();
+                        let elapsed_seconds: u64 = micros_elapsed / 1_000_000u64;
+                        
+                        if elapsed_seconds < crate::KILL_COMMAND_COOLDOWN_SECONDS {
+                            let remaining_cooldown = crate::KILL_COMMAND_COOLDOWN_SECONDS - elapsed_seconds;
+                            let private_feedback = PrivateMessage {
+                                id: 0, // Auto-incremented
+                                recipient_identity: sender_id,
+                                sender_display_name: "SYSTEM".to_string(),
+                                text: format!("You can use {} again in {} seconds.", command, remaining_cooldown),
+                                sent: current_time,
+                            };
+                            ctx.db.private_message().insert(private_feedback);
+                            log::info!("Sent private cooldown message to {:?} for command {}. Remaining: {}s", sender_id, command, remaining_cooldown);
+                            return Ok(()); // Command processed by sending private feedback
+                        }
                     }
                 }
 
@@ -127,7 +135,7 @@ pub fn send_message(ctx: &ReducerContext, text: String) -> Result<(), String> {
                     }
                     // --- End DeathMarker ---
 
-                    // Update cooldown
+                    // Update cooldown record even when cooldown is disabled (for consistency)
                     let new_cooldown_record = crate::PlayerKillCommandCooldown {
                         player_id: sender_id,
                         last_kill_command_at: current_time,
@@ -138,7 +146,7 @@ pub fn send_message(ctx: &ReducerContext, text: String) -> Result<(), String> {
                         cooldown_table.insert(new_cooldown_record);
                     }
 
-                    log::info!("Player {:?} successfully used {}.", sender_id, command);
+                    log::info!("Player {:?} successfully used {}. Cooldown enabled: {}", sender_id, command, ENABLE_KILL_COMMAND_COOLDOWN);
                     return Ok(()); // Command processed, don't send message to chat
                 } else {
                     return Err(format!("Player not found for {} command.", command));
