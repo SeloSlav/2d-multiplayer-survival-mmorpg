@@ -1,35 +1,25 @@
 import React from 'react';
 import styles from './MenuComponents.module.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMusic, faVolumeUp, faLeaf } from '@fortawesome/free-solid-svg-icons';
+import { faTree } from '@fortawesome/free-solid-svg-icons';
 
-// Default audio settings based on optimal neural processing thresholds
-export const DEFAULT_AUDIO_SETTINGS = {
-    musicVolume: 0.25,        // 25% - Neural Harmony Levels (Cortical Music Enhancement)
-    soundVolume: 0.50,        // 50% - Haptic Feedback Matrix (Neural Action Response)
-    environmentalVolume: 1.00 // 100% - Atmospheric Sensors (Environmental Analysis)
+// Default visual settings based on optimal neural rendering thresholds
+export const DEFAULT_VISUAL_SETTINGS = {
+    treeShadowsEnabled: true,        // Enable tree shadows
 } as const;
 
-interface GameSettingsMenuProps {
+interface GameVisualSettingsMenuProps {
     onBack: () => void;
     onClose: () => void;
-    musicVolume: number;
-    soundVolume: number;
-    environmentalVolume: number;
-    onMusicVolumeChange: (volume: number) => void;
-    onSoundVolumeChange: (volume: number) => void;
-    onEnvironmentalVolumeChange: (volume: number) => void;
+    treeShadowsEnabled: boolean;
+    onTreeShadowsChange: (enabled: boolean) => void;
 }
 
-const GameSettingsMenu: React.FC<GameSettingsMenuProps> = ({
+const GameVisualSettingsMenu: React.FC<GameVisualSettingsMenuProps> = ({
     onBack,
     onClose,
-    musicVolume,
-    soundVolume,
-    environmentalVolume,
-    onMusicVolumeChange,
-    onSoundVolumeChange,
-    onEnvironmentalVolumeChange,
+    treeShadowsEnabled,
+    onTreeShadowsChange,
 }) => {
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (e.target === e.currentTarget) {
@@ -37,12 +27,8 @@ const GameSettingsMenu: React.FC<GameSettingsMenuProps> = ({
         }
     };
 
-    const formatVolume = (volume: number) => `${Math.round(volume * 100)}%`;
-
     return (
         <>
-
-            
             <div
                 style={{
                     position: 'fixed',
@@ -50,7 +36,7 @@ const GameSettingsMenu: React.FC<GameSettingsMenuProps> = ({
                     left: 0,
                     width: '100%',
                     height: '100%',
-                    background: 'linear-gradient(135deg, rgba(25, 10, 40, 0.95), rgba(15, 5, 30, 0.98))',
+                    background: 'linear-gradient(135deg, rgba(10, 25, 40, 0.95), rgba(5, 15, 30, 0.98))',
                     display: 'flex',
                     justifyContent: 'center',
                     alignItems: 'center',
@@ -65,10 +51,10 @@ const GameSettingsMenu: React.FC<GameSettingsMenuProps> = ({
                 style={{
                     maxWidth: '600px',
                     maxHeight: '80vh',
-                    background: 'linear-gradient(145deg, rgba(30, 15, 50, 0.95), rgba(20, 10, 40, 0.98))',
-                    border: '2px solid #00ffff',
+                    background: 'linear-gradient(145deg, rgba(15, 30, 50, 0.95), rgba(10, 20, 40, 0.98))',
+                    border: '2px solid #00ff88',
                     borderRadius: '12px',
-                    boxShadow: '0 0 30px rgba(0, 255, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.1)',
+                    boxShadow: '0 0 30px rgba(0, 255, 136, 0.3), inset 0 0 20px rgba(0, 255, 136, 0.1)',
                     position: 'relative',
                     overflow: 'hidden',
                 }}
@@ -81,155 +67,61 @@ const GameSettingsMenu: React.FC<GameSettingsMenuProps> = ({
                     left: 0,
                     right: 0,
                     height: '2px',
-                    background: 'linear-gradient(90deg, transparent, #00ffff, transparent)',
+                    background: 'linear-gradient(90deg, transparent, #00ff88, transparent)',
                     animation: 'scanLine 3s linear infinite',
                 }} />
                 
-                <div style={{ textAlign: 'center', marginBottom: '35px' }}>
+                <div style={{ textAlign: 'left', marginBottom: '35px' }}>
                     <h2
                         style={{
                             fontFamily: '"Press Start 2P", cursive',
                             fontSize: '22px',
-                            color: '#00ffff',
-                            textAlign: 'center',
+                            color: '#00ff88',
+                            textAlign: 'left',
                             marginBottom: '8px',
-                            textShadow: '0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4)',
+                            textShadow: '0 0 10px rgba(0, 255, 136, 0.8), 0 0 20px rgba(0, 255, 136, 0.4)',
                             animation: 'glow 2s ease-in-out infinite alternate',
                             letterSpacing: '2px',
                         }}
                     >
-                        AUDITORY CORTEX MODULE
+                        VISUAL CORTEX MODULE
                     </h2>
                     <div
                         style={{
                             fontFamily: '"Press Start 2P", cursive',
                             fontSize: '12px',
                             color: '#6699cc',
-                            textAlign: 'center',
+                            textAlign: 'left',
                             letterSpacing: '1px',
                             opacity: 0.8,
                         }}
                     >
-                        Neural Audio Processing Interface v0.53
+                        Neural Imaging Processing Interface v0.53
                     </div>
                 </div>
-                
+
                 <div style={{ padding: '20px 0' }}>
                     <div style={{ marginBottom: '25px' }}>
                         <div style={{
                             fontFamily: '"Press Start 2P", cursive',
                             fontSize: '16px',
-                            color: '#ff6b9d',
+                            color: '#88ff44',
                             marginBottom: '12px',
-                            textShadow: '0 0 8px #ff6b9d',
+                            textShadow: '0 0 8px #88ff44',
                             letterSpacing: '1px',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '12px',
                         }}>
                             <FontAwesomeIcon 
-                                icon={faMusic} 
+                                icon={faTree} 
                                 style={{
-                                    color: '#ff6b9d',
-                                    textShadow: '0 0 8px #ff6b9d',
+                                    color: '#88ff44',
+                                    textShadow: '0 0 8px #88ff44',
                                     fontSize: '14px',
                                 }}
                             />
-                            NEURAL HARMONY LEVELS: {Math.round(musicVolume * 100)}%
-                        </div>
-                        <div style={{
-                            fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '12px',
-                            color: '#ffaacc',
-                            marginBottom: '8px',
-                            opacity: 0.7,
-                            letterSpacing: '0.5px',
-                            textAlign: 'left',
-                        }}>
-                            Cortical Music Enhancement, Ambient Synthesis
-                        </div>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={musicVolume}
-                            onChange={(e) => onMusicVolumeChange(parseFloat(e.target.value))}
-                            style={{
-                                width: '100%',
-                                margin: '8px 0',
-                            }}
-                        />
-                    </div>
-                    
-                    <div style={{ marginBottom: '25px' }}>
-                        <div style={{
-                            fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '16px',
-                            color: '#4ecdc4',
-                            marginBottom: '12px',
-                            textShadow: '0 0 8px #4ecdc4',
-                            letterSpacing: '1px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                        }}>
-                            <FontAwesomeIcon 
-                                icon={faVolumeUp} 
-                                style={{
-                                    color: '#4ecdc4',
-                                    textShadow: '0 0 8px #4ecdc4',
-                                    fontSize: '14px',
-                                }}
-                            />
-                            HAPTIC FEEDBACK MATRIX: {Math.round(soundVolume * 100)}%
-                        </div>
-                        <div style={{
-                            fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '12px',
-                            color: '#88dddd',
-                            marginBottom: '8px',
-                            opacity: 0.7,
-                            letterSpacing: '0.5px',
-                            textAlign: 'left',
-                        }}>
-                            Neural Action Response, Item Recognition
-                        </div>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={soundVolume}
-                            onChange={(e) => onSoundVolumeChange(parseFloat(e.target.value))}
-                            style={{
-                                width: '100%',
-                                margin: '8px 0',
-                            }}
-                        />
-                    </div>
-                    
-                    <div style={{ marginBottom: '25px' }}>
-                        <div style={{
-                            fontFamily: '"Press Start 2P", cursive',
-                            fontSize: '16px',
-                            color: '#90ee90',
-                            marginBottom: '12px',
-                            textShadow: '0 0 8px #90ee90',
-                            letterSpacing: '1px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                        }}>
-                            <FontAwesomeIcon 
-                                icon={faLeaf} 
-                                style={{
-                                    color: '#90ee90',
-                                    textShadow: '0 0 8px #90ee90',
-                                    fontSize: '14px',
-                                }}
-                            />
-                            ATMOSPHERIC SENSORS: {Math.round(environmentalVolume * 100)}%
+                            TREE SHADOWS: {treeShadowsEnabled ? 'ENABLED' : 'DISABLED'}
                         </div>
                         <div style={{
                             fontFamily: '"Press Start 2P", cursive',
@@ -240,25 +132,45 @@ const GameSettingsMenu: React.FC<GameSettingsMenuProps> = ({
                             letterSpacing: '0.5px',
                             textAlign: 'left',
                         }}>
-                            Weather Synthesis, Environmental Analysis
+                            {treeShadowsEnabled 
+                                ? 'Performance may decrease in dense forests' 
+                                : 'Disabled for better performance'
+                            }
                         </div>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={environmentalVolume}
-                            onChange={(e) => onEnvironmentalVolumeChange(parseFloat(e.target.value))}
-                            style={{
-                                width: '100%',
-                                margin: '8px 0',
-                            }}
-                        />
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'flex-start',
+                            gap: '15px',
+                        }}>
+                            <label style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                cursor: 'pointer',
+                                fontFamily: '"Press Start 2P", cursive',
+                                fontSize: '14px',
+                                color: treeShadowsEnabled ? '#88ff44' : '#666',
+                                textShadow: treeShadowsEnabled ? '0 0 5px #88ff44' : 'none',
+                                transition: 'all 0.3s ease',
+                            }}>
+                                <input
+                                    type="checkbox"
+                                    checked={treeShadowsEnabled}
+                                    onChange={(e) => onTreeShadowsChange(e.target.checked)}
+                                    style={{
+                                        marginRight: '10px',
+                                        transform: 'scale(1.5)',
+                                        accentColor: '#00ff88',
+                                    }}
+                                />
+                                ENABLE SHADOWS
+                            </label>
+                        </div>
                     </div>
                 </div>
-                
+
                 <div className={styles.menuButtons}>
-                    <button
+                    <button 
                         onClick={onBack}
                         className={styles.menuButton}
                         style={{
@@ -328,17 +240,17 @@ const GameSettingsMenu: React.FC<GameSettingsMenuProps> = ({
                     
                     @keyframes glow {
                         0% { 
-                            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4);
+                            text-shadow: 0 0 10px rgba(0, 255, 136, 0.8), 0 0 20px rgba(0, 255, 136, 0.4);
                         }
                         100% { 
-                            text-shadow: 0 0 15px rgba(0, 255, 255, 1), 0 0 30px rgba(0, 255, 255, 0.6);
+                            text-shadow: 0 0 15px rgba(0, 255, 136, 1), 0 0 30px rgba(0, 255, 136, 0.6);
                         }
                     }
                 `}</style>
             </div>
-        </div>
+            </div>
         </>
     );
 };
 
-export default GameSettingsMenu; 
+export default GameVisualSettingsMenu; 

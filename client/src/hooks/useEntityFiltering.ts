@@ -234,45 +234,7 @@ const entityCache = new Map<string, {
 }>();
 
 // ===== PERFORMANCE LOGGING SYSTEM =====
-let lastPerformanceLog = 0;
-const PERFORMANCE_LOG_INTERVAL = 1000; // Log every 1 second
-const PERFORMANCE_LAG_THRESHOLD = 50; // Log if filtering takes more than 50ms
-
-function logPerformanceData(
-  processingTime: number,
-  entityCounts: {
-    trees: number;
-    stones: number;
-    resources: number;
-    campfires: number;
-    furnaces: number;
-    animals: number;
-    grass: number;
-    total: number;
-  },
-  playerPos: { x: number; y: number },
-  emergencyMode: boolean
-) {
-  const now = Date.now();
-  const isLagSpike = processingTime > PERFORMANCE_LAG_THRESHOLD;
-  const shouldLog = isLagSpike || (now - lastPerformanceLog > PERFORMANCE_LOG_INTERVAL);
-  
-  if (shouldLog) {
-    const prefix = isLagSpike ? "🔥 [LAG SPIKE]" : "📊 [PERFORMANCE]";
-    console.log(`${prefix} Entity filtering took ${processingTime.toFixed(2)}ms`);
-    // console.log(`  📍 Player position: (${playerPos.x.toFixed(0)}, ${playerPos.y.toFixed(0)})`);
-    console.log(`  🌲 Trees: ${entityCounts.trees}, 🪨 Stones: ${entityCounts.stones}, 🌿 Resources: ${entityCounts.resources}`);
-    // console.log(`  🔥 Campfires: ${entityCounts.campfires}, ⚒️ Furnaces: ${entityCounts.furnaces}, 🐺 Animals: ${entityCounts.animals}`);
-    console.log( `📊 Total: ${entityCounts.total}`);
-    // console.log(`  🚨 Emergency mode: ${emergencyMode ? 'ACTIVE' : 'INACTIVE'}`);
-    
-    if (isLagSpike) {
-      console.log(`  ⚠️ LAG SPIKE DETECTED! Processing time: ${processingTime.toFixed(2)}ms`);
-    }
-    
-    lastPerformanceLog = now;
-  }
-}
+// REMOVED: Performance logging system to reduce overhead
 
 // ===== ENTITY COUNTING HELPERS =====
 function countEntitiesInRadius(
@@ -405,9 +367,6 @@ export function useEntityFiltering(
   barrels: Map<string, SpacetimeDBBarrel>, // ADDED barrels argument
   seaStacks: Map<string, any> // ADDED sea stacks argument
 ): EntityFilteringResult {
-  // START PERFORMANCE TIMING
-  const filteringStartTime = performance.now();
-  
   // Increment frame counter for throttling
   frameCounter++;
   
@@ -426,9 +385,8 @@ export function useEntityFiltering(
     console.log(`🚨 [PERFORMANCE] Emergency mode ${emergencyMode ? 'ACTIVATED' : 'DEACTIVATED'} - ${totalEntityCount} total entities`);
   }
 
-  // Get consistent timestamp for all projectile calculations in this frame
-  // CRITICAL FIX: Use stable timestamp to prevent infinite re-renders
-  const currentTime = useMemo(() => Date.now(), []);
+  // Get frame time for stable calculations across the function
+  const currentTime = Date.now();
 
   // Only update timestamp every second to prevent constant re-renders
   const stableTimestamp = useMemo(() => {
@@ -1075,22 +1033,6 @@ export function useEntityFiltering(
     hasEntityCountChanged, // Add callback dependency
     frameCounter // Add frame counter for cache invalidation
   ]);
-
-  // END PERFORMANCE TIMING
-  const filteringEndTime = performance.now();
-  const processingTime = filteringEndTime - filteringStartTime;
-
-  // Log performance data
-  logPerformanceData(processingTime, {
-    trees: visibleTrees.length,
-    stones: visibleStones.length,
-    resources: visibleHarvestableResources.length,
-    campfires: visibleCampfires.length,
-    furnaces: visibleFurnaces.length,
-    animals: visibleWildAnimals.length,
-    grass: visibleGrass.length,
-    total: totalEntityCount
-  }, playerPos || { x: -cameraOffsetX + canvasWidth / 2, y: -cameraOffsetY + canvasHeight / 2 }, emergencyMode);
 
   if (emergencyMode) {
     // Filter out grass and limit trees/resources

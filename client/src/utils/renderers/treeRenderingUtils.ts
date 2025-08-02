@@ -20,73 +20,58 @@ const SHAKE_INTENSITY_PX = 8;
 const clientTreeShakeStartTimes = new Map<string, number>(); // treeId -> client timestamp when shake started
 const lastKnownServerTreeShakeTimes = new Map<string, number>(); // treeId -> last known server timestamp
 
-// Define the configuration for rendering trees
-const treeConfig: GroundEntityConfig<Tree> = {
-    // Use the imported URL from Vite
-    getImageSource: (entity) => {
-        // Assuming entity.tree_type will be an object with a `tag` property like { tag: "DownyOak" }
-        // or a simple string after client type generation. This handles both.
-        if (typeof entity.treeType === 'object' && entity.treeType !== null && 'tag' in entity.treeType) {
-            switch ((entity.treeType as any).tag) {
-                case 'AleppoPine':
-                    return aleppoPineImage;
-                case 'MannaAsh':
-                    return mannaAshImage;
-                case 'DownyOak':
-                    return downyOakImage;
-                case 'StonePine':
-                    return stonePineImage;
-                default:
-                    console.warn(`Unknown tree type tag: ${(entity.treeType as any).tag}, falling back to Downy Oak.`);
-                    return downyOakImage;
-            }
-        } else if (typeof entity.treeType === 'string') { // Handle if it's just a string representation
-             switch (entity.treeType) {
-                case 'AleppoPine':
-                    return aleppoPineImage;
-                case 'MannaAsh':
-                    return mannaAshImage;
-                case 'DownyOak':
-                    return downyOakImage;
-                case 'StonePine':
-                    return stonePineImage;
-                default:
-                    console.warn(`Unknown tree type string: ${entity.treeType}, falling back to Downy Oak.`);
-                    return downyOakImage;
-            }
-        }
-        console.error('Unexpected treeType structure:', entity.treeType, 'Falling back to Downy Oak.');
-        return downyOakImage; 
-    },
+// PERFORMANCE: Cache tree type results to avoid repeated runtime checks
+const treeTypeCache = new Map<string, { imageSource: string; targetWidth: number }>();
 
-    getTargetDimensions: (img, entity) => {
-        // Get tree-specific width based on real-world tree heights
-        // Sitka Spruce (DownyOak) is the tallest at 480px, others scale down from there
-        let targetWidth = TARGET_TREE_WIDTH_PX; // Default size
+// PERFORMANCE: Helper to get cached tree type info
+function getCachedTreeTypeInfo(entity: Tree): { imageSource: string; targetWidth: number } {
+    const treeTypeKey = typeof entity.treeType === 'object' && entity.treeType !== null && 'tag' in entity.treeType
+        ? (entity.treeType as any).tag
+        : entity.treeType;
+    
+    let cached = treeTypeCache.get(treeTypeKey);
+    if (!cached) {
+        // Calculate once and cache
+        let imageSource: string;
+        let targetWidth: number;
         
-        // Determine tree type and set appropriate size
-        const treeTypeTag = (typeof entity.treeType === 'object' && entity.treeType !== null && 'tag' in entity.treeType) 
-            ? (entity.treeType as any).tag 
-            : entity.treeType;
-            
-        switch (treeTypeTag) {
-            case 'DownyOak': // Sitka Spruce - TALLEST (reference height)
-                targetWidth = 480; // Full size (same as old uniform height)
-                break;
-            case 'MannaAsh': // Mountain Hemlock - MEDIUM
-                targetWidth = 400; // 17% shorter than Sitka Spruce
-                break;
-            case 'AleppoPine': // Siberian Birch - SHORTEST  
+        switch (treeTypeKey) {
+            case 'AleppoPine':
+                imageSource = aleppoPineImage;
                 targetWidth = 320; // 33% shorter than Sitka Spruce
                 break;
-            case 'StonePine': // Sitka Alder - MEDIUM-SHORT
+            case 'MannaAsh':
+                imageSource = mannaAshImage;
+                targetWidth = 400; // 17% shorter than Sitka Spruce
+                break;
+            case 'DownyOak':
+                imageSource = downyOakImage;
+                targetWidth = 480; // Full size (same as old uniform height)
+                break;
+            case 'StonePine':
+                imageSource = stonePineImage;
                 targetWidth = 360; // 25% shorter than Sitka Spruce
                 break;
             default:
+                imageSource = downyOakImage;
                 targetWidth = TARGET_TREE_WIDTH_PX; // Fallback to Sitka Spruce size
         }
         
-        // Calculate scaling factor based on tree-specific target width
+        cached = { imageSource, targetWidth };
+        treeTypeCache.set(treeTypeKey, cached);
+    }
+    
+    return cached;
+}
+
+// Define the configuration for rendering trees
+const treeConfig: GroundEntityConfig<Tree> = {
+    getImageSource: (entity) => {
+        return getCachedTreeTypeInfo(entity).imageSource;
+    },
+
+    getTargetDimensions: (img, entity) => {
+        const { targetWidth } = getCachedTreeTypeInfo(entity);
         const scaleFactor = targetWidth / img.naturalWidth;
         return {
             width: targetWidth,
@@ -190,11 +175,12 @@ export function renderTree(
     cycleProgress: number,
     onlyDrawShadow?: boolean, // New flag
     skipDrawingShadow?: boolean, // New flag
-    localPlayerPosition?: { x: number; y: number } | null // Player position for transparency
+    localPlayerPosition?: { x: number; y: number } | null, // Player position (unused but kept for compatibility)
+    treeShadowsEnabled: boolean = true // NEW: Visual cortex module setting
 ) {
-    // The transparency effect was causing major performance issues.
-    // For now, we will render the tree normally without any transparency
-    // when the player is behind it.
+    // PERFORMANCE: Skip shadow rendering entirely if disabled in visual settings
+    const shouldSkipShadows = !treeShadowsEnabled || skipDrawingShadow;
+    
     renderConfiguredGroundEntity({
         ctx,
         entity: tree,
@@ -204,6 +190,6 @@ export function renderTree(
         entityPosY: tree.posY,
         cycleProgress,
         onlyDrawShadow,    // Pass flag
-        skipDrawingShadow  // Pass flag
+        skipDrawingShadow: shouldSkipShadows  // Use computed shadow skip flag
     });
 }

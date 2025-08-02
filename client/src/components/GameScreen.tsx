@@ -27,6 +27,7 @@ import GameMenu from './GameMenu';
 import ControlsMenu from './ControlsMenu';
 import GameTipsMenu from './GameTipsMenu';
 import GameSettingsMenu from './GameSettingsMenu';
+import GameVisualSettingsMenu from './GameVisualSettingsMenu';
 import type { MenuType } from './GameMenu';
 
 // Import types used by props
@@ -198,6 +199,10 @@ interface GameScreenProps {
     onSoundVolumeChange: (volume: number) => void;
     onEnvironmentalVolumeChange: (volume: number) => void;
     
+    // Visual settings for menu controls
+    treeShadowsEnabled: boolean;
+    onTreeShadowsChange: (enabled: boolean) => void;
+    
     // Sound system for immediate sound effects
     soundSystem: ReturnType<typeof import('../hooks/useSoundSystem').useSoundSystem>;
 
@@ -293,6 +298,8 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         onMusicVolumeChange,
         onSoundVolumeChange,
         onEnvironmentalVolumeChange,
+        treeShadowsEnabled,
+        onTreeShadowsChange,
         soundSystem,
         playerDrinkingCooldowns,
         playerDodgeRollStates,
@@ -636,6 +643,14 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                     onEnvironmentalVolumeChange={onEnvironmentalVolumeChange}
                 />
             )}
+            {currentMenu === 'visual_settings' && (
+                <GameVisualSettingsMenu
+                    onBack={handleMenuBack}
+                    onClose={handleMenuClose}
+                    treeShadowsEnabled={treeShadowsEnabled}
+                    onTreeShadowsChange={onTreeShadowsChange}
+                />
+            )}
             
             {/* Refresh Confirmation Dialog */}
             {showRefreshDialog && (
@@ -822,6 +837,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 environmentalVolume={props.environmentalVolume}
                 movementDirection={movementDirection}
                 playerDodgeRollStates={props.playerDodgeRollStates}
+                treeShadowsEnabled={treeShadowsEnabled}
             />
             
             {/* Use our camera offsets for SpeechBubbleManager */}

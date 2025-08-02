@@ -137,6 +137,12 @@ function AppContent() {
         return saved ? Math.min(parseFloat(saved), 1.0) : 0.7; // 70% default (0.7 out of 1.0 max)
     });
     
+    // --- Visual Settings State ---
+    const [treeShadowsEnabled, setTreeShadowsEnabled] = useState(() => {
+        const saved = localStorage.getItem('treeShadowsEnabled');
+        return saved ? saved === 'true' : true; // true by default
+    });
+    
     // --- Volume Change Handlers ---
     const handleMusicVolumeChange = useCallback((volume: number) => {
         console.log(`[App] handleMusicVolumeChange called with: ${volume.toFixed(3)}`);
@@ -154,6 +160,13 @@ function AppContent() {
         console.log(`[App] handleEnvironmentalVolumeChange called with: ${volume.toFixed(3)}`);
         setEnvironmentalVolume(volume);
         localStorage.setItem('environmentalVolume', volume.toString());
+    }, []);
+
+    // --- Visual Settings Change Handlers ---
+    const handleTreeShadowsChange = useCallback((enabled: boolean) => {
+        console.log(`[App] handleTreeShadowsChange called with: ${enabled}`);
+        setTreeShadowsEnabled(enabled);
+        localStorage.setItem('treeShadowsEnabled', enabled.toString());
     }, []);
 
     // --- Viewport State & Refs ---
@@ -859,6 +872,8 @@ function AppContent() {
                             onMusicVolumeChange={handleMusicVolumeChange}
                             onSoundVolumeChange={handleSoundVolumeChange}
                             onEnvironmentalVolumeChange={handleEnvironmentalVolumeChange}
+                            onTreeShadowsChange={handleTreeShadowsChange}
+                            treeShadowsEnabled={treeShadowsEnabled}
                             soundSystem={soundSystemState}
                             playerDrinkingCooldowns={playerDrinkingCooldowns}
                             rainCollectors={rainCollectors}

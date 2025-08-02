@@ -176,6 +176,8 @@ interface GameCanvasProps {
   playerDodgeRollStates: Map<string, any>; // PlayerDodgeRollState from generated types
   // ADD: Local facing direction for instant visual feedback (client-authoritative)
   localFacingDirection?: string;
+  // NEW: Visual cortex module setting for tree shadows
+  treeShadowsEnabled?: boolean;
 }
 
 /**
@@ -244,6 +246,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   movementDirection,
   playerDodgeRollStates,
   localFacingDirection, // ADD: Destructure local facing direction for client-authoritative direction changes
+  treeShadowsEnabled, // NEW: Destructure treeShadowsEnabled for visual cortex module setting
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -1056,6 +1059,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         closestInteractableTarget,
         shelterClippingData,
         localFacingDirection, // ADD: Pass local facing direction for instant client-authoritative direction changes
+        treeShadowsEnabled, // NEW: Pass visual cortex module setting for tree shadows
       });
     }
 
@@ -1333,6 +1337,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           closestInteractableTarget,
           shelterClippingData,
           localFacingDirection, // ADD: Pass local facing direction for instant client-authoritative direction changes
+          treeShadowsEnabled, // NEW: Pass visual cortex module setting for tree shadows
         });
       }
     });

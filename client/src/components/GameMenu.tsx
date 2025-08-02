@@ -1,7 +1,16 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faVolumeUp, faEye, faGamepad, faLightbulb, IconDefinition } from '@fortawesome/free-solid-svg-icons';
 
-export type MenuType = 'main' | 'controls' | 'tips' | 'settings' | null;
+export type MenuType = 'main' | 'controls' | 'tips' | 'settings' | 'visual_settings' | null;
+
+interface MenuOption {
+    label: string;
+    action: () => void;
+    icon?: IconDefinition;
+    isSignOut?: boolean;
+}
 
 interface GameMenuProps {
     onClose: () => void;
@@ -43,11 +52,12 @@ const GameMenu: React.FC<GameMenuProps> = ({
         setShowSignOutConfirm(false);
     };
 
-    const menuOptions = [
+    const menuOptions: MenuOption[] = [
         { label: 'RESUME CONSCIOUSNESS', action: () => onClose() },
-        { label: 'AUDITORY CORTEX MODULE', action: () => onNavigate('settings') },
-        { label: 'MOTOR CORTEX INTERFACE', action: () => onNavigate('controls') },
-        { label: 'TACTICAL KNOWLEDGE MATRIX', action: () => onNavigate('tips') },
+        { label: 'AUDITORY CORTEX MODULE', action: () => onNavigate('settings'), icon: faVolumeUp },
+        { label: 'VISUAL CORTEX MODULE', action: () => onNavigate('visual_settings'), icon: faEye },
+        { label: 'MOTOR CORTEX INTERFACE', action: () => onNavigate('controls'), icon: faGamepad },
+        { label: 'TACTICAL KNOWLEDGE MATRIX', action: () => onNavigate('tips'), icon: faLightbulb },
         { label: 'FORCE NEURAL SLEEP', action: handleSignOutRequest, isSignOut: true },
     ];
 
@@ -188,7 +198,32 @@ const GameMenu: React.FC<GameMenuProps> = ({
                                     : '0 0 15px rgba(0, 170, 255, 0.3), inset 0 0 10px rgba(0, 170, 255, 0.1)';
                             }}
                         >
-                            {option.label}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-start',
+                                gap: '12px',
+                                width: '100%',
+                                paddingLeft: '8px',
+                            }}>
+                                <div style={{
+                                    width: '20px',
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                }}>
+                                    {option.icon && (
+                                        <FontAwesomeIcon 
+                                            icon={option.icon} 
+                                            style={{
+                                                fontSize: '16px',
+                                                color: 'currentColor',
+                                            }}
+                                        />
+                                    )}
+                                </div>
+                                <span>{option.label}</span>
+                            </div>
                         </button>
                     ))}
                 </div>

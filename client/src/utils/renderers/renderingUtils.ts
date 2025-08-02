@@ -388,6 +388,8 @@ interface RenderYSortedEntitiesProps {
     shelterClippingData?: Array<{posX: number, posY: number, isDestroyed: boolean}>;
     // ADD: Local facing direction for instant client-authoritative direction changes
     localFacingDirection?: string;
+    // NEW: Visual cortex module setting for tree shadows
+    treeShadowsEnabled?: boolean;
 }
 
 
@@ -441,6 +443,8 @@ export const renderYSortedEntities = ({
     shelterClippingData,
     // ADD: Local facing direction for client-authoritative direction changes
     localFacingDirection,
+    // NEW: Visual cortex module setting for tree shadows
+    treeShadowsEnabled = true,
 }: RenderYSortedEntitiesProps) => {
     // PERFORMANCE: Clean up memory caches periodically
     cleanupCaches();
@@ -767,7 +771,7 @@ export const renderYSortedEntities = ({
            }
         } else if (type === 'tree') {
             // Render tree with its shadow in the normal order (shadow first, then tree)
-            renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, false, localPlayerPosition);
+            renderTree(ctx, entity as SpacetimeDBTree, nowMs, cycleProgress, false, false, localPlayerPosition, treeShadowsEnabled);
         } else if (type === 'stone') {
             // Render stone with its shadow in the normal order (shadow first, then stone)
             renderStone(ctx, entity as SpacetimeDBStone, nowMs, cycleProgress, false, false);
