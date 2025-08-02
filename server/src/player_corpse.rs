@@ -43,7 +43,7 @@ pub struct PlayerCorpse {
     #[auto_inc]
     pub id: u32, // Unique identifier for this corpse instance
 
-    pub player_identity: Identity,
+    pub player_identity: Identity, // REMOVED unique constraint - players can have multiple corpses from different deaths
     pub username: String, // For UI display
 
     pub pos_x: f32,
@@ -738,26 +738,32 @@ fn transfer_inventory_to_corpse(ctx: &ReducerContext, dead_player: &Player) -> R
 /// --- Main public function to create a corpse and transfer items ---
 /// This is intended to be called when a player dies.
 pub fn create_player_corpse(ctx: &ReducerContext, dead_player_id: Identity, death_x: f32, death_y: f32, dead_player_username: &str) -> Result<(), String> {
-    // --- PRE-CREATION CHECK: Prevent duplicate corpses for the same death event ---
+    // --- TARGETED DUPLICATE PREVENTION: Prevent corpses from the same death event ---
+    // Check for corpses at the same location within a short time window (same death event)
     let current_time = ctx.timestamp;
+    const SAME_DEATH_EVENT_WINDOW_MICROS: u64 = 2_000_000; // 2 seconds - accounts for network lag and server processing delays
+    const SAME_LOCATION_THRESHOLD: f32 = 3.0; // 3 units radius - tighter threshold for more precision
+    
     for corpse in ctx.db.player_corpse().iter() {
         if corpse.player_identity == dead_player_id {
             let time_since_creation = current_time.to_micros_since_unix_epoch()
                 .saturating_sub(corpse.death_time.to_micros_since_unix_epoch());
             
-            // If a corpse was created in the last 2 seconds, assume it's a duplicate for the same death.
-            if time_since_creation < 2_000_000 { // 2 seconds in microseconds
-                log::warn!("[CorpseCreate] A recent corpse (ID {}) already exists for player {:?}. Aborting duplicate creation.", corpse.id, dead_player_id);
-                return Ok(()); // Prevent creating a new corpse
+            // Check if this corpse was created recently AND at nearly the same location
+            if time_since_creation < SAME_DEATH_EVENT_WINDOW_MICROS {
+                let distance_squared = (death_x - corpse.pos_x).powi(2) + (death_y - corpse.pos_y).powi(2);
+                if distance_squared < SAME_LOCATION_THRESHOLD.powi(2) {
+                    log::warn!(
+                        "[CorpseCreate] SAME DEATH EVENT: Recent corpse (ID {}) already exists for player {} at similar location ({:.1}, {:.1}) vs ({:.1}, {:.1}). Time since: {:.1}ms. Preventing duplicate from same death event.",
+                        corpse.id, dead_player_username, corpse.pos_x, corpse.pos_y, death_x, death_y, time_since_creation as f64 / 1000.0
+                    );
+                    return Ok(()); // Prevent duplicate from same death event
+                }
             }
         }
     }
-    // --- END PRE-CREATION CHECK ---
 
-    log::info!(
-        "Creating corpse for player {} ({:?}) at ({:.1}, {:.1}).",
-        dead_player_username, dead_player_id, death_x, death_y
-    );
+    log::info!("[CorpseCreate] Creating corpse for player {} at ({}, {})", dead_player_username, death_x, death_y);
 
     let player_table = ctx.db.player();
     let corpse_schedules = ctx.db.player_corpse_despawn_schedule();
