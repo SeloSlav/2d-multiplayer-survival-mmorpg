@@ -741,7 +741,7 @@ pub fn create_player_corpse(ctx: &ReducerContext, dead_player_id: Identity, deat
     // --- TARGETED DUPLICATE PREVENTION: Prevent corpses from the same death event ---
     // Check for corpses at the same location within a short time window (same death event)
     let current_time = ctx.timestamp;
-    const SAME_DEATH_EVENT_WINDOW_MICROS: u64 = 2_000_000; // 2 seconds - accounts for network lag and server processing delays
+    const SAME_DEATH_EVENT_WINDOW_MICROS: i64 = 2_000_000; // 2 seconds - accounts for network lag and server processing delays
     const SAME_LOCATION_THRESHOLD: f32 = 3.0; // 3 units radius - tighter threshold for more precision
     
     for corpse in ctx.db.player_corpse().iter() {
