@@ -207,6 +207,9 @@ interface GameScreenProps {
     
     // Movement direction for dodge roll system
     movementDirection: { x: number; y: number };
+    
+    // ADD: Local facing direction for instant visual feedback (client-authoritative)
+    facingDirection?: string;
 }
 
 const GameScreen: React.FC<GameScreenProps> = (props) => {
@@ -788,6 +791,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 localPlayerId={localPlayerId}
                 connection={connection}
                 predictedPosition={predictedPosition}
+                localFacingDirection={props.facingDirection} // ADD: Pass local facing direction for instant visual feedback
                 placementInfo={placementInfo}
                 placementActions={placementActions}
                 placementError={placementError}

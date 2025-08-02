@@ -867,6 +867,7 @@ function AppContent() {
                             setIsMusicPanelVisible={setIsMusicPanelVisible}
                             playerDodgeRollStates={playerDodgeRollStates}
                             movementDirection={inputState.direction}
+                            facingDirection={facingDirection} // ADD: Pass local facing direction for instant visual feedback
                         />
                     );
                 })()

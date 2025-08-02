@@ -386,6 +386,8 @@ interface RenderYSortedEntitiesProps {
     closestInteractableTarget?: { type: string; id: bigint | number | string; position: { x: number; y: number }; distance: number; isEmpty?: boolean; } | null;
     // NEW: Shelter clipping data for shadow rendering
     shelterClippingData?: Array<{posX: number, posY: number, isDestroyed: boolean}>;
+    // ADD: Local facing direction for instant client-authoritative direction changes
+    localFacingDirection?: string;
 }
 
 
@@ -437,6 +439,8 @@ export const renderYSortedEntities = ({
     // Unified target system (replaces individual resource IDs)
     closestInteractableTarget,
     shelterClippingData,
+    // ADD: Local facing direction for client-authoritative direction changes
+    localFacingDirection,
 }: RenderYSortedEntitiesProps) => {
     // PERFORMANCE: Clean up memory caches periodically
     cleanupCaches();
@@ -452,11 +456,13 @@ export const renderYSortedEntities = ({
             // Create a modified player object with appropriate position system
             let playerForRendering = player;
             if (isLocalPlayer && localPlayerPosition) {
-                // Local player uses predicted position
+                // Local player uses predicted position AND local facing direction for instant visual feedback
                 playerForRendering = {
                     ...player,
                     positionX: localPlayerPosition.x,
-                    positionY: localPlayerPosition.y
+                    positionY: localPlayerPosition.y,
+                    // CLIENT-AUTHORITATIVE: Use local facing direction for instant direction changes (no server lag)
+                    direction: localFacingDirection || player.direction
                 };
             } else if (!isLocalPlayer && remotePlayerInterpolation) {
                 // Remote players use interpolated position between server updates

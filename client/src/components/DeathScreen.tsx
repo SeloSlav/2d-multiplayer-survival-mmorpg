@@ -158,20 +158,24 @@ const DeathScreen: React.FC<DeathScreenProps> = ({
   }, [localPlayerDeathMarker, ownedBags]);
   const ownedSleepingBagIds = useMemo(() => new Set(ownedBags.keys()), [ownedBags]);
 
-  // --- Block G key (minimap toggle) while death screen is open ---
+  // --- Block G key (minimap toggle) completely while death screen is open ---
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyEvent = (event: KeyboardEvent) => {
       if (event.key === 'G' || event.key === 'g') {
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation(); // Stop all other handlers
+        return false; // Additional prevention
       }
     };
 
-    // Add listener with capture to catch the event before other handlers
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    // Block both keydown and keyup events with capture to catch before any other handlers
+    window.addEventListener('keydown', handleKeyEvent, { capture: true });
+    window.addEventListener('keyup', handleKeyEvent, { capture: true });
     
     return () => {
-      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+      window.removeEventListener('keydown', handleKeyEvent, { capture: true });
+      window.removeEventListener('keyup', handleKeyEvent, { capture: true });
     };
   }, []);
 

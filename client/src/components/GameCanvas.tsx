@@ -174,6 +174,8 @@ interface GameCanvasProps {
   environmentalVolume?: number; // 0-1 scale for ambient/environmental sounds
   movementDirection: { x: number; y: number };
   playerDodgeRollStates: Map<string, any>; // PlayerDodgeRollState from generated types
+  // ADD: Local facing direction for instant visual feedback (client-authoritative)
+  localFacingDirection?: string;
 }
 
 /**
@@ -241,6 +243,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   environmentalVolume,
   movementDirection,
   playerDodgeRollStates,
+  localFacingDirection, // ADD: Destructure local facing direction for client-authoritative direction changes
 }) => {
   // console.log('[GameCanvas IS RUNNING] showInventory:', showInventory);
 
@@ -1052,6 +1055,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         closestInteractableDroppedItemId,
         closestInteractableTarget,
         shelterClippingData,
+        localFacingDirection, // ADD: Pass local facing direction for instant client-authoritative direction changes
       });
     }
 
@@ -1328,6 +1332,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           closestInteractableDroppedItemId,
           closestInteractableTarget,
           shelterClippingData,
+          localFacingDirection, // ADD: Pass local facing direction for instant client-authoritative direction changes
         });
       }
     });
