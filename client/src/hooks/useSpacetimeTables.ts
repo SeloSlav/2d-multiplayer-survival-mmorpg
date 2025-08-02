@@ -218,9 +218,13 @@ export const useSpacetimeTables = ({
     // --- Refs for Subscription Management ---
     const nonSpatialHandlesRef = useRef<SubscriptionHandle[]>([]);
     // Store spatial subs per chunk index (RESTORED FROM WORKING VERSION)
-    const spatialSubHandlesMapRef = useRef<Map<number, SubscriptionHandle[]>>(new Map()); 
-    const callbacksRegisteredRef = useRef(false);
-    const initialSpatialSubsDoneRef = useRef(false); // 🎯 NEW: Track if initial spatial subscriptions are done
+    const spatialSubsRef = useRef<Map<number, SubscriptionHandle[]>>(new Map());
+    const subscribedChunksRef = useRef<Set<number>>(new Set());
+    const isSubscribingRef = useRef(false);
+    
+    // --- NEW: Refs for state that shouldn't trigger re-renders on every update ---
+    const worldTilesRef = useRef<Map<string, SpacetimeDB.WorldTile>>(new Map());
+    const playerDodgeRollStatesRef = useRef<Map<string, SpacetimeDB.PlayerDodgeRollState>>(new Map());
     
     // Throttle spatial subscription updates to prevent frame drops
     const lastSpatialUpdateRef = useRef<number>(0);
@@ -232,10 +236,6 @@ export const useSpacetimeTables = ({
     
     // Hysteresis system for delayed unsubscription
     const chunkUnsubscribeTimersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
-    
-    // --- Performance Optimization: Use ref for worldTiles to avoid React re-renders ---
-    const worldTilesRef = useRef<Map<string, SpacetimeDB.WorldTile>>(new Map());
-    const playerDodgeRollStatesRef = useRef<Map<string, SpacetimeDB.PlayerDodgeRollState>>(new Map());
     
     // PERF: Track chunk crossing frequency for lag spike detection
     const chunkCrossingStatsRef = useRef<{ lastCrossing: number; crossingCount: number; lastResetTime: number }>({
@@ -286,10 +286,10 @@ export const useSpacetimeTables = ({
                 // Use setTimeout to make cleanup async
                 setTimeout(() => {
                     for (const chunkIdx of currentChunkIndicesSet) {
-                        const handles = spatialSubHandlesMapRef.current.get(chunkIdx) || [];
+                        const handles = spatialSubsRef.current.get(chunkIdx) || [];
                         handles.forEach(safeUnsubscribe);
                     }
-                    spatialSubHandlesMapRef.current.clear();
+                    spatialSubsRef.current.clear();
                     currentChunksRef.current = [];
                 }, 0);
             }
@@ -348,12 +348,12 @@ export const useSpacetimeTables = ({
 
                     // HYSTERESIS: Don't immediately unsubscribe, set a timer instead
                     const unsubscribeTimer = setTimeout(() => {
-                        const handles = spatialSubHandlesMapRef.current.get(chunkIndex);
+                        const handles = spatialSubsRef.current.get(chunkIndex);
                         if (handles) {
                             // Only log actual unsubscribes if debugging
                             // console.log(`[CHUNK_BUFFER] Delayed unsubscribe from chunk ${chunkIndex} (${handles.length} subscriptions)`);
                             handles.forEach(safeUnsubscribe);
-                            spatialSubHandlesMapRef.current.delete(chunkIndex);
+                            spatialSubsRef.current.delete(chunkIndex);
                         }
                         chunkUnsubscribeTimersRef.current.delete(chunkIndex);
                     }, CHUNK_UNSUBSCRIBE_DELAY_MS);
@@ -375,7 +375,7 @@ export const useSpacetimeTables = ({
                     }
 
                     // Only subscribe if we're not already subscribed
-                    if (spatialSubHandlesMapRef.current.has(chunkIndex)) {
+                    if (spatialSubsRef.current.has(chunkIndex)) {
                         return; // Already subscribed
                     }
                                         const subStartTime = performance.now(); // PERF: Track subscription timing
@@ -500,7 +500,7 @@ export const useSpacetimeTables = ({
                             }
                         }
 
-                        spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
+                        spatialSubsRef.current.set(chunkIndex, newHandlesForChunk);
                         
                         // PERF: Log subscription timing
                         const subTime = performance.now() - subStartTime;
@@ -540,7 +540,7 @@ export const useSpacetimeTables = ({
     // --- Effect for Subscriptions and Callbacks ---
     useEffect(() => {
         // --- Callback Registration & Initial Subscriptions (Only Once Per Connection Instance) ---
-        if (connection && !callbacksRegisteredRef.current) {
+        if (connection && !isSubscribingRef.current) {
             // console.log("[useSpacetimeTables] ENTERING main useEffect for callbacks and initial subscriptions.");
 
             // --- Define Callbacks --- (Keep definitions here - Ensure all match the provided example if needed)
@@ -1237,7 +1237,7 @@ export const useSpacetimeTables = ({
 
 
 
-            callbacksRegisteredRef.current = true;
+            isSubscribingRef.current = true;
 
             // --- Create Initial Non-Spatial Subscriptions ---
             nonSpatialHandlesRef.current.forEach(sub => safeUnsubscribe(sub)); 
@@ -1345,12 +1345,12 @@ export const useSpacetimeTables = ({
             // MASTER SWITCH: Skip spatial subscription logic if all spatial subscriptions are disabled
             if (DISABLE_ALL_SPATIAL_SUBSCRIPTIONS) {
                 // Clean up any existing spatial subscriptions if they exist
-                if (spatialSubHandlesMapRef.current.size > 0) {
+                if (spatialSubsRef.current.size > 0) {
                     console.log('[SPATIAL FLAGS] Cleaning up existing spatial subscriptions (master switch disabled)');
-                    spatialSubHandlesMapRef.current.forEach((handles) => {
+                    spatialSubsRef.current.forEach((handles) => {
                         handles.forEach(safeUnsubscribe);
                     });
-                    spatialSubHandlesMapRef.current.clear();
+                    spatialSubsRef.current.clear();
                     currentChunksRef.current = [];
                     // Clear any pending unsubscribe timers
                     chunkUnsubscribeTimersRef.current.forEach(timer => clearTimeout(timer));
@@ -1361,13 +1361,13 @@ export const useSpacetimeTables = ({
             
             // 🎯 NEW: Separate logic for initial subscription vs. subsequent updates
             // This prevents race conditions on startup.
-            if (!initialSpatialSubsDoneRef.current) {
+            if (!subscribedChunksRef.current.size) {
                 // --- INITIAL SUBSCRIPTION ---
                 console.log("[SPATIAL] First valid viewport received. Performing initial subscription.", viewport);
 
                 // Ensure any old subscriptions are cleared (shouldn't be any, but for safety)
-                spatialSubHandlesMapRef.current.forEach((handles) => handles.forEach(safeUnsubscribe));
-                spatialSubHandlesMapRef.current.clear();
+                spatialSubsRef.current.forEach((handles) => handles.forEach(safeUnsubscribe));
+                spatialSubsRef.current.clear();
                 chunkUnsubscribeTimersRef.current.forEach(timer => clearTimeout(timer));
                 chunkUnsubscribeTimersRef.current.clear();
 
@@ -1407,7 +1407,7 @@ export const useSpacetimeTables = ({
                                 // Legacy individual subscriptions can be added here if needed for fallback
                                 console.error("Batched subscriptions are disabled, but non-batched initial subscription is not fully implemented in this path.");
                             }
-                            spatialSubHandlesMapRef.current.set(chunkIndex, newHandlesForChunk);
+                            spatialSubsRef.current.set(chunkIndex, newHandlesForChunk);
                         } catch (error) {
                             newHandlesForChunk.forEach(safeUnsubscribe);
                             console.error(`[CHUNK_ERROR] Failed to create initial subscriptions for chunk ${chunkIndex}:`, error);
@@ -1418,7 +1418,7 @@ export const useSpacetimeTables = ({
                 subscribeToInitialChunks([...newChunkIndicesSet]);
                 
                 currentChunksRef.current = [...newChunkIndicesSet];
-                initialSpatialSubsDoneRef.current = true; // Mark initial subs as done
+                newChunkIndicesSet.forEach(chunkIndex => subscribedChunksRef.current.add(chunkIndex));
                 lastSpatialUpdateRef.current = performance.now(); // Set initial timestamp
 
             } else {
@@ -1443,16 +1443,16 @@ export const useSpacetimeTables = ({
             }
         } else if (!viewport) {
             // If viewport becomes null, clean up ALL spatial subs and reset the flag
-            if (spatialSubHandlesMapRef.current.size > 0) {
-                spatialSubHandlesMapRef.current.forEach((handles) => {
+            if (spatialSubsRef.current.size > 0) {
+                spatialSubsRef.current.forEach((handles) => {
                     handles.forEach(safeUnsubscribe);
                 });
-                spatialSubHandlesMapRef.current.clear();
+                spatialSubsRef.current.clear();
                 currentChunksRef.current = [];
                 // Clear any pending unsubscribe timers
                 chunkUnsubscribeTimersRef.current.forEach(timer => clearTimeout(timer));
                 chunkUnsubscribeTimersRef.current.clear();
-                initialSpatialSubsDoneRef.current = false; // 🎯 Reset on viewport loss
+                subscribedChunksRef.current.clear();
             }
         }
         // --- END OPTIMIZED SPATIAL SUBSCRIPTION LOGIC ---
@@ -1468,17 +1468,17 @@ export const useSpacetimeTables = ({
                  nonSpatialHandlesRef.current = [];
                  
                  // Unsubscribe all remaining spatial subs on connection loss
-                 spatialSubHandlesMapRef.current.forEach((handles) => { // Use the map ref here
+                 spatialSubsRef.current.forEach((handles) => { // Use the ref here
                     handles.forEach(safeUnsubscribe);
                  });
-                 spatialSubHandlesMapRef.current.clear();
+                 spatialSubsRef.current.clear();
                  
                  // Clear any pending unsubscribe timers
                  chunkUnsubscribeTimersRef.current.forEach(timer => clearTimeout(timer));
                  chunkUnsubscribeTimersRef.current.clear(); 
                 
-                 callbacksRegisteredRef.current = false;
-                 initialSpatialSubsDoneRef.current = false; // 🎯 Reset on connection loss
+                 isSubscribingRef.current = false;
+                 subscribedChunksRef.current.clear();
                  currentChunksRef.current = [];
                  setLocalPlayerRegistered(false);
                  // Reset table states

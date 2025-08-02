@@ -738,6 +738,22 @@ fn transfer_inventory_to_corpse(ctx: &ReducerContext, dead_player: &Player) -> R
 /// --- Main public function to create a corpse and transfer items ---
 /// This is intended to be called when a player dies.
 pub fn create_player_corpse(ctx: &ReducerContext, dead_player_id: Identity, death_x: f32, death_y: f32, dead_player_username: &str) -> Result<(), String> {
+    // --- PRE-CREATION CHECK: Prevent duplicate corpses for the same death event ---
+    let current_time = ctx.timestamp;
+    for corpse in ctx.db.player_corpse().iter() {
+        if corpse.player_identity == dead_player_id {
+            let time_since_creation = current_time.to_micros_since_unix_epoch()
+                .saturating_sub(corpse.death_time.to_micros_since_unix_epoch());
+            
+            // If a corpse was created in the last 2 seconds, assume it's a duplicate for the same death.
+            if time_since_creation < 2_000_000 { // 2 seconds in microseconds
+                log::warn!("[CorpseCreate] A recent corpse (ID {}) already exists for player {:?}. Aborting duplicate creation.", corpse.id, dead_player_id);
+                return Ok(()); // Prevent creating a new corpse
+            }
+        }
+    }
+    // --- END PRE-CREATION CHECK ---
+
     log::info!(
         "Creating corpse for player {} ({:?}) at ({:.1}, {:.1}).",
         dead_player_username, dead_player_id, death_x, death_y
