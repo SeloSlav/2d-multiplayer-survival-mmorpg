@@ -552,6 +552,10 @@
      fn get_taming_foods(&self) -> Vec<&'static str> {
          vec![] // No taming foods for vipers
      }
+     
+     fn get_chase_abandonment_multiplier(&self) -> f32 {
+         2.0 // Vipers are least persistent - give up at 2.0x chase trigger range
+     }
  }
  
  // Initialize the spittle projectile system

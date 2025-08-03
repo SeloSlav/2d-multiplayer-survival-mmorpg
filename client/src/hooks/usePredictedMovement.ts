@@ -206,8 +206,8 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         const dodgeRollDy = dodgeRollState.targetY - dodgeRollState.startY;
         const dodgeRollMagnitude = Math.sqrt(dodgeRollDx * dodgeRollDx + dodgeRollDy * dodgeRollDy);
         
-        console.log(`[DODGE DEBUG] Input direction: (${direction.x.toFixed(3)}, ${direction.y.toFixed(3)})`);
-        console.log(`[DODGE DEBUG] Server dodge vector: (${dodgeRollDx.toFixed(1)}, ${dodgeRollDy.toFixed(1)}), magnitude: ${dodgeRollMagnitude.toFixed(1)}`);
+        // console.log(`[DODGE DEBUG] Input direction: (${direction.x.toFixed(3)}, ${direction.y.toFixed(3)})`);
+        // console.log(`[DODGE DEBUG] Server dodge vector: (${dodgeRollDx.toFixed(1)}, ${dodgeRollDy.toFixed(1)}), magnitude: ${dodgeRollMagnitude.toFixed(1)}`);
         
         if (dodgeRollMagnitude > 0) {
           // Override input direction with server's dodge roll direction
@@ -215,7 +215,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
             x: dodgeRollDx / dodgeRollMagnitude, 
             y: dodgeRollDy / dodgeRollMagnitude 
           };
-          console.log(`[DODGE DEBUG] Using server direction: (${direction.x.toFixed(3)}, ${direction.y.toFixed(3)})`);
+          // console.log(`[DODGE DEBUG] Using server direction: (${direction.x.toFixed(3)}, ${direction.y.toFixed(3)})`);
         }
       }
       
@@ -240,7 +240,7 @@ export const usePredictedMovement = ({ connection, localPlayer, inputState, isUI
         } else {
           if (isDodgeRolling) {
             speedMultiplier *= DODGE_ROLL_SPEED_MULTIPLIER; // 3x speed for dodge roll
-            console.log(`[MOVEMENT] Dodge roll speed boost active: ${speedMultiplier}x`);
+            // console.log(`[MOVEMENT] Dodge roll speed boost active: ${speedMultiplier}x`);
           } else if (sprinting) {
             speedMultiplier *= SPRINT_MULTIPLIER; // 2x speed for sprinting
           }

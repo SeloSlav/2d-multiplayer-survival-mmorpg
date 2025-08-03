@@ -1,0 +1,102 @@
+/* Memory Grid Animations */
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+/* Smooth transitions for node interactions */
+.memory-grid-node {
+  transition: all 0.2s ease;
+}
+
+.memory-grid-node:hover {
+  filter: brightness(1.2);
+}
+
+/* Faction-specific glow effects */
+.faction-glow {
+  filter: drop-shadow(0 0 8px currentColor);
+}
+
+/* Grid background subtle animations */
+.memory-grid-background {
+  background: radial-gradient(circle at center, rgba(15, 23, 35, 0.95) 0%, rgba(7, 11, 17, 0.98) 100%);
+  animation: subtle-pulse 4s ease-in-out infinite;
+}
+
+@keyframes subtle-pulse {
+  0%, 100% {
+    opacity: 0.95;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Control panel styling */
+.memory-grid-controls {
+  backdrop-filter: blur(4px);
+}
+
+/* Node info panel animations */
+.node-info-panel {
+  animation: slide-in 0.2s ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Branch Labels Styling */
+.branch-label {
+  font-family: 'Arial', sans-serif;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+  opacity: 0.9;
+  transition: opacity 0.3s ease;
+  user-select: none;
+  pointer-events: none;
+}
+
+.branch-label:hover {
+  opacity: 1;
+}
+
+/* Faction-specific branch label styling */
+.black-wolves-branch {
+  filter: drop-shadow(0 0 4px #ef4444);
+}
+
+.hive-branch {
+  filter: drop-shadow(0 0 4px #22c55e);
+}
+
+.university-branch {
+  filter: drop-shadow(0 0 4px #3b82f6);
+}
+
+.data-angels-branch {
+  filter: drop-shadow(0 0 4px #8b5cf6);
+}
+
+.battalion-branch {
+  filter: drop-shadow(0 0 4px #f59e0b);
+}
+
+.admiralty-branch {
+  filter: drop-shadow(0 0 4px #06b6d4);
+} 

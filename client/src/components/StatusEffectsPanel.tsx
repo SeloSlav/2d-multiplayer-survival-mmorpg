@@ -171,8 +171,7 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
                 zIndex: 100,
                 fontFamily: 'Courier New, Consolas, Monaco, monospace',
                 animation: 'tooltipFadeIn 0.2s ease-out',
-                whiteSpace: 'normal',
-                wordWrap: 'break-word'
+                textAlign: 'left'
               }}>
                 {/* Tooltip Header */}
                 <div style={{
@@ -204,7 +203,13 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
                   fontSize: '11px',
                   lineHeight: '1.4',
                   marginBottom: '8px',
-                  opacity: 0.9
+                  opacity: 0.9,
+                  textAlign: 'left',
+                  width: '100%',
+                  display: 'block',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  textJustify: 'none'
                 }}>
                   {effect.description}
                 </div>
@@ -313,4 +318,4 @@ const StatusEffectsPanel: React.FC<StatusEffectsPanelProps> = ({ effects }) => {
   );
 };
 
-export default StatusEffectsPanel; 
+export default StatusEffectsPanel;

@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import InterfaceTabs from './InterfaceTabs';
+import MemoryGrid from './MemoryGrid';
+import { MemoryGridNode } from './MemoryGridData';
 import { MINIMAP_DIMENSIONS } from './Minimap';
 import './InterfaceContainer.css';
 
@@ -21,6 +23,25 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [currentView, setCurrentView] = useState<'minimap' | 'encyclopedia' | 'memory-grid'>('minimap');
   const [isMinimapLoading, setIsMinimapLoading] = useState(false);
+  
+  // Memory Grid state for testing (client-side only)
+  const [playerShards, setPlayerShards] = useState(100000);
+  const [purchasedNodes, setPurchasedNodes] = useState<Set<string>>(new Set(['center']));
+
+  // Handle node purchases (client-side testing only)
+  const handleNodePurchase = (node: MemoryGridNode) => {
+    if (playerShards >= node.cost && !purchasedNodes.has(node.id)) {
+      // Deduct shards
+      setPlayerShards(prev => prev - node.cost);
+      
+      // Add node to purchased set
+      setPurchasedNodes(prev => new Set([...prev, node.id]));
+      
+      console.log(`✅ Purchased ${node.name} for ${node.cost} shards! Remaining: ${playerShards - node.cost}`);
+    } else {
+      console.log(`❌ Cannot purchase ${node.name}: ${playerShards < node.cost ? 'Not enough shards' : 'Already purchased'}`);
+    }
+  };
 
   // Handle view changes with loading state for minimap
   const handleViewChange = (view: 'minimap' | 'encyclopedia' | 'memory-grid') => {
@@ -314,41 +335,15 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
         return (
           <div className="memory-grid-content" style={{ 
             ...contentContainerStyle,
-            padding: '20px', 
-            textAlign: 'center',
-            color: '#ffffff',
-            background: 'rgba(15, 23, 35, 0.95)', // Match minimap background
-            border: `2px solid #7c3aed`, // Purple border for memory grid
-            borderRadius: '4px',
-            boxSizing: 'border-box', // Include padding in dimensions
+            padding: '0', // Remove padding to let MemoryGrid use full space
+            background: 'transparent', // MemoryGrid has its own background
+            border: 'none', // MemoryGrid has its own border
           }}>
-            <h2 style={{ 
-              color: '#7c3aed', 
-              marginBottom: '20px',
-              fontSize: '24px',
-              fontWeight: 'bold'
-            }}>
-              🧠 MEMORY GRID
-            </h2>
-            <p style={{ 
-              fontSize: '16px', 
-              lineHeight: '1.6',
-              maxWidth: '500px',
-              opacity: '0.9',
-              overflowY: 'auto', // Allow scrolling if content is too tall
-              maxHeight: '80%', // Limit content height
-            }}>
-              Welcome to the Memory Grid! This advanced neural interface will help you track and manage your survival progress.
-              <br /><br />
-              Features in development:
-              <br />• Personal achievement tracking
-              <br />• Survival milestone memories
-              <br />• Location discovery history
-              <br />• Resource collection analytics
-              <br />• Social interaction logs
-              <br /><br />
-              <em>Neural interface initializing...</em>
-            </p>
+            <MemoryGrid
+              playerShards={playerShards}
+              purchasedNodes={purchasedNodes}
+              onNodePurchase={handleNodePurchase}
+            />
           </div>
         );
       default:

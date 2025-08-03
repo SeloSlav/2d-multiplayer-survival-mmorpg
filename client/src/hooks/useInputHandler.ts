@@ -569,7 +569,7 @@ export const useInputHandler = ({
                                     movementDirectionRef.current.x,
                                     movementDirectionRef.current.y,
                                 );
-                                console.log('[Input] Dodge roll triggered in direction:', movementDirectionRef.current);
+                                // console.log('[Input] Dodge roll triggered in direction:', movementDirectionRef.current);
                             }
                         } catch (err) {
                             console.error("[InputHandler] Error calling dodgeRoll:", err);

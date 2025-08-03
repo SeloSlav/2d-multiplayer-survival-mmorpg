@@ -412,6 +412,10 @@ impl AnimalBehavior for TundraWolfBehavior {
     }
     
     fn get_taming_foods(&self) -> Vec<&'static str> {
-        vec![] // No taming foods for wolves yet (could add meat items later)
+        vec![] // No taming foods for wolves
+    }
+    
+    fn get_chase_abandonment_multiplier(&self) -> f32 {
+        3.5 // Wolves are very persistent - give up at 3.5x chase trigger range (630 units for 180 chase range)
     }
 }

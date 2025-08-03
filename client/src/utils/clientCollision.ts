@@ -28,11 +28,12 @@ function shapeIntersectsBox(shape: CollisionShape, minX: number, minY: number, m
   return false;
 }
 
-// ===== COLLISION PERFORMANCE LOGGING =====
-let lastCollisionLog = 0;
-const COLLISION_LOG_INTERVAL = 1000; // Log every 1 second
-const COLLISION_LAG_THRESHOLD = 30; // Log if collision check takes more than 30ms
+// ===== COLLISION PERFORMANCE LOGGING (DISABLED) =====
+// let lastCollisionLog = 0;
+// const COLLISION_LOG_INTERVAL = 1000; // Log every 1 second
+// const COLLISION_LAG_THRESHOLD = 30; // Log if collision check takes more than 30ms
 
+// PERFORMANCE FIX: Disable collision logging to prevent frame drops
 function logCollisionPerformance(
   processingTime: number,
   entityCount: number,
@@ -40,22 +41,11 @@ function logCollisionPerformance(
   collisionShapes: number,
   isEmergency: boolean
 ) {
-  const now = Date.now();
-  const isLagSpike = processingTime > COLLISION_LAG_THRESHOLD;
-  const shouldLog = isLagSpike || (now - lastCollisionLog > COLLISION_LOG_INTERVAL);
-  
-  if (shouldLog) {
-    const prefix = isLagSpike ? "🔥 [COLLISION LAG]" : "🚀 [COLLISION]";
-    console.log(`${prefix} ${entityCount} entities, ${collisionShapes} collision shapes, ${processingTime.toFixed(2)}ms`);
-    // console.log(`  📍 Player position: (${playerPos.x.toFixed(0)}, ${playerPos.y.toFixed(0)})`);
-    // console.log(`  🚨 Emergency mode: ${isEmergency ? 'ACTIVE' : 'INACTIVE'}`);
-    
-    if (isLagSpike) {
-      console.log(`  ⚠️ COLLISION LAG SPIKE! Processing time: ${processingTime.toFixed(2)}ms`);
-    }
-    
-    lastCollisionLog = now;
-  }
+  // Logging disabled for production performance
+  // const now = Date.now();
+  // const isLagSpike = processingTime > COLLISION_LAG_THRESHOLD;
+  // const shouldLog = isLagSpike || (now - lastCollisionLog > COLLISION_LOG_INTERVAL);
+  // ... logging code removed to prevent console overhead
 }
 
 // ===== CONFIGURATION CONSTANTS =====
@@ -85,9 +75,9 @@ const COLLISION_PERF = {
   EMERGENCY_MAX_ENTITIES: 10,
 };
 
-// Performance monitoring
-let frameCounter = 0;
-let lastPerformanceLog = 0;
+// Performance monitoring (DISABLED for performance)
+// let frameCounter = 0;
+// let lastPerformanceLog = 0;
 
 // Spatial partitioning cache
 const spatialCache = new Map<string, {
@@ -97,7 +87,7 @@ const spatialCache = new Map<string, {
   centerY: number;
 }>();
 
-// Helper function to efficiently filter and limit entities by distance
+// PERFORMANCE OPTIMIZED: Reduce object creation and avoid array copying
 function filterEntitiesByDistance<T extends { posX?: number; posY?: number; positionX?: number; positionY?: number }>(
   entities: Map<string, T>,
   playerX: number,
@@ -110,31 +100,38 @@ function filterEntitiesByDistance<T extends { posX?: number; posY?: number; posi
   
   const effectiveMaxDistance = emergencyMode ? COLLISION_PERF.EMERGENCY_CULL_DISTANCE_SQ : maxDistanceSq;
   const effectiveMaxCount = emergencyMode ? COLLISION_PERF.EMERGENCY_MAX_ENTITIES : maxCount;
+  const result: T[] = [];
+  let count = 0;
   
-  const withDistance = Array.from(entities.values())
-    .map(entity => {
-      const entityX = entity.posX ?? entity.positionX ?? 0;
-      const entityY = entity.posY ?? entity.positionY ?? 0;
-      const dx = entityX - playerX;
-      const dy = entityY - playerY;
-      return { entity, distanceSq: dx * dx + dy * dy, x: entityX, y: entityY };
-    })
-    .filter(item => item.distanceSq <= effectiveMaxDistance)
-    .sort((a, b) => a.distanceSq - b.distanceSq) // Sort by distance (closest first)
-    .slice(0, effectiveMaxCount)
-    .map(item => item.entity);
+  // Single pass: filter by distance and limit count without creating intermediate objects
+  for (const entity of entities.values()) {
+    if (count >= effectiveMaxCount) break;
+    
+    const entityX = entity.posX ?? entity.positionX ?? 0;
+    const entityY = entity.posY ?? entity.positionY ?? 0;
+    const dx = entityX - playerX;
+    const dy = entityY - playerY;
+    const distanceSq = dx * dx + dy * dy;
+    
+    if (distanceSq <= effectiveMaxDistance) {
+      result.push(entity);
+      count++;
+    }
+  }
   
-  return withDistance;
+  return result;
 }
 
 // Optimized spatial partitioning for collision detection
+// PERFORMANCE OPTIMIZED: Streamlined collision candidate generation
 function getCollisionCandidates(
   entities: GameEntities,
   playerX: number,
   playerY: number,
   localPlayerId: string
 ): CollisionShape[] {
-  frameCounter++;
+  // PERFORMANCE FIX: Remove frameCounter++ to avoid unnecessary operations
+  // frameCounter++;
   
   // Count total entities to determine emergency mode
   const totalEntities = entities.trees.size + entities.stones.size + 
@@ -143,14 +140,8 @@ function getCollisionCandidates(
   
   const emergencyMode = totalEntities > COLLISION_PERF.EMERGENCY_TOTAL_ENTITIES;
   
-  // Performance logging (throttled)
-  if (frameCounter % 300 === 0) { // Log every 5 seconds at 60fps
-    const now = performance.now();
-    if (now - lastPerformanceLog > 4000) { // Don't log more than once per 4 seconds
-      console.log(`🚀 [COLLISION] ${totalEntities} entities, emergency=${emergencyMode}`);
-      lastPerformanceLog = now;
-    }
-  }
+  // PERFORMANCE FIX: Remove frame-based logging that causes hitches
+  // Logging removed - was causing micro-stutters every 5 seconds
   
   const shapes: CollisionShape[] = [];
   
@@ -339,8 +330,8 @@ const SHELTER_DIMS = {
   HEIGHT: 125,
 } as const;
 
-// Performance optimization - reduce debug in production
-const DEBUG_ENABLED = false;
+// Performance optimization - debug disabled for production performance
+// const DEBUG_ENABLED = false;
 
 // ===== INTERFACES =====
 export interface CollisionResult {
@@ -402,22 +393,14 @@ export function resolveClientCollision(
     return { x: clampedTo.x, y: clampedTo.y, collided: false, collidedWith: [] };
   }
 
-  // Step 3: Build collision shapes from entities - PERFORMANCE: Use optimized collision candidate system
-  const collisionStartTime = performance.now();
+  // Step 3: Build collision shapes from entities - PERFORMANCE OPTIMIZED
   const collisionShapes = getCollisionCandidates(entities, fromX, fromY, localPlayerId);
-  const collisionEndTime = performance.now();
-  const collisionTime = collisionEndTime - collisionStartTime;
   
-  // Log collision performance
-  const entityCount = (entities.players?.size || 0) + (entities.trees?.size || 0) + 
-                     (entities.stones?.size || 0) + (entities.boxes?.size || 0);
-  logCollisionPerformance(
-    collisionTime,
-    entityCount,
-    { x: fromX, y: fromY },
-    collisionShapes.length,
-    entityCount > COLLISION_PERF.EMERGENCY_TOTAL_ENTITIES
-  );
+  // PERFORMANCE FIX: Remove expensive performance.now() calls every frame
+  // const collisionStartTime = performance.now();
+  // const collisionEndTime = performance.now();
+  // const collisionTime = collisionEndTime - collisionStartTime;
+  // logCollisionPerformance(...) - logging removed
   
   // Create query box around movement path
   const queryMinX = Math.min(fromX, toX) - COLLISION_QUERY_EXPANSION - PLAYER_RADIUS;
@@ -430,11 +413,9 @@ export function resolveClientCollision(
     shapeIntersectsBox(shape, queryMinX, queryMinY, queryMaxX, queryMaxY)
   );
 
-  // PERFORMANCE: Reduced logging to prevent console spam
-  const totalEntities = entities.trees.size + entities.stones.size + entities.boxes.size + entities.players.size + entities.wildAnimals.size + entities.barrels.size;
-  if (totalEntities > 100 && collisionShapes.length > 20) { // Only log when significant optimization occurs
-    console.log(`🚀 [COLLISION] Major optimization: ${totalEntities} total entities → ${collisionShapes.length} distance-filtered → ${nearbyShapes.length} final shapes (${Math.round(nearbyShapes.length / totalEntities * 100)}% of total)`);
-  }
+  // PERFORMANCE FIX: Remove console logging that causes frame drops
+  // const totalEntities = entities.trees.size + entities.stones.size + entities.boxes.size + entities.players.size + entities.wildAnimals.size + entities.barrels.size;
+  // Logging removed - was causing performance issues in dense forests
 
   // Step 4: Perform swept collision detection
   const result = performSweptCollision(
@@ -492,11 +473,12 @@ function performSweptCollision(
   const primaryHit = hits[0];
   const slideResult = calculateSlideResponse(from, to, moveDir, primaryHit);
   
-  if (DEBUG_ENABLED) {
-    console.log(`Collision with ${primaryHit.shape.type}, sliding to (${slideResult.x.toFixed(1)}, ${slideResult.y.toFixed(1)})`);
-  }
+  // PERFORMANCE FIX: Debug logging removed to prevent console overhead during collisions
+  // if (DEBUG_ENABLED) {
+  //   console.log(`Collision with ${primaryHit.shape.type}, sliding to (${slideResult.x.toFixed(1)}, ${slideResult.y.toFixed(1)})`);
+  // }
   
-  // Collision performance logged earlier in resolveClientCollision
+  // Performance optimized - logging removed
   
   return {
     x: slideResult.x,

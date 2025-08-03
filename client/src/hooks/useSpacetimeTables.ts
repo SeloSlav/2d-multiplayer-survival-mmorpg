@@ -607,13 +607,16 @@ export const useSpacetimeTables = ({
             // --- Tree Subscriptions ---
             const handleTreeInsert = (ctx: any, tree: SpacetimeDB.Tree) => setTrees(prev => new Map(prev).set(tree.id.toString(), tree));
             const handleTreeUpdate = (ctx: any, oldTree: SpacetimeDB.Tree, newTree: SpacetimeDB.Tree) => {
-                const changed = oldTree.posX !== newTree.posX ||
-                                oldTree.posY !== newTree.posY ||
-                                oldTree.health !== newTree.health ||
-                                oldTree.treeType !== newTree.treeType ||
-                                oldTree.lastHitTime !== newTree.lastHitTime ||
-                                oldTree.respawnAt !== newTree.respawnAt;
-                if (changed) {
+                // PERFORMANCE FIX: Only update for visually significant changes
+                // Ignore lastHitTime micro-updates that cause excessive re-renders
+                const visuallySignificant = 
+                    Math.abs(oldTree.posX - newTree.posX) > 0.1 ||  // Position changed significantly
+                    Math.abs(oldTree.posY - newTree.posY) > 0.1 ||  // Position changed significantly  
+                    Math.abs(oldTree.health - newTree.health) > 0.1 || // Health changed significantly
+                    oldTree.treeType !== newTree.treeType ||         // Tree type changed
+                    (oldTree.respawnAt === null) !== (newTree.respawnAt === null); // Respawn state changed
+                
+                if (visuallySignificant) {
                     setTrees(prev => new Map(prev).set(newTree.id.toString(), newTree));
                 }
             };
@@ -622,12 +625,15 @@ export const useSpacetimeTables = ({
             // --- Stone Subscriptions ---
             const handleStoneInsert = (ctx: any, stone: SpacetimeDB.Stone) => setStones(prev => new Map(prev).set(stone.id.toString(), stone));
             const handleStoneUpdate = (ctx: any, oldStone: SpacetimeDB.Stone, newStone: SpacetimeDB.Stone) => {
-                const changed = oldStone.posX !== newStone.posX ||
-                                oldStone.posY !== newStone.posY ||
-                                oldStone.health !== newStone.health ||
-                                oldStone.lastHitTime !== newStone.lastHitTime ||
-                                oldStone.respawnAt !== newStone.respawnAt;
-                if (changed) {
+                // PERFORMANCE FIX: Only update for visually significant changes
+                // Ignore lastHitTime micro-updates that cause excessive re-renders
+                const visuallySignificant = 
+                    Math.abs(oldStone.posX - newStone.posX) > 0.1 ||  // Position changed significantly
+                    Math.abs(oldStone.posY - newStone.posY) > 0.1 ||  // Position changed significantly
+                    Math.abs(oldStone.health - newStone.health) > 0.1 || // Health changed significantly
+                    (oldStone.respawnAt === null) !== (newStone.respawnAt === null); // Respawn state changed
+                
+                if (visuallySignificant) {
                     setStones(prev => new Map(prev).set(newStone.id.toString(), newStone));
                 }
             };
@@ -955,24 +961,24 @@ export const useSpacetimeTables = ({
 
             // --- PlayerDodgeRollState Handlers ---
             const handlePlayerDodgeRollStateInsert = (ctx: any, dodgeState: SpacetimeDB.PlayerDodgeRollState) => {
-                console.log(`[DODGE DEBUG] Server state INSERT for player ${dodgeState.playerId.toHexString()}:`, dodgeState);
+                // console.log(`[DODGE DEBUG] Server state INSERT for player ${dodgeState.playerId.toHexString()}:`, dodgeState);
                 playerDodgeRollStatesRef.current.set(dodgeState.playerId.toHexString(), dodgeState);
                 setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
             };
             const handlePlayerDodgeRollStateUpdate = (ctx: any, oldDodgeState: SpacetimeDB.PlayerDodgeRollState, newDodgeState: SpacetimeDB.PlayerDodgeRollState) => {
-                console.log(`[DODGE DEBUG] Server state UPDATE for player ${newDodgeState.playerId.toHexString()}:`, newDodgeState);
+                //console.log(`[DODGE DEBUG] Server state UPDATE for player ${newDodgeState.playerId.toHexString()}:`, newDodgeState);
                 playerDodgeRollStatesRef.current.set(newDodgeState.playerId.toHexString(), newDodgeState);
                 setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
             };
             const handlePlayerDodgeRollStateDelete = (ctx: any, dodgeState: SpacetimeDB.PlayerDodgeRollState) => {
-                console.log(`[DODGE DEBUG] Server state DELETE for player ${dodgeState.playerId.toHexString()}`);
+                //console.log(`[DODGE DEBUG] Server state DELETE for player ${dodgeState.playerId.toHexString()}`);
                 playerDodgeRollStatesRef.current.delete(dodgeState.playerId.toHexString());
                 setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
             };
 
             // --- FishingSession Subscriptions ---
             const handleFishingSessionInsert = (ctx: any, session: SpacetimeDB.FishingSession) => {
-                console.log('[useSpacetimeTables] FishingSession INSERT:', session.playerId.toHexString(), 'at', session.targetX, session.targetY);
+                //console.log('[useSpacetimeTables] FishingSession INSERT:', session.playerId.toHexString(), 'at', session.targetX, session.targetY);
                 setFishingSessions(prev => new Map(prev).set(session.playerId.toHexString(), session));
             };
             const handleFishingSessionUpdate = (ctx: any, oldSession: SpacetimeDB.FishingSession, newSession: SpacetimeDB.FishingSession) => {
@@ -1047,13 +1053,17 @@ export const useSpacetimeTables = ({
                 setWildAnimals(prev => new Map(prev).set(animal.id.toString(), animal));
             };
             const handleWildAnimalUpdate = (ctx: any, oldAnimal: SpacetimeDB.WildAnimal, newAnimal: SpacetimeDB.WildAnimal) => {
-                // Only update if significant fields have changed to prevent infinite loops
-                const changed = oldAnimal.posX !== newAnimal.posX ||
-                                oldAnimal.posY !== newAnimal.posY ||
-                                oldAnimal.health !== newAnimal.health ||
-                                oldAnimal.species !== newAnimal.species ||
-                                oldAnimal.lastAttackTime !== newAnimal.lastAttackTime;
-                if (changed) {
+                // PERFORMANCE FIX: Only update for visually significant changes
+                // Ignore timing micro-updates (lastAttackTime, stateChangeTime, etc.) that cause excessive re-renders
+                const visuallySignificant = 
+                    Math.abs(oldAnimal.posX - newAnimal.posX) > 0.1 ||  // Position changed significantly
+                    Math.abs(oldAnimal.posY - newAnimal.posY) > 0.1 ||  // Position changed significantly
+                    Math.abs(oldAnimal.health - newAnimal.health) > 0.1 || // Health changed significantly
+                    oldAnimal.species !== newAnimal.species ||           // Species changed
+                    oldAnimal.state !== newAnimal.state ||               // State changed (idle, attacking, etc.)
+                    oldAnimal.facingDirection !== newAnimal.facingDirection; // Facing direction changed
+                
+                if (visuallySignificant) {
                     setWildAnimals(prev => new Map(prev).set(newAnimal.id.toString(), newAnimal));
                 }
             };
@@ -1084,7 +1094,18 @@ export const useSpacetimeTables = ({
             // Barrel handlers
             const handleBarrelInsert = (ctx: any, barrel: SpacetimeDB.Barrel) => setBarrels(prev => new Map(prev).set(barrel.id.toString(), barrel));
             const handleBarrelUpdate = (ctx: any, oldBarrel: SpacetimeDB.Barrel, newBarrel: SpacetimeDB.Barrel) => {
-                setBarrels(prev => new Map(prev).set(newBarrel.id.toString(), newBarrel));
+                // PERFORMANCE FIX: Only update for visually significant changes
+                // Ignore lastHitTime micro-updates that cause excessive re-renders
+                const visuallySignificant = 
+                    Math.abs(oldBarrel.posX - newBarrel.posX) > 0.1 ||  // Position changed significantly
+                    Math.abs(oldBarrel.posY - newBarrel.posY) > 0.1 ||  // Position changed significantly
+                    Math.abs(oldBarrel.health - newBarrel.health) > 0.1 || // Health changed significantly
+                    oldBarrel.variant !== newBarrel.variant ||           // Barrel variant changed
+                    (oldBarrel.respawnAt === null) !== (newBarrel.respawnAt === null); // Respawn state changed
+                
+                if (visuallySignificant) {
+                    setBarrels(prev => new Map(prev).set(newBarrel.id.toString(), newBarrel));
+                }
             };
             const handleBarrelDelete = (ctx: any, barrel: SpacetimeDB.Barrel) => setBarrels(prev => { const newMap = new Map(prev); newMap.delete(barrel.id.toString()); return newMap; });
 

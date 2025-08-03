@@ -1,0 +1,287 @@
+/* Memory Grid Node Styles */
+
+.memory-grid-node-group {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.2));
+}
+
+.memory-grid-node-group:hover {
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));
+}
+
+.memory-grid-node-group.locked {
+  cursor: help; /* Different cursor for locked nodes */
+}
+
+.memory-grid-node-group.disabled {
+  cursor: not-allowed;
+}
+
+/* Node glow effects */
+.node-glow {
+  filter: blur(6px);
+  animation: pulse 2s infinite;
+}
+
+.node-glow.hover-glow {
+  animation: hover-pulse 1s ease-in-out infinite;
+  filter: blur(8px);
+}
+
+/* Main node circle animations */
+.node-circle {
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.node-circle.hovered {
+  transform: scale(1.1);
+  filter: brightness(1.2) drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+}
+
+.node-circle.locked.hovered {
+  transform: scale(1.05); /* Smaller scale for locked nodes */
+  filter: brightness(1.1) drop-shadow(0 2px 6px rgba(0,0,0,0.3));
+}
+
+/* Faction border animations */
+.faction-border {
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.faction-border.hovered {
+  opacity: 1;
+  animation: faction-pulse 1.5s ease-in-out infinite;
+}
+
+/* Node icon styling */
+.node-icon {
+  pointer-events: none;
+  user-select: none;
+  transition: all 0.3s ease;
+}
+
+.node-icon.locked {
+  opacity: 0.5;
+  filter: grayscale(0.3);
+}
+
+.unlock-node-icon {
+  pointer-events: none;
+  user-select: none;
+  transition: all 0.3s ease;
+}
+
+.node-cost {
+  pointer-events: none;
+  user-select: none;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.node-cost.expensive {
+  color: #ef4444 !important; /* Red for unaffordable */
+  text-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+}
+
+.node-cost.affordable {
+  color: #22c55e !important; /* Green for affordable */
+  text-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+}
+
+/* Selection indicator */
+.selection-indicator {
+  fill: none;
+  stroke: #ffeb3b;
+  stroke-width: 3;
+  animation: selection-pulse 1.5s infinite;
+}
+
+/* Locked node indicator */
+.locked-indicator {
+  fill: none;
+  stroke: #ef4444;
+  stroke-width: 2;
+  stroke-dasharray: 6,3;
+  opacity: 0.7;
+  animation: locked-dash 2s linear infinite;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes hover-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes faction-pulse {
+  0%, 100% {
+    stroke-dashoffset: 0;
+    opacity: 0.8;
+  }
+  50% {
+    stroke-dashoffset: 8;
+    opacity: 1;
+  }
+}
+
+@keyframes selection-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes locked-dash {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -18;
+  }
+}
+
+/* Prerequisite indicator (for showing missing requirements) */
+.prerequisite-indicator {
+  fill: #f59e0b;
+  opacity: 0.8;
+  animation: prerequisite-blink 2s ease-in-out infinite;
+}
+
+@keyframes prerequisite-blink {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Special styling for unlock nodes to make them stand out more */
+.memory-grid-node-group.unlock-node {
+  cursor: pointer;
+}
+
+.memory-grid-node-group.unlock-node .node-circle {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 8px currentColor);
+  animation: unlock-pulse 3s ease-in-out infinite;
+}
+
+.memory-grid-node-group.unlock-node:hover .node-circle {
+  animation: unlock-pulse-hover 1.5s ease-in-out infinite;
+}
+
+.memory-grid-node-group.unlock-node .node-glow {
+  opacity: 0.6 !important;
+  animation: unlock-glow 3s ease-in-out infinite;
+}
+
+.memory-grid-node-group.unlock-node:hover .node-glow {
+  opacity: 0.8 !important;
+  animation: unlock-glow-hover 1.5s ease-in-out infinite;
+}
+
+/* Special unlock node animations */
+@keyframes unlock-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+}
+
+@keyframes unlock-pulse-hover {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.95; }
+}
+
+@keyframes unlock-glow {
+  0%, 100% { r: 1.4; opacity: 0.4; }
+  50% { r: 1.6; opacity: 0.6; }
+}
+
+@keyframes unlock-glow-hover {
+  0%, 100% { r: 1.5; opacity: 0.6; }
+  50% { r: 1.8; opacity: 0.8; }
+}
+
+/* Cyberpunk effects for unlock nodes */
+.cyberpunk-outer-ring {
+  animation: cyberpunk-rotate-outer 8s linear infinite;
+}
+
+.cyberpunk-inner-ring {
+  animation: cyberpunk-rotate-inner 6s linear infinite reverse, cyberpunk-pulse-ring 2s ease-in-out infinite;
+}
+
+.unlock-node-icon {
+  animation: icon-float 3s ease-in-out infinite;
+}
+
+.unlock-border {
+  animation: unlock-border-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes cyberpunk-rotate-outer {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes cyberpunk-rotate-inner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes cyberpunk-pulse-ring {
+  0%, 100% { 
+    stroke-opacity: 0.6;
+    transform: scale(1);
+  }
+  50% { 
+    stroke-opacity: 0.9;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes icon-float {
+  0%, 100% { 
+    transform: translateY(0px);
+    filter: drop-shadow(0 0 4px rgba(0,0,0,0.8));
+  }
+  50% { 
+    transform: translateY(-2px);
+    filter: drop-shadow(0 0 6px rgba(255,255,255,0.4));
+  }
+}
+
+@keyframes unlock-border-pulse {
+  0%, 100% { 
+    stroke-opacity: 0.6;
+    stroke-dashoffset: 0;
+  }
+  50% { 
+    stroke-opacity: 0.9;
+    stroke-dashoffset: 12;
+  }
+} 

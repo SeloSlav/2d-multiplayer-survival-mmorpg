@@ -363,6 +363,10 @@ impl AnimalBehavior for ArcticWalrusBehavior {
     fn get_taming_foods(&self) -> Vec<&'static str> {
         vec!["Raw Twigfish", "Cooked Twigfish"] // Fish items that can tame walruses
     }
+    
+    fn get_chase_abandonment_multiplier(&self) -> f32 {
+        4.0 // Walruses are extremely persistent - give up at 4.0x chase trigger range (very territorial)
+    }
 }
 
 // Helper functions for beach navigation

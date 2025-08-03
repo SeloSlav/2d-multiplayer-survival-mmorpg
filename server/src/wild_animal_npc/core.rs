@@ -256,6 +256,12 @@ pub trait AnimalBehavior {
     fn get_taming_foods(&self) -> Vec<&'static str> {
         vec![] // Default: no taming foods
     }
+    
+    /// Get the chase abandonment distance multiplier for this species
+    /// Multiplied by chase_trigger_range to determine when to give up chasing
+    fn get_chase_abandonment_multiplier(&self) -> f32 {
+        2.5 // Default: give up at 2.5x chase trigger range
+    }
 }
 
 // --- Core Animal Behavior Implementation Helper ---
@@ -396,6 +402,15 @@ impl AnimalBehavior for AnimalBehaviorEnum {
             AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.get_taming_foods(),
         }
     }
+
+    fn get_chase_abandonment_multiplier(&self) -> f32 {
+        match self {
+            AnimalBehaviorEnum::CinderFox(behavior) => behavior.get_chase_abandonment_multiplier(),
+            AnimalBehaviorEnum::TundraWolf(behavior) => behavior.get_chase_abandonment_multiplier(),
+            AnimalBehaviorEnum::CableViper(behavior) => behavior.get_chase_abandonment_multiplier(),
+            AnimalBehaviorEnum::ArcticWalrus(behavior) => behavior.get_chase_abandonment_multiplier(),
+        }
+    }
 }
 
 impl AnimalSpecies {
@@ -479,16 +494,24 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
         if animal.state == AnimalState::Chasing {
             if let Some(target_id) = animal.target_player_id {
                 if let Some(target_player) = ctx.db.player().identity().find(&target_id) {
-                    let distance_sq = get_distance_squared(
-                        animal.pos_x, animal.pos_y,
-                        target_player.position_x, target_player.position_y
-                    );
-                    
-                    // Check if in attack range and can attack
-                    if distance_sq <= (stats.attack_range * stats.attack_range) && 
-                       can_attack(&animal, current_time, &stats) {
-                        // Execute the attack
-                        execute_attack(ctx, &mut animal, &target_player, &behavior, &stats, current_time, &mut rng)?;
+                    // CRITICAL FIX: Don't attack dead players - prevents duplicate corpse creation
+                    if target_player.is_dead || target_player.health <= 0.0 {
+                        // Player is dead - stop chasing and return to patrolling
+                        log::info!("[WildAnimal:{}] Stopping chase - target player {} is dead (health: {:.1})", 
+                                 animal.id, target_id, target_player.health);
+                        transition_to_state(&mut animal, AnimalState::Patrolling, current_time, None, "target died");
+                    } else {
+                        let distance_sq = get_distance_squared(
+                            animal.pos_x, animal.pos_y,
+                            target_player.position_x, target_player.position_y
+                        );
+                        
+                        // Check if in attack range and can attack
+                        if distance_sq <= (stats.attack_range * stats.attack_range) && 
+                           can_attack(&animal, current_time, &stats) {
+                            // Execute the attack
+                            execute_attack(ctx, &mut animal, &target_player, &behavior, &stats, current_time, &mut rng)?;
+                        }
                     }
                 }
             }
@@ -2202,18 +2225,12 @@ pub fn should_stop_chasing(
     animal: &WildAnimal,
     target_player: &Player,
     stats: &AnimalStats,
+    behavior: &AnimalBehaviorEnum,
 ) -> bool {
     let distance = get_player_distance(animal, target_player);
+    let chase_abandon_distance = stats.chase_trigger_range * behavior.get_chase_abandonment_multiplier();
     
-    // Species-specific chase persistence
-    let max_chase_distance = match animal.species {
-        AnimalSpecies::TundraWolf => stats.chase_trigger_range * 1.8,  // Very persistent
-        AnimalSpecies::CinderFox => stats.chase_trigger_range * 2.0,   // Committed when attacking
-        AnimalSpecies::CableViper => stats.chase_trigger_range * 1.5,  // Moderate persistence
-        AnimalSpecies::ArcticWalrus => stats.chase_trigger_range * 3.0, // Extremely persistent once provoked
-    };
-    
-    distance > max_chase_distance
+    distance > chase_abandon_distance
 }
 
 /// **COMMON STATE TIMEOUT CHECKER** - Handles time-based state transitions
@@ -2315,9 +2332,11 @@ pub fn handle_chase_state(
     if let Some(target_id) = animal.target_player_id {
         if let Some(target_player) = ctx.db.player().identity().find(&target_id) {
             // Check if should stop chasing based on distance
-            if should_stop_chasing(animal, &target_player, stats) {
+            let behavior = animal.species.get_behavior();
+            if should_stop_chasing(animal, &target_player, stats, &behavior) {
                 transition_to_state(animal, AnimalState::Patrolling, current_time, None, "player escaped");
                 log::debug!("{:?} {} stopping chase - player too far", animal.species, animal.id);
+                return Ok(());
             }
         } else {
             // Target lost
