@@ -563,6 +563,7 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
         currentView={currentView}
         onViewChange={handleViewChange}
         className="interface-tabs"
+        hideEncyclopedia={true}
       />
       
       <button

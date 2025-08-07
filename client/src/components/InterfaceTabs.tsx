@@ -5,12 +5,14 @@ interface InterfaceTabsProps {
   currentView: 'minimap' | 'encyclopedia' | 'memory-grid';
   onViewChange: (view: 'minimap' | 'encyclopedia' | 'memory-grid') => void;
   className?: string;
+  hideEncyclopedia?: boolean;
 }
 
 const InterfaceTabs: React.FC<InterfaceTabsProps> = ({ 
   currentView, 
   onViewChange, 
-  className = '' 
+  className = '',
+  hideEncyclopedia = false
 }) => {
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
@@ -30,15 +32,17 @@ const InterfaceTabs: React.FC<InterfaceTabsProps> = ({
         GRU MAPS
       </button>
       
-      {/* Encyclopedia Tab */}
-      <button
-        className={`tab encyclopedia-tab ${isEncyclopediaActive ? 'active' : 'inactive'} ${hoveredTab === 'encyclopedia' ? 'hovered' : ''}`}
-        onClick={() => onViewChange('encyclopedia')}
-        onMouseEnter={() => setHoveredTab('encyclopedia')}
-        onMouseLeave={() => setHoveredTab(null)}
-      >
-        ENCYCLOPEDIA
-      </button>
+      {/* Encyclopedia Tab - conditionally rendered */}
+      {!hideEncyclopedia && (
+        <button
+          className={`tab encyclopedia-tab ${isEncyclopediaActive ? 'active' : 'inactive'} ${hoveredTab === 'encyclopedia' ? 'hovered' : ''}`}
+          onClick={() => onViewChange('encyclopedia')}
+          onMouseEnter={() => setHoveredTab('encyclopedia')}
+          onMouseLeave={() => setHoveredTab(null)}
+        >
+          ENCYCLOPEDIA
+        </button>
+      )}
       
       {/* Memory Grid Tab */}
       <button
