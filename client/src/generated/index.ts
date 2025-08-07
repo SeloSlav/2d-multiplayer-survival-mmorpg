@@ -124,6 +124,8 @@ import { InitProjectileSystem } from "./init_projectile_system_reducer.ts";
 export { InitProjectileSystem };
 import { InitViperSpittleSystem } from "./init_viper_spittle_system_reducer.ts";
 export { InitViperSpittleSystem };
+import { InitializePlayerMemoryGrid } from "./initialize_player_memory_grid_reducer.ts";
+export { InitializePlayerMemoryGrid };
 import { InteractWithCampfire } from "./interact_with_campfire_reducer.ts";
 export { InteractWithCampfire };
 import { InteractWithFurnace } from "./interact_with_furnace_reducer.ts";
@@ -234,6 +236,8 @@ import { ProcessPlayerStats } from "./process_player_stats_reducer.ts";
 export { ProcessPlayerStats };
 import { ProcessWildAnimalAi } from "./process_wild_animal_ai_reducer.ts";
 export { ProcessWildAnimalAi };
+import { PurchaseMemoryGridNode } from "./purchase_memory_grid_node_reducer.ts";
+export { PurchaseMemoryGridNode };
 import { QuickMoveFromBox } from "./quick_move_from_box_reducer.ts";
 export { QuickMoveFromBox };
 import { QuickMoveFromCampfire } from "./quick_move_from_campfire_reducer.ts";
@@ -454,6 +458,10 @@ import { LanternTableHandle } from "./lantern_table.ts";
 export { LanternTableHandle };
 import { LanternProcessingScheduleTableHandle } from "./lantern_processing_schedule_table.ts";
 export { LanternProcessingScheduleTableHandle };
+import { MemoryGridProgressTableHandle } from "./memory_grid_progress_table.ts";
+export { MemoryGridProgressTableHandle };
+import { MemoryGridPurchasesTableHandle } from "./memory_grid_purchases_table.ts";
+export { MemoryGridPurchasesTableHandle };
 import { MessageTableHandle } from "./message_table.ts";
 export { MessageTableHandle };
 import { MinimapCacheTableHandle } from "./minimap_cache_table.ts";
@@ -642,6 +650,10 @@ import { Lantern } from "./lantern_type.ts";
 export { Lantern };
 import { LanternProcessingSchedule } from "./lantern_processing_schedule_type.ts";
 export { LanternProcessingSchedule };
+import { MemoryGridProgress } from "./memory_grid_progress_type.ts";
+export { MemoryGridProgress };
+import { MemoryGridPurchase } from "./memory_grid_purchase_type.ts";
+export { MemoryGridPurchase };
 import { Message } from "./message_type.ts";
 export { Message };
 import { MinimapCache } from "./minimap_cache_type.ts";
@@ -917,6 +929,16 @@ const REMOTE_MODULE = {
       tableName: "lantern_processing_schedule",
       rowType: LanternProcessingSchedule.getTypeScriptAlgebraicType(),
       primaryKey: "lanternId",
+    },
+    memory_grid_progress: {
+      tableName: "memory_grid_progress",
+      rowType: MemoryGridProgress.getTypeScriptAlgebraicType(),
+      primaryKey: "playerId",
+    },
+    memory_grid_purchases: {
+      tableName: "memory_grid_purchases",
+      rowType: MemoryGridPurchase.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
     },
     message: {
       tableName: "message",
@@ -1314,6 +1336,10 @@ const REMOTE_MODULE = {
       reducerName: "init_viper_spittle_system",
       argsType: InitViperSpittleSystem.getTypeScriptAlgebraicType(),
     },
+    initialize_player_memory_grid: {
+      reducerName: "initialize_player_memory_grid",
+      argsType: InitializePlayerMemoryGrid.getTypeScriptAlgebraicType(),
+    },
     interact_with_campfire: {
       reducerName: "interact_with_campfire",
       argsType: InteractWithCampfire.getTypeScriptAlgebraicType(),
@@ -1533,6 +1559,10 @@ const REMOTE_MODULE = {
     process_wild_animal_ai: {
       reducerName: "process_wild_animal_ai",
       argsType: ProcessWildAnimalAi.getTypeScriptAlgebraicType(),
+    },
+    purchase_memory_grid_node: {
+      reducerName: "purchase_memory_grid_node",
+      argsType: PurchaseMemoryGridNode.getTypeScriptAlgebraicType(),
     },
     quick_move_from_box: {
       reducerName: "quick_move_from_box",
@@ -1911,6 +1941,7 @@ export type Reducer = never
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "InitProjectileSystem", args: InitProjectileSystem }
 | { name: "InitViperSpittleSystem", args: InitViperSpittleSystem }
+| { name: "InitializePlayerMemoryGrid", args: InitializePlayerMemoryGrid }
 | { name: "InteractWithCampfire", args: InteractWithCampfire }
 | { name: "InteractWithFurnace", args: InteractWithFurnace }
 | { name: "InteractWithHarvestableResource", args: InteractWithHarvestableResource }
@@ -1966,6 +1997,7 @@ export type Reducer = never
 | { name: "ProcessLanternLogicScheduled", args: ProcessLanternLogicScheduled }
 | { name: "ProcessPlayerStats", args: ProcessPlayerStats }
 | { name: "ProcessWildAnimalAi", args: ProcessWildAnimalAi }
+| { name: "PurchaseMemoryGridNode", args: PurchaseMemoryGridNode }
 | { name: "QuickMoveFromBox", args: QuickMoveFromBox }
 | { name: "QuickMoveFromCampfire", args: QuickMoveFromCampfire }
 | { name: "QuickMoveFromCorpse", args: QuickMoveFromCorpse }
@@ -2721,6 +2753,18 @@ export class RemoteReducers {
 
   removeOnInitViperSpittleSystem(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("init_viper_spittle_system", callback);
+  }
+
+  initializePlayerMemoryGrid() {
+    this.connection.callReducer("initialize_player_memory_grid", new Uint8Array(0), this.setCallReducerFlags.initializePlayerMemoryGridFlags);
+  }
+
+  onInitializePlayerMemoryGrid(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.onReducer("initialize_player_memory_grid", callback);
+  }
+
+  removeOnInitializePlayerMemoryGrid(callback: (ctx: ReducerEventContext) => void) {
+    this.connection.offReducer("initialize_player_memory_grid", callback);
   }
 
   interactWithCampfire(campfireId: number) {
@@ -3593,6 +3637,22 @@ export class RemoteReducers {
 
   removeOnProcessWildAnimalAi(callback: (ctx: ReducerEventContext, schedule: WildAnimalAiSchedule) => void) {
     this.connection.offReducer("process_wild_animal_ai", callback);
+  }
+
+  purchaseMemoryGridNode(nodeId: string) {
+    const __args = { nodeId };
+    let __writer = new BinaryWriter(1024);
+    PurchaseMemoryGridNode.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("purchase_memory_grid_node", __argsBuffer, this.setCallReducerFlags.purchaseMemoryGridNodeFlags);
+  }
+
+  onPurchaseMemoryGridNode(callback: (ctx: ReducerEventContext, nodeId: string) => void) {
+    this.connection.onReducer("purchase_memory_grid_node", callback);
+  }
+
+  removeOnPurchaseMemoryGridNode(callback: (ctx: ReducerEventContext, nodeId: string) => void) {
+    this.connection.offReducer("purchase_memory_grid_node", callback);
   }
 
   quickMoveFromBox(boxId: number, sourceSlotIndex: number) {
@@ -4990,6 +5050,11 @@ export class SetReducerFlags {
     this.initViperSpittleSystemFlags = flags;
   }
 
+  initializePlayerMemoryGridFlags: CallReducerFlags = 'FullUpdate';
+  initializePlayerMemoryGrid(flags: CallReducerFlags) {
+    this.initializePlayerMemoryGridFlags = flags;
+  }
+
   interactWithCampfireFlags: CallReducerFlags = 'FullUpdate';
   interactWithCampfire(flags: CallReducerFlags) {
     this.interactWithCampfireFlags = flags;
@@ -5263,6 +5328,11 @@ export class SetReducerFlags {
   processWildAnimalAiFlags: CallReducerFlags = 'FullUpdate';
   processWildAnimalAi(flags: CallReducerFlags) {
     this.processWildAnimalAiFlags = flags;
+  }
+
+  purchaseMemoryGridNodeFlags: CallReducerFlags = 'FullUpdate';
+  purchaseMemoryGridNode(flags: CallReducerFlags) {
+    this.purchaseMemoryGridNodeFlags = flags;
   }
 
   quickMoveFromBoxFlags: CallReducerFlags = 'FullUpdate';
@@ -5780,6 +5850,14 @@ export class RemoteTables {
 
   get lanternProcessingSchedule(): LanternProcessingScheduleTableHandle {
     return new LanternProcessingScheduleTableHandle(this.connection.clientCache.getOrCreateTable<LanternProcessingSchedule>(REMOTE_MODULE.tables.lantern_processing_schedule));
+  }
+
+  get memoryGridProgress(): MemoryGridProgressTableHandle {
+    return new MemoryGridProgressTableHandle(this.connection.clientCache.getOrCreateTable<MemoryGridProgress>(REMOTE_MODULE.tables.memory_grid_progress));
+  }
+
+  get memoryGridPurchases(): MemoryGridPurchasesTableHandle {
+    return new MemoryGridPurchasesTableHandle(this.connection.clientCache.getOrCreateTable<MemoryGridPurchase>(REMOTE_MODULE.tables.memory_grid_purchases));
   }
 
   get message(): MessageTableHandle {

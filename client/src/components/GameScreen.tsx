@@ -689,7 +689,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             textShadow: '0 0 10px rgba(0, 221, 255, 0.5)',
                             fontWeight: 'bold',
                         }}>
-                            NEUROVEIL REFRESH REQUEST
+                            NEUROVEIL™ REFRESH REQUEST
                         </div>
                         
                         <div style={{
@@ -704,7 +704,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             Your neural interface is requesting to refresh the Babachain connection.
                             This will reinitialize your session with the latest quantum state synchronization.
                             <br /><br />
-                            Proceed with neuroveil refresh?
+                            Proceed with Neuroveil™ Refresh?
                         </div>
 
                         <div style={{
@@ -740,7 +740,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                                     e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 140, 0, 0.3), inset 0 0 10px rgba(255, 140, 0, 0.1)';
                                 }}
                             >
-                                REFRESH NEUROVEIL
+                                REFRESH NEUROVEIL™
                             </button>
                             
                             <button

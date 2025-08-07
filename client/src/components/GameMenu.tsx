@@ -137,7 +137,7 @@ const GameMenu: React.FC<GameMenuProps> = ({
                             letterSpacing: '2px',
                         }}
                     >
-                        NEUROVEIL OCULAR INTERFACE
+                        NEUROVEIL™ OCULAR INTERFACE
                     </h2>
                     <div
                         style={{

@@ -1,8 +1,9 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import InterfaceTabs from './InterfaceTabs';
 import MemoryGrid from './MemoryGrid';
 import { MemoryGridNode } from './MemoryGridData';
 import { MINIMAP_DIMENSIONS } from './Minimap';
+import { useGameConnection } from '../contexts/GameConnectionContext';
 import './InterfaceContainer.css';
 
 interface InterfaceContainerProps {
@@ -24,24 +25,170 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
   const [currentView, setCurrentView] = useState<'minimap' | 'encyclopedia' | 'memory-grid'>('minimap');
   const [isMinimapLoading, setIsMinimapLoading] = useState(false);
   
-  // Memory Grid state for testing (client-side only)
-  const [playerShards, setPlayerShards] = useState(100000);
+  // Get SpacetimeDB connection
+  const connection = useGameConnection();
+  
+  // Memory Grid server state
+  const [playerShards, setPlayerShards] = useState(0);
   const [purchasedNodes, setPurchasedNodes] = useState<Set<string>>(new Set(['center']));
+  const [isLoadingMemoryData, setIsLoadingMemoryData] = useState(false);
 
-  // Handle node purchases (client-side testing only)
-  const handleNodePurchase = (node: MemoryGridNode) => {
-    if (playerShards >= node.cost && !purchasedNodes.has(node.id)) {
-      // Deduct shards
-      setPlayerShards(prev => prev - node.cost);
+  // Update memory grid data from SpacetimeDB subscriptions
+  const updateMemoryGridData = useCallback(() => {
+    if (!connection.connection || !connection.isConnected || !connection.dbIdentity) return;
+    
+    setIsLoadingMemoryData(true);
+    
+    try {
+      // Calculate memory shards from inventory using server-side pattern (like projectile.rs)
+      let totalShards = 0;
       
-      // Add node to purchased set
-      setPurchasedNodes(prev => new Set([...prev, node.id]));
+      // First, find the Memory Shard item definition ID
+      let memoryShardDefId: bigint | null = null;
+      for (const itemDef of connection.connection.db.itemDefinition.iter()) {
+        if (itemDef.name === 'Memory Shard') {
+          memoryShardDefId = itemDef.id;
+          console.log(`🔍 [Memory Grid Debug] Found Memory Shard definition ID: ${memoryShardDefId}`);
+          break;
+        }
+      }
       
-      console.log(`✅ Purchased ${node.name} for ${node.cost} shards! Remaining: ${playerShards - node.cost}`);
-    } else {
-      console.log(`❌ Cannot purchase ${node.name}: ${playerShards < node.cost ? 'Not enough shards' : 'Already purchased'}`);
+      if (!memoryShardDefId) {
+        console.error(`❌ [Memory Grid Debug] Memory Shard item definition not found!`);
+        setPlayerShards(0);
+        setIsLoadingMemoryData(false);
+        return;
+      }
+      
+      console.log(`🔍 [Memory Grid Debug] Scanning inventory for Memory Shards (def_id: ${memoryShardDefId})`);
+      console.log(`🔍 [Memory Grid Debug] Current player identity: ${connection.dbIdentity}`);
+      
+      // Use the exact same pattern as projectile.rs line 171-187
+      for (const item of connection.connection.db.inventoryItem.iter()) {
+        if (item.itemDefId === memoryShardDefId && item.quantity > 0) {
+          console.log(`🔍 [Memory Grid Debug] Found Memory Shard item instance:`, {
+            instanceId: item.instanceId,
+            quantity: item.quantity,
+            location: item.location,
+            locationValue: item.location && 'value' in item.location ? item.location.value : null
+          });
+          
+          // Match the exact pattern from projectile.rs
+          const location = item.location;
+          
+          // Debug the identity comparison issue
+          console.log(`🔍 [Memory Grid Debug] Identity comparison:`, {
+            currentPlayer: connection.dbIdentity,
+            currentPlayerString: connection.dbIdentity?.toString(),
+            locationOwnerId: location && 'value' in location ? (location.value as any).ownerId : null,
+            locationOwnerIdString: location && 'value' in location ? (location.value as any).ownerId?.toString() : null,
+            areEqual: location && 'value' in location ? (location.value as any).ownerId === connection.dbIdentity : false,
+            areEqualString: location && 'value' in location ? (location.value as any).ownerId?.toString() === connection.dbIdentity?.toString() : false
+          });
+          
+          // Try both direct comparison and string comparison
+          let isOwnedByPlayer = false;
+          if (location && 'value' in location) {
+            const locationOwnerId = (location.value as any).ownerId;
+            // Try direct Identity comparison first
+            isOwnedByPlayer = locationOwnerId === connection.dbIdentity;
+            // If that fails, try string comparison as fallback
+            if (!isOwnedByPlayer && locationOwnerId && connection.dbIdentity) {
+              isOwnedByPlayer = locationOwnerId.toString() === connection.dbIdentity.toString();
+            }
+          }
+          
+          if ((location?.tag === 'Inventory' || location?.tag === 'Hotbar') && isOwnedByPlayer) {
+            totalShards += item.quantity;
+            console.log(`✅ [Memory Grid Debug] Added ${item.quantity} shards from ${location.tag} (total: ${totalShards})`);
+          } else {
+            let ownerId = 'N/A';
+            if (location && 'value' in location) {
+              ownerId = (location.value as any).ownerId?.toString() || 'N/A';
+            }
+            console.log(`❌ [Memory Grid Debug] Memory Shard not in player's inventory/hotbar:`, {
+              locationTag: location?.tag,
+              ownerId,
+              expectedOwner: connection.dbIdentity?.toString(),
+              isOwnedByPlayer
+            });
+          }
+        }
+      }
+      setPlayerShards(totalShards);
+      
+      // Get purchased nodes from memory grid progress
+      console.log(`🔍 [Memory Grid Debug] Looking for progress for player: ${connection.dbIdentity?.toString()}`);
+      
+      let progress = null;
+      for (const p of connection.connection.db.memoryGridProgress.iter()) {
+        console.log(`🔍 [Memory Grid Debug] Found progress entry:`, {
+          playerId: p.playerId?.toString(),
+          purchasedNodes: p.purchasedNodes,
+          matches: p.playerId?.toString() === connection.dbIdentity?.toString()
+        });
+        
+        if (p.playerId?.toString() === connection.dbIdentity?.toString()) {
+          progress = p;
+          break;
+        }
+      }
+      
+      if (progress) {
+        const nodeIds = progress.purchasedNodes.split(',').filter((id: string) => id.trim() !== '');
+        setPurchasedNodes(new Set(nodeIds));
+        console.log(`✅ [Memory Grid Debug] Loaded ${nodeIds.length} purchased nodes:`, nodeIds);
+        console.log(`📊 Memory Grid: ${totalShards} shards, ${nodeIds.length} nodes purchased`);
+      } else {
+        // Initialize if no progress found
+        setPurchasedNodes(new Set(['center']));
+        connection.connection.reducers.initializePlayerMemoryGrid();
+        console.log(`📊 Memory Grid: ${totalShards} shards, initializing progress`);
+      }
+      
+    } catch (error) {
+      console.error('Failed to update memory grid data:', error);
+      // Fallback to default values
+      setPlayerShards(0);
+      setPurchasedNodes(new Set(['center']));
+    } finally {
+      setIsLoadingMemoryData(false);
     }
-  };
+  }, [connection]);
+
+  // Handle node purchases through server
+  const handleNodePurchase = useCallback(async (node: MemoryGridNode) => {
+    if (!connection.connection) {
+      console.error('❌ No connection to server');
+      return;
+    }
+    
+    try {
+      // Call server reducer to purchase node
+      connection.connection.reducers.purchaseMemoryGridNode(node.id);
+      console.log(`✅ Attempting to purchase ${node.name} on server`);
+      
+      // The state will be updated automatically through SpacetimeDB subscriptions
+      // We'll trigger an update manually for immediate feedback
+      setTimeout(() => updateMemoryGridData(), 100);
+    } catch (error) {
+      console.error(`❌ Failed to purchase ${node.name}:`, error);
+    }
+  }, [connection, updateMemoryGridData]);
+
+  // Update memory grid data when connection changes or data updates
+  useEffect(() => {
+    updateMemoryGridData();
+  }, [updateMemoryGridData]);
+  
+  // Also update when SpacetimeDB data changes
+  useEffect(() => {
+    if (connection.connection && connection.isConnected) {
+      // Set up listeners for inventory and memory grid changes
+      const updateTimer = setInterval(updateMemoryGridData, 1000); // Update every second
+      return () => clearInterval(updateTimer);
+    }
+  }, [connection.connection, connection.isConnected, updateMemoryGridData]);
 
   // Handle view changes with loading state for minimap
   const handleViewChange = (view: 'minimap' | 'encyclopedia' | 'memory-grid') => {
@@ -338,12 +485,51 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
             padding: '0', // Remove padding to let MemoryGrid use full space
             background: 'transparent', // MemoryGrid has its own background
             border: 'none', // MemoryGrid has its own border
+            position: 'relative',
           }}>
             <MemoryGrid
               playerShards={playerShards}
               purchasedNodes={purchasedNodes}
               onNodePurchase={handleNodePurchase}
             />
+            {/* Show loading overlay when fetching memory data */}
+            {isLoadingMemoryData && (
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(15, 23, 35, 0.85)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 10,
+                backdropFilter: 'blur(2px)',
+              }}>
+                <div style={{
+                  color: '#7c3aed',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  fontFamily: 'monospace',
+                  letterSpacing: '1px',
+                }}>
+                  <div className="cyberpunk-text-pulse">
+                    SYNCING NEURAL GRID
+                  </div>
+                  <div style={{ 
+                    marginTop: '8px', 
+                    fontSize: '12px', 
+                    color: '#00d4ff',
+                    opacity: '0.8'
+                  }}>
+                    Validating memory shards...
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       default:

@@ -77,6 +77,7 @@ mod animal_collision; // <<< ADDED animal collision system
 mod barrel; // <<< ADDED roadside barrel loot system
 mod metadata_providers; // <<< ADDED: Provides plant/seed metadata to client
 mod sea_stack; // <<< ADDED: Sea stack decorative entities
+mod memory_grid; // <<< ADDED: Memory Grid tech tree system
 
 // ADD: Re-export respawn reducer
 pub use respawn::respawn_randomly;
@@ -122,6 +123,9 @@ pub use harvestable_resource::interact_with_harvestable_resource;
 
 // ADD: Re-export metadata provider helper functions
 pub use metadata_providers::{is_plantable_seed, get_plant_type_from_seed_name};
+
+// ADD: Re-export memory grid reducers
+pub use memory_grid::{purchase_memory_grid_node, initialize_player_memory_grid};
 
 // Define a constant for the /kill command cooldown (e.g., 5 minutes)
 pub const KILL_COMMAND_COOLDOWN_SECONDS: u64 = 300;

@@ -1,0 +1,1 @@
+for<'a> fn(&'a ReducerContext) -> std::string::String {get_memory_grid_progress}

@@ -41,6 +41,7 @@ pub(crate) fn grant_starting_items(ctx: &ReducerContext, player_id: Identity, us
         ("Wooden Arrow", 50, None, Some(7u16)),
         ("Reed Water Bottle", 1, None, Some(8u16)),
         ("Shelter", 1, None, Some(9u16)),
+        ("Memory Shard", 5000, None, Some(10u16)),
     ];
 
     log::info!("[GrantItems] Defined {} starting inventory/hotbar item entries.", starting_inv_items.len());

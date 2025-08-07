@@ -1298,6 +1298,9 @@ export const useSpacetimeTables = ({
                  connection.subscriptionBuilder()
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial PLAYER_CORPSE subscription error:", err))
                     .subscribe('SELECT * FROM player_corpse'),
+                 connection.subscriptionBuilder()
+                    .onError((err) => console.error("[useSpacetimeTables] Non-spatial MEMORY_GRID_PROGRESS subscription error:", err))
+                    .subscribe('SELECT * FROM memory_grid_progress'),
                  connection.subscriptionBuilder() // Added Stash subscription
                     .onError((err) => console.error("[useSpacetimeTables] Non-spatial STASH subscription error:", err))
                     .subscribe('SELECT * FROM stash'),

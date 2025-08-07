@@ -153,8 +153,8 @@ export const MEMORY_GRID_NODES = [
   // CENTER NODE - Starting point
   {
     id: 'center',
-    name: 'Neural Interface',
-    description: 'Starting point of your technological journey',
+    name: 'Neuroveil™ Ocular Interface',
+    description: 'OOO \"Rozhkov Neuroscience\" neural interface. Protects against hostile AI intrusion, processes Memory Shards for technological advancement, and provides environmental hazard detection with AI assistant.',
     cost: 0,
     tier: 0,
     prerequisites: [],
@@ -201,7 +201,7 @@ export const MEMORY_GRID_NODES = [
   { id: 'automated-harvester', name: 'Automated Harvester', description: 'Robotic resource collection', cost: 2400, tier: 5, prerequisites: ['radio-tower', 'assault-rifle', 'solar-panels'], position: getRadialPosition(Math.PI / 3, 480), category: 'technology' as const, status: 'locked' as const },
   { id: 'teleporter', name: 'Teleporter Beacon', description: 'Instant travel between points', cost: 2100, tier: 5, prerequisites: ['solar-panels', 'radio-tower', 'barricades'], position: getRadialPosition(2 * Math.PI / 3, 480), category: 'technology' as const, status: 'locked' as const },
   { id: 'mobile-shield', name: 'Mobile Shield Generator', description: 'Personal energy shielding', cost: 2000, tier: 5, prerequisites: ['barricades', 'solar-panels', 'rocket-launcher'], position: getRadialPosition(Math.PI, 480), category: 'technology' as const, status: 'locked' as const },
-  { id: 'drone-swarm', name: 'Combat Drone Swarm', description: 'Autonomous robot army', cost: 2300, tier: 5, prerequisites: ['rocket-launcher', 'barricades', 'weapons-locker'], position: getRadialPosition(4 * Math.PI / 3, 480), category: 'technology' as const, status: 'locked' as const },
+  { id: 'drone-swarm', name: 'Combat Drone', description: 'Autonomous robot army', cost: 2300, tier: 5, prerequisites: ['rocket-launcher', 'barricades', 'weapons-locker'], position: getRadialPosition(4 * Math.PI / 3, 480), category: 'technology' as const, status: 'locked' as const },
   { id: 'fortified-bunker', name: 'Fortified Bunker', description: 'Deployable armored stronghold with weapon ports', cost: 2250, tier: 5, prerequisites: ['weapons-locker', 'rocket-launcher', 'plasma-rifle'], position: getRadialPosition(5 * Math.PI / 3, 480), category: 'technology' as const, status: 'locked' as const },
 
 

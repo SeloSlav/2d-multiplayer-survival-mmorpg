@@ -505,7 +505,9 @@ const MemoryGrid: React.FC<MemoryGridProps> = ({
                     color: displayNode.status === 'purchased' ? '#22c55e' : 
                           displayNode.status === 'available' ? '#3b82f6' : '#9ca3af'
                   }}>
-                    {displayNode.status.toUpperCase()}
+                    {displayNode.status === 'purchased' 
+                      ? 'INSTALLED' 
+                      : displayNode.status.toUpperCase()}
                   </span>
                   
                   {displayNode.cost > 0 && displayNode.status !== 'purchased' && (

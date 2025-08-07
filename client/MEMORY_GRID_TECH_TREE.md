@@ -93,7 +93,7 @@ The **Memory Grid** functions like Final Fantasy X's Sphere Grid - players start
 - **Reactive Armor** - Adaptive protection that counters incoming damage types
 - **Mobile Shield Generator** - Personal energy shielding device
 - **Hover Tank** - Anti-gravity assault vehicle with plasma cannons
-- **Combat Drone Swarm** - Autonomous robot army under your command
+- **Combat Drone** - Autonomous robot army under your command
 - **Antimatter Charges** - Planet-cracking explosives for total destruction
 - **Hologram Decoys** - Projection technology for misdirection and stealth
 - **Quantum Computer** - Ultimate information warfare: reveals all barrel locations and spawn timings, shows memory shard plant respawn timers, displays player equipment/threat levels, predicts weather patterns 30 minutes ahead

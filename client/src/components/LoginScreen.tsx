@@ -943,7 +943,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                             icon: combatLadle,
                                         },
                                         {
-                                            title: "Neuroveil Ocular Implant",
+                                            title: "Neuroveil™ Ocular Implant",
                                             description: "Miraculously intact after the shipwreck, this cutting-edge device was designed in Gred by Rozhkov Neuroscience. Powered by bioelectrical stimulation, it never runs out of batteries. Scan your environment for resources, receive tactical advice, detect threats, and unlock hidden secrets.",
                                             icon: ocularImplant,
                                         },
