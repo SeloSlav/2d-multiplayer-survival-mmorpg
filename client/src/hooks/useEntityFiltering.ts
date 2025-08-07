@@ -154,7 +154,7 @@ const getEntityY = (item: YSortedEntityType, timestamp: number): number => {
       return entity.startPosY + entity.velocityY * elapsedSeconds;
     }
     case 'sea_stack':
-      return entity.posY - 55;
+      return entity.posY;
     case 'shelter':
       return entity.posY - 100;
     default:

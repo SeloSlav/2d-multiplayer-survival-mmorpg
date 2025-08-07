@@ -316,11 +316,23 @@ function drawWaterLineEffects(
     const waveOffset1 = baseWaveOffset + Math.sin(time * WATER_LINE_CONFIG.WAVE_FREQUENCY * 2) * 1;
     const waveOffset2 = baseWaveOffset + Math.sin(time * WATER_LINE_CONFIG.WAVE_FREQUENCY * 2 + 1) * 1;
     
-    // Create a rectangular clipping path that covers the full width with slight wave animation
-    ctx.moveTo(leftMost, waterLineY + waveOffset1);
-    ctx.lineTo(rightMost, waterLineY + waveOffset2);
-    ctx.lineTo(rightMost, waterLineY + 100); // Extend down
-    ctx.lineTo(leftMost, waterLineY + 100); // Extend down
+    // Create a clipping path that's constrained to the sea stack bounds
+    const stackBounds = {
+      left: -width / 2,
+      right: width / 2,
+      top: -height,
+      bottom: 0
+    };
+    
+    // Constrain the clipping area to not extend beyond the sea stack image bounds
+    const constrainedLeft = Math.max(leftMost, stackBounds.left);
+    const constrainedRight = Math.min(rightMost, stackBounds.right);
+    
+    // Create a rectangular clipping path that's bounded by the sea stack image
+    ctx.moveTo(constrainedLeft, waterLineY + waveOffset1);
+    ctx.lineTo(constrainedRight, waterLineY + waveOffset2);
+    ctx.lineTo(constrainedRight, Math.min(waterLineY + 100, stackBounds.bottom)); // Don't extend beyond image bottom
+    ctx.lineTo(constrainedLeft, Math.min(waterLineY + 100, stackBounds.bottom)); // Don't extend beyond image bottom
     ctx.closePath();
     
     // Apply clipping and fill with gradient underwater tint
@@ -334,7 +346,7 @@ function drawWaterLineEffects(
     underwaterGradient.addColorStop(1, 'rgba(12, 62, 79, 1)'); // Stay fully opaque to bottom
     
     ctx.fillStyle = underwaterGradient;
-    ctx.fillRect(leftMost, waterLineY, rightMost - leftMost, 100);
+    ctx.fillRect(constrainedLeft, waterLineY, constrainedRight - constrainedLeft, Math.min(100, stackBounds.bottom - waterLineY));
   }
   
   ctx.restore();
