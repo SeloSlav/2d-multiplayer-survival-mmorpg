@@ -707,7 +707,6 @@ export function renderGrassEntities(
 ) {
     // PERFORMANCE: Increment frame counter and check emergency mode
     frameCounter++;
-    updateEmergencyMode(grassEntities.length);
     
     // PERFORMANCE: Start timing for grass rendering
     const startTime = ENABLE_GRASS_PERF_LOGGING ? performance.now() : 0;
