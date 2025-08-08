@@ -53,7 +53,7 @@ import { useDebouncedCallback } from 'use-debounce'; // Import debounce helper
 // Viewport constants
 const VIEWPORT_WIDTH = 1200; // Example: Base viewport width
 const VIEWPORT_HEIGHT = 800; // Example: Base viewport height
-const VIEWPORT_BUFFER = 1200; // Increased buffer (was 600) to create larger "chunks" of visible area
+const VIEWPORT_BUFFER = 300; // 🚨 REDUCED: Was 1200, causing 3600×3200 viewport and 4000+ subscriptions
 const VIEWPORT_UPDATE_THRESHOLD_SQ = (VIEWPORT_WIDTH / 2) ** 2; // Increased threshold (was WIDTH/4), so updates happen less frequently
 const VIEWPORT_UPDATE_DEBOUNCE_MS = 750; // Increased debounce time (was 250ms) to reduce update frequency
 

@@ -58,9 +58,9 @@ export const getChunkIndicesForViewportWithBuffer = (viewport: Viewport | null, 
     }
     
     // Log the calculation for debugging - ENABLED to debug spatial gaps
-    console.log(`[CHUNK_CALC] Viewport: (${viewport.minX.toFixed(0)}, ${viewport.minY.toFixed(0)}) to (${viewport.maxX.toFixed(0)}, ${viewport.maxY.toFixed(0)})`);
-    console.log(`[CHUNK_CALC] Buffer=${bufferChunks}, ChunkRange: X=${minChunkX}-${maxChunkX}, Y=${minChunkY}-${maxChunkY}`);
-    console.log(`[CHUNK_CALC] Calculated ${indices.length} chunks: [${indices.slice(0, 10).join(', ')}${indices.length > 10 ? '...' : ''}]`);
+    //console.log(`[CHUNK_CALC] Viewport: (${viewport.minX.toFixed(0)}, ${viewport.minY.toFixed(0)}) to (${viewport.maxX.toFixed(0)}, ${viewport.maxY.toFixed(0)})`);
+    //console.log(`[CHUNK_CALC] Buffer=${bufferChunks}, ChunkRange: X=${minChunkX}-${maxChunkX}, Y=${minChunkY}-${maxChunkY}`);
+    //console.log(`[CHUNK_CALC] Calculated ${indices.length} chunks: [${indices.slice(0, 10).join(', ')}${indices.length > 10 ? '...' : ''}]`);
     
     // Check for gaps in chunk indices (consecutive chunks should be close in value)
     const sortedIndices = [...indices].sort((a, b) => a - b);

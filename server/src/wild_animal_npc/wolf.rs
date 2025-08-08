@@ -36,6 +36,7 @@ use super::core::{
     set_flee_destination_away_from_threat,
     handle_fire_trap_escape, calculate_escape_angle_from_threats, detect_and_handle_stuck_movement,
     is_position_in_shelter, get_pack_alpha, should_follow_pack_alpha, get_pack_cohesion_movement,
+    update_animal_position,
 };
 
 pub struct TundraWolfBehavior;
@@ -350,8 +351,8 @@ impl AnimalBehavior for TundraWolfBehavior {
                 log::debug!("Wandering wolf {} pushed back by other animal: ({:.1}, {:.1})", animal.id, pushback_x, pushback_y);
             }
             
-            animal.pos_x = final_x;
-            animal.pos_y = final_y;
+            // Use centralized position update function
+            update_animal_position(animal, final_x, final_y);
             
             // Check if stuck - use centralized handler
             detect_and_handle_stuck_movement(animal, prev_x, prev_y, 5.0, rng, "patrol");

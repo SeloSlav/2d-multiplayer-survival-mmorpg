@@ -363,15 +363,15 @@ export const renderPlayer = (
         isCurrentlyHit = hitEffectElapsed < (PLAYER_SHAKE_DURATION_MS + COMBAT_EFFECT_LATENCY_BUFFER_MS);
         
         // --- DEBUGGING: Log potential infinite loops ---
-        if (hitEffectElapsed < 5 && !isNewHit) {
-          console.log(`🎯 [DEBUG] Potential infinite hit loop for player ${playerHexId}: elapsed=${hitEffectElapsed.toFixed(1)}ms, server=${serverLastHitTimePropMicros}, stored=${hitState.lastProcessedHitTime}, diff=${serverLastHitTimePropMicros - hitState.lastProcessedHitTime}`);
-        }
+        // if (hitEffectElapsed < 5 && !isNewHit) {
+        //   console.log(`🎯 [DEBUG] Potential infinite hit loop for player ${playerHexId}: elapsed=${hitEffectElapsed.toFixed(1)}ms, server=${serverLastHitTimePropMicros}, stored=${hitState.lastProcessedHitTime}, diff=${serverLastHitTimePropMicros - hitState.lastProcessedHitTime}`);
+        // }
       }
     }
   } else {
     // No hit time from server - clear hit state
     if (hitState) {
-      console.log(`🎯 [COMBAT] Clearing hit state for player ${playerHexId} (server hit time is 0)`);
+      // console.log(`🎯 [COMBAT] Clearing hit state for player ${playerHexId} (server hit time is 0)`);
       playerHitStates.delete(playerHexId);
     }
   }

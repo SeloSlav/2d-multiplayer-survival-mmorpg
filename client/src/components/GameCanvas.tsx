@@ -1792,11 +1792,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     if (canvasSize.width === 0 || canvasSize.height === 0) {
       return null;
     }
+    
+    // 🚨 FIX: Cap viewport size to prevent subscription overload
+    // Max viewport should cover ~1920x1080 pixels to keep chunk subscriptions reasonable
+    const maxViewportWidth = 1920;
+    const maxViewportHeight = 1080;
+    const effectiveWidth = Math.min(canvasSize.width, maxViewportWidth);
+    const effectiveHeight = Math.min(canvasSize.height, maxViewportHeight);
+    
     return {
       minX: -cameraOffsetX,
       minY: -cameraOffsetY,
-      maxX: -cameraOffsetX + canvasSize.width,
-      maxY: -cameraOffsetY + canvasSize.height,
+      maxX: -cameraOffsetX + effectiveWidth,
+      maxY: -cameraOffsetY + effectiveHeight,
     };
   }, [cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height]);
 

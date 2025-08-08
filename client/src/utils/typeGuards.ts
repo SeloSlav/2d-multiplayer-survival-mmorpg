@@ -192,9 +192,9 @@ export function isWildAnimal(entity: any): entity is WildAnimal {
            typeof entity.posY === 'number' && 
            typeof entity.id !== 'undefined' &&
            typeof entity.chunkIndex === 'number' &&
-           typeof entity.species === 'number' &&
+           entity.species && typeof entity.species === 'object' && typeof entity.species.tag === 'string' &&
            typeof entity.health === 'number' &&
-           (entity.respawnAt === null || entity.respawnAt instanceof Date || typeof entity.respawnAt === 'undefined');
+           entity.state && typeof entity.state === 'object' && typeof entity.state.tag === 'string';
 }
 
 // Type guard for AnimalCorpse

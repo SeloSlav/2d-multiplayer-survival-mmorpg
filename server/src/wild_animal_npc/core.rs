@@ -906,11 +906,8 @@ pub fn move_towards_target(ctx: &ReducerContext, animal: &mut WildAnimal, target
             is_attacking,
         );
         
-        animal.pos_x = final_x;
-        animal.pos_y = final_y;
-        
-        // Update chunk_index when position changes (CRITICAL FIX for chunk boundary invisibility)
-        animal.chunk_index = crate::environment::calculate_chunk_index(final_x, final_y);
+        // Use centralized position update function
+        update_animal_position(animal, final_x, final_y);
         
         animal.direction_x = dx / distance;
         animal.direction_y = dy / distance;
@@ -923,10 +920,20 @@ pub fn move_towards_target(ctx: &ReducerContext, animal: &mut WildAnimal, target
     }
 }
 
+/// Helper function to update animal position and ensure chunk_index stays synchronized
+pub fn update_animal_position(animal: &mut WildAnimal, new_x: f32, new_y: f32) {
+    animal.pos_x = new_x;
+    animal.pos_y = new_y;
+    animal.chunk_index = crate::environment::calculate_chunk_index(new_x, new_y);
+}
+
 fn clamp_to_world_bounds(animal: &mut WildAnimal) {
     let margin = 50.0;
-    animal.pos_x = animal.pos_x.clamp(margin, WORLD_WIDTH_PX - margin);
-    animal.pos_y = animal.pos_y.clamp(margin, WORLD_HEIGHT_PX - margin);
+    let clamped_x = animal.pos_x.clamp(margin, WORLD_WIDTH_PX - margin);
+    let clamped_y = animal.pos_y.clamp(margin, WORLD_HEIGHT_PX - margin);
+    
+    // Use centralized position update function
+    update_animal_position(animal, clamped_x, clamped_y);
 }
 
 fn apply_knockback_to_player(animal: &WildAnimal, target: &mut Player, current_time: Timestamp) {
@@ -1272,8 +1279,11 @@ fn apply_animal_knockback_effects(
         
         // Update target animal position (with basic bounds checking)
         let mut updated_target = target_animal.clone();
-        updated_target.pos_x = (updated_target.pos_x + knockback_dx).clamp(32.0, WORLD_WIDTH_PX - 32.0);
-        updated_target.pos_y = (updated_target.pos_y + knockback_dy).clamp(32.0, WORLD_HEIGHT_PX - 32.0);
+        let new_x = (updated_target.pos_x + knockback_dx).clamp(32.0, WORLD_WIDTH_PX - 32.0);
+        let new_y = (updated_target.pos_y + knockback_dy).clamp(32.0, WORLD_HEIGHT_PX - 32.0);
+        
+        // Use centralized position update function
+        update_animal_position(&mut updated_target, new_x, new_y);
         
         ctx.db.wild_animal().id().update(updated_target);
         
@@ -2290,8 +2300,11 @@ pub fn handle_attack_aftermath(
                 let dy = animal.pos_y - target_player.position_y;
                 let distance = (dx * dx + dy * dy).sqrt();
                 if distance > 0.0 {
-                    animal.pos_x += (dx / distance) * jump_distance;
-                    animal.pos_y += (dy / distance) * jump_distance;
+                    let new_x = animal.pos_x + (dx / distance) * jump_distance;
+                    let new_y = animal.pos_y + (dy / distance) * jump_distance;
+                    
+                    // Use centralized position update function
+                    update_animal_position(animal, new_x, new_y);
                 }
                 
                 log::info!("Cinder Fox {} hit-and-run on healthy target - fleeing", animal.id);

@@ -1385,11 +1385,17 @@ export const useSpacetimeTables = ({
                 const maxChunkX = maxChunk % gameConfig.worldWidthChunks;
                 const maxChunkY = Math.floor(maxChunk / gameConfig.worldWidthChunks);
                 const totalSubscriptions = currentChunks.length * 14; // 14 queries per chunk
-                console.log(`[OLD_SYSTEM_DEBUG] 🚨 PERFORMANCE: ${currentChunks.length} chunks = ${totalSubscriptions} subscriptions [${minChunk}-${maxChunk}] = Chunk(${minChunkX},${minChunkY}) to Chunk(${maxChunkX},${maxChunkY})`);
-                console.log(`[OLD_SYSTEM_DEBUG] Viewport: (${viewport.minX.toFixed(0)}, ${viewport.minY.toFixed(0)}) to (${viewport.maxX.toFixed(0)}, ${viewport.maxY.toFixed(0)})`);
-                if (currentChunks.length > 50) {
-                    console.warn(`🚨 OLD SYSTEM CHUNK OVERLOAD: ${currentChunks.length} chunks will create ${totalSubscriptions} subscriptions - this will cause severe lag!`);
-                }
+                const viewportWidth = viewport.maxX - viewport.minX;
+                const viewportHeight = viewport.maxY - viewport.minY;
+                const chunkWidth = (maxChunkX - minChunkX + 1);
+                const chunkHeight = (maxChunkY - minChunkY + 1);
+                
+                // Debug logging disabled - subscription count is now optimized (~90-100 chunks)
+                // if (currentChunks.length > 50) {
+                //     console.warn(`🚨 CHUNK OVERLOAD: ${currentChunks.length} chunks (${chunkWidth}×${chunkHeight}) will create ${totalSubscriptions} subscriptions!`);
+                //     console.warn(`🚨 Viewport size: ${viewportWidth.toFixed(0)}×${viewportHeight.toFixed(0)} pixels`);
+                //     console.warn(`🚨 Viewport: (${viewport.minX.toFixed(0)}, ${viewport.minY.toFixed(0)}) to (${viewport.maxX.toFixed(0)}, ${viewport.maxY.toFixed(0)})`);
+                // }
             }
             
             // 🎯 NEW: Separate logic for initial subscription vs. subsequent updates

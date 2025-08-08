@@ -23,6 +23,7 @@ use super::core::{
     move_towards_target, can_attack, transition_to_state, 
     emit_species_sound, get_player_distance, is_player_in_chase_range, set_flee_destination_away_from_threat,
     handle_fire_trap_escape, is_animal_cornered, detect_and_handle_stuck_movement, handle_water_unstuck,
+    update_animal_position,
 };
 
 pub struct CinderFoxBehavior;
@@ -74,8 +75,11 @@ impl AnimalBehavior for CinderFoxBehavior {
             let dy = animal.pos_y - target_player.position_y;
             let distance = (dx * dx + dy * dy).sqrt();
             if distance > 0.0 {
-                animal.pos_x += (dx / distance) * jump_distance;
-                animal.pos_y += (dy / distance) * jump_distance;
+                let new_x = animal.pos_x + (dx / distance) * jump_distance;
+                let new_y = animal.pos_y + (dy / distance) * jump_distance;
+                
+                // Use centralized position update function
+                update_animal_position(animal, new_x, new_y);
             }
             
             log::info!("Cinder Fox {} hit-and-run attack on healthy player {} - fleeing to ({:.1}, {:.1})", 
