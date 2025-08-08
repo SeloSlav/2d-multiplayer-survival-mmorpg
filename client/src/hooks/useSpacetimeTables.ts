@@ -21,7 +21,7 @@ import { gameConfig } from '../config/gameConfig';
 // - Result: 200-300ms frame times, unplayable lag spikes
 //
 // SOLUTION IMPLEMENTED (FINAL OPTIMIZED):
-// 1. 🎯 SMART BUFFER SIZE: buffer=2 (optimal balance: 1=too frequent crossings, 2=perfect, 3=expensive)  
+// 1. 🎯 SMART BUFFER SIZE: buffer=2 (optimal balance: 1=frequent crossings, 2=perfect, 3=too many chunks)  
 // 2. 🚀 BATCHED SUBSCRIPTIONS: 12 individual → 3 batched calls per chunk (75% reduction)
 // 3. 🛡️ CHUNK COUNT LIMITING: Max 20 chunks processed per frame (prevents 195-chunk lag spikes)
 // 4. 🕐 INTELLIGENT THROTTLING: Min 150ms between chunk updates (prevents rapid-fire spam)
@@ -41,16 +41,17 @@ import { gameConfig } from '../config/gameConfig';
 // ===================================================================================================
 
 // SPATIAL SUBSCRIPTION CONTROL FLAGS
-const DISABLE_ALL_SPATIAL_SUBSCRIPTIONS = false; // Master switch - turns off ALL spatial subscriptions
+const DISABLE_ALL_SPATIAL_SUBSCRIPTIONS = false; // 🚨 EMERGENCY: Master switch - disable ALL spatial subscriptions to isolate performance issue
 const ENABLE_CLOUDS = true; // Controls cloud spatial subscriptions
 const ENABLE_GRASS = false; // 🚫 DISABLED: Grass subscriptions cause massive lag spikes
-const ENABLE_WORLD_TILES = true; // Controls world tile spatial subscriptions
+const ENABLE_WORLD_TILES = false; // Controls world tile spatial subscriptions (OLD SYSTEM - DEPRECATED)
+// V2 system removed - was causing massive performance issues
 
 // PERFORMANCE TESTING FLAGS
 const GRASS_PERFORMANCE_MODE = true; // If enabled, only subscribe to healthy grass (reduces update volume)
 
-// CHUNK OPTIMIZATION FLAGS - SMART ADAPTIVE BUFFER SYSTEM
-const CHUNK_BUFFER_SIZE = 2; // 🎯 PERFORMANCE OPTIMIZED: Sweet spot between performance and smoothness (1=too frequent crossings, 2=optimal, 3=expensive)
+// CHUNK OPTIMIZATION FLAGS - SMART ADAPTIVE BUFFER SYSTEM  
+const CHUNK_BUFFER_SIZE = 1; // 🚨 EMERGENCY FIX: Reduced from 2 to prevent 260-chunk overload (was causing 3000+ subscriptions)
 const CHUNK_UNSUBSCRIBE_DELAY_MS = 3000; // How long to keep chunks after leaving them (prevents rapid re-sub/unsub)
 
 // 🚀 SMART ADAPTIVE THROTTLING: Adjust throttling based on movement patterns
@@ -401,22 +402,23 @@ export const useSpacetimeTables = ({
                             };
 
                             // 🎯 BATCH 1: Resource & Structure Tables (Most Common)
-                            const resourceQueries = [
-                                `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM harvestable_resource WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM furnace WHERE chunk_index = ${chunkIndex}`, // ADDED: Furnace spatial subscription
-                                `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`,
-                                `SELECT * FROM sea_stack WHERE chunk_index = ${chunkIndex}`
-                            ];
+                                                            const resourceQueries = [
+                                    `SELECT * FROM tree WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM stone WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM harvestable_resource WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM campfire WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM furnace WHERE chunk_index = ${chunkIndex}`, // ADDED: Furnace spatial subscription
+                                    `SELECT * FROM lantern WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM wooden_storage_box WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM dropped_item WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM rain_collector WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM water_patch WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`,
+                                    `SELECT * FROM sea_stack WHERE chunk_index = ${chunkIndex}`
+                                ];
+                                // Removed excessive debug logging to improve performance
                             newHandlesForChunk.push(timedBatchedSubscribe('Resources', resourceQueries));
 
                             // 🎯 BATCH 3: Environmental (Optional Tables)
@@ -438,6 +440,7 @@ export const useSpacetimeTables = ({
                                 const worldWidthChunks = gameConfig.worldWidthChunks;
                                 const chunkX = chunkIndex % worldWidthChunks;
                                 const chunkY = Math.floor(chunkIndex / worldWidthChunks);
+                                // Removed excessive chunk debug logging to improve performance
                                 environmentalQueries.push(`SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`);
                             }
 
@@ -496,6 +499,7 @@ export const useSpacetimeTables = ({
                                 const worldWidthChunks = gameConfig.worldWidthChunks;
                                 const chunkX = chunkIndex % worldWidthChunks;
                                 const chunkY = Math.floor(chunkIndex / worldWidthChunks);
+                                // Removed excessive debugging
                                 newHandlesForChunk.push(timedSubscribe('WorldTile', `SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`));
                             }
                         }
@@ -935,14 +939,46 @@ export const useSpacetimeTables = ({
 
             // --- WorldTile Handlers (Optimized to avoid React re-renders) ---
             const handleWorldTileInsert = (ctx: any, tile: SpacetimeDB.WorldTile) => {
-                // Use ref directly to avoid triggering React re-renders
-                worldTilesRef.current.set(tile.id.toString(), tile);
+                // Use world coordinates as key to match ProceduralWorldRenderer lookup
+                const tileKey = `${tile.worldX}_${tile.worldY}`;
+                worldTilesRef.current.set(tileKey, tile);
+                
+                // Count tiles received and log coordinate ranges
+                if (!(window as any).tileInsertCount) (window as any).tileInsertCount = 0;
+                (window as any).tileInsertCount++;
+                
+                // Log coordinate ranges every 1000 tiles to see coverage
+                if ((window as any).tileInsertCount % 1000 === 0) {
+                    const allTiles = Array.from(worldTilesRef.current.values());
+                    const minX = Math.min(...allTiles.map(t => t.worldX));
+                    const maxX = Math.max(...allTiles.map(t => t.worldX));
+                    const minY = Math.min(...allTiles.map(t => t.worldY));
+                    const maxY = Math.max(...allTiles.map(t => t.worldY));
+                    console.log(`[TILES] Received ${(window as any).tileInsertCount} tiles. Coverage: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
+                }
+                
+                // Log specific tile details for debugging dead zones
+                if (tile.worldX >= 155 && tile.worldX <= 165 && tile.worldY >= 70 && tile.worldY <= 80) {
+                    console.log(`[TILE DEBUG] Received tile at (${tile.worldX}, ${tile.worldY}) chunk(${tile.chunkX}, ${tile.chunkY}) type: ${tile.tileType.tag}`);
+                }
             };
             const handleWorldTileUpdate = (ctx: any, oldTile: SpacetimeDB.WorldTile, newTile: SpacetimeDB.WorldTile) => {
-                worldTilesRef.current.set(newTile.id.toString(), newTile);
+                const tileKey = `${newTile.worldX}_${newTile.worldY}`;
+                worldTilesRef.current.set(tileKey, newTile);
+                // Removed excessive debugging
             };
             const handleWorldTileDelete = (ctx: any, tile: SpacetimeDB.WorldTile) => {
-                worldTilesRef.current.delete(tile.id.toString());
+                // SOLUTION: Disable tile deletion to prevent dead zones
+                // The chunk subscription system works correctly, but when chunks are unsubscribed,
+                // tiles get deleted from cache, creating dead zones. Keep tiles in cache for continuity.
+                
+                // const tileKey = `${tile.worldX}_${tile.worldY}`;
+                // worldTilesRef.current.delete(tileKey);
+                
+                // Optional: Log only occasionally to avoid spam
+                // if (Math.random() < 0.01) { // 1% chance to log
+                //     console.log(`[DEBUG] Keeping tile at (${tile.worldX}, ${tile.worldY}) in cache instead of deleting`);
+                // }
             };
 
             // --- MinimapCache Handlers ---
@@ -1382,6 +1418,27 @@ export const useSpacetimeTables = ({
                 }
                 return; // Early return to skip all spatial logic
             }
+
+            // 🔍 DEBUG: Log current viewport chunk coverage for old system (only when chunks change significantly)
+            const currentChunks = getChunkIndicesForViewportWithBuffer(viewport, CHUNK_BUFFER_SIZE);
+            const currentChunksKey = currentChunks.sort((a, b) => a - b).join(',');
+            const lastChunksKey = (window as any).lastChunksKey || '';
+            
+            if (currentChunksKey !== lastChunksKey && currentChunks.length > 0) {
+                (window as any).lastChunksKey = currentChunksKey;
+                const minChunk = Math.min(...currentChunks);
+                const maxChunk = Math.max(...currentChunks);
+                const minChunkX = minChunk % gameConfig.worldWidthChunks;
+                const minChunkY = Math.floor(minChunk / gameConfig.worldWidthChunks);
+                const maxChunkX = maxChunk % gameConfig.worldWidthChunks;
+                const maxChunkY = Math.floor(maxChunk / gameConfig.worldWidthChunks);
+                const totalSubscriptions = currentChunks.length * 14; // 14 queries per chunk
+                console.log(`[OLD_SYSTEM_DEBUG] 🚨 PERFORMANCE: ${currentChunks.length} chunks = ${totalSubscriptions} subscriptions [${minChunk}-${maxChunk}] = Chunk(${minChunkX},${minChunkY}) to Chunk(${maxChunkX},${maxChunkY})`);
+                console.log(`[OLD_SYSTEM_DEBUG] Viewport: (${viewport.minX.toFixed(0)}, ${viewport.minY.toFixed(0)}) to (${viewport.maxX.toFixed(0)}, ${viewport.maxY.toFixed(0)})`);
+                if (currentChunks.length > 50) {
+                    console.warn(`🚨 OLD SYSTEM CHUNK OVERLOAD: ${currentChunks.length} chunks will create ${totalSubscriptions} subscriptions - this will cause severe lag!`);
+                }
+            }
             
             // 🎯 NEW: Separate logic for initial subscription vs. subsequent updates
             // This prevents race conditions on startup.
@@ -1414,16 +1471,18 @@ export const useSpacetimeTables = ({
                                     `SELECT * FROM wild_animal WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM planted_seed WHERE chunk_index = ${chunkIndex}`,
                                     `SELECT * FROM barrel WHERE chunk_index = ${chunkIndex}`, `SELECT * FROM sea_stack WHERE chunk_index = ${chunkIndex}`
                                 ];
+                                // Removed excessive initial chunk debug logging
                                 newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Resource Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(resourceQueries));
                                 
                                 const environmentalQueries = [];
                                 if (ENABLE_CLOUDS) environmentalQueries.push(`SELECT * FROM cloud WHERE chunk_index = ${chunkIndex}`);
-                                if (ENABLE_WORLD_TILES) {
-                                    const worldWidthChunks = gameConfig.worldWidthChunks;
-                                    const chunkX = chunkIndex % worldWidthChunks;
-                                    const chunkY = Math.floor(chunkIndex / worldWidthChunks);
-                                    environmentalQueries.push(`SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`);
-                                }
+                                                            if (ENABLE_WORLD_TILES) {
+                                const worldWidthChunks = gameConfig.worldWidthChunks;
+                                const chunkX = chunkIndex % worldWidthChunks;
+                                const chunkY = Math.floor(chunkIndex / worldWidthChunks);
+                                // Removed excessive initial chunk coordinate debug logging
+                                environmentalQueries.push(`SELECT * FROM world_tile WHERE chunk_x = ${chunkX} AND chunk_y = ${chunkY}`);
+                            }
                                 if (environmentalQueries.length > 0) {
                                     newHandlesForChunk.push(connection.subscriptionBuilder().onError((err) => console.error(`Environmental Batch Sub Error (Chunk ${chunkIndex}):`, err)).subscribe(environmentalQueries));
                                 }

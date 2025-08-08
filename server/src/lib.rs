@@ -307,8 +307,8 @@ pub fn get_effective_player_radius(is_crouching: bool) -> f32 {
 pub const WATER_SPEED_PENALTY: f32 = 0.5; // 50% speed reduction (50% of normal speed)
 
 // World Dimensions (example)
-pub const WORLD_WIDTH_TILES: u32 = 500;
-pub const WORLD_HEIGHT_TILES: u32 = 500;
+pub const WORLD_WIDTH_TILES: u32 = 200;
+pub const WORLD_HEIGHT_TILES: u32 = 200;
 // Change back to f32 as they are used in float calculations
 pub const WORLD_WIDTH_PX: f32 = (WORLD_WIDTH_TILES * TILE_SIZE_PX) as f32;
 pub const WORLD_HEIGHT_PX: f32 = (WORLD_HEIGHT_TILES * TILE_SIZE_PX) as f32;
@@ -534,7 +534,7 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
             seed: ctx.rng().gen::<u64>(), // Random seed each time using ctx.rng()
             world_width_tiles: WORLD_WIDTH_TILES,  // Reduced from 250 for performance
             world_height_tiles: WORLD_HEIGHT_TILES, // Reduced from 250 for performance  
-            chunk_size: 10,
+            chunk_size: environment::CHUNK_SIZE_TILES, // Use the same chunk size as runtime lookups
             island_border_width: 5,  // Adjusted for smaller world
             beach_width: 3,          // Adjusted for smaller world
             river_frequency: 0.3,
@@ -1137,9 +1137,9 @@ pub struct WorldChunkData {
     pub id: u64,
     pub chunk_x: i32,
     pub chunk_y: i32,
-    pub chunk_size: u32, // How many tiles per side (usually 10x10 = 100 tiles)
-    pub tile_types: Vec<u8>, // Compressed tile types (100 bytes instead of 100 objects)
-    pub variants: Vec<u8>,   // Compressed variants (100 bytes)
+    pub chunk_size: u32, // How many tiles per side (5x5 = 25 tiles)
+    pub tile_types: Vec<u8>, // Compressed tile types (25 bytes instead of 25 objects)
+    pub variants: Vec<u8>,   // Compressed variants (25 bytes)
     pub generated_at: Timestamp,
 }
 

@@ -9,18 +9,19 @@
 // Define base values first
 const TILE_SIZE = 48;
 export { TILE_SIZE };
-const MINIMAP_GRID_DIAGONAL_TILES = 100 + 1; // Use the user's desired value (tunable)
 
 // --- Server World & Chunk Configuration (Client-Side Assumption - TODO: Make Server-Driven) ---
 // These values MUST match the server's current world generation settings.
-const SERVER_WORLD_WIDTH_TILES = 500; // Assumed width of the server world in tiles (matches lib.rs)
-const SERVER_WORLD_HEIGHT_TILES = 500; // Assumed height of the server world in tiles (matches lib.rs)
-const CHUNK_SIZE_TILES = 10;         // Number of tiles along one edge of a square chunk
+const SERVER_WORLD_WIDTH_TILES = 200; // Assumed width of the server world in tiles (matches lib.rs)
+const SERVER_WORLD_HEIGHT_TILES = 200; // Assumed height of the server world in tiles (matches lib.rs)
+const CHUNK_SIZE_TILES = 5;         // Number of tiles along one edge of a square chunk
+
+const MINIMAP_GRID_DIAGONAL_TILES = Math.round(SERVER_WORLD_WIDTH_TILES / 5) + 1; // Always 1/5th of server world width, plus 1
 
 // Calculate derived values
-const CHUNK_SIZE_PX = CHUNK_SIZE_TILES * TILE_SIZE; // Size of a chunk in pixels (960)
-const WORLD_WIDTH_CHUNKS = Math.ceil(SERVER_WORLD_WIDTH_TILES / CHUNK_SIZE_TILES); // Width of the world in chunks (25)
-const WORLD_HEIGHT_CHUNKS = Math.ceil(SERVER_WORLD_HEIGHT_TILES / CHUNK_SIZE_TILES); // Height of the world in chunks (25)
+const CHUNK_SIZE_PX = CHUNK_SIZE_TILES * TILE_SIZE; // Size of a chunk in pixels (240)
+const WORLD_WIDTH_CHUNKS = Math.ceil(SERVER_WORLD_WIDTH_TILES / CHUNK_SIZE_TILES); // Width of the world in chunks (40)
+const WORLD_HEIGHT_CHUNKS = Math.ceil(SERVER_WORLD_HEIGHT_TILES / CHUNK_SIZE_TILES); // Height of the world in chunks (40)
 // --- End Server World & Chunk Config ---
 
 // Calculate derived values for minimap

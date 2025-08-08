@@ -67,9 +67,10 @@ const SEA_STACK_SPAWN_NOISE_THRESHOLD: f64 = 0.3; // Noise threshold for spawnin
 
 // --- Constants for Chunk Calculation ---
 // Size of a chunk in tiles (e.g., 20x20 tiles per chunk)
-pub const CHUNK_SIZE_TILES: u32 = 10;
-// World width in chunks
+pub const CHUNK_SIZE_TILES: u32 = 5;
+// World dimensions in chunks
 pub const WORLD_WIDTH_CHUNKS: u32 = (WORLD_WIDTH_TILES + CHUNK_SIZE_TILES - 1) / CHUNK_SIZE_TILES;
+pub const WORLD_HEIGHT_CHUNKS: u32 = (WORLD_HEIGHT_TILES + CHUNK_SIZE_TILES - 1) / CHUNK_SIZE_TILES;
 // Size of a chunk in pixels
 pub const CHUNK_SIZE_PX: f32 = CHUNK_SIZE_TILES as f32 * TILE_SIZE_PX as f32;
 
@@ -81,7 +82,7 @@ pub fn calculate_chunk_index(pos_x: f32, pos_y: f32) -> u32 {
     
     // Calculate chunk coordinates (which chunk the tile is in)
     let chunk_x = (tile_x / CHUNK_SIZE_TILES).min(WORLD_WIDTH_CHUNKS - 1);
-    let chunk_y = (tile_y / CHUNK_SIZE_TILES).min(WORLD_WIDTH_CHUNKS - 1);
+    let chunk_y = (tile_y / CHUNK_SIZE_TILES).min(WORLD_HEIGHT_CHUNKS - 1);
     
     // Calculate 1D chunk index (row-major ordering)
     chunk_y * WORLD_WIDTH_CHUNKS + chunk_x
@@ -1566,27 +1567,23 @@ pub fn seed_environment(ctx: &ReducerContext) -> Result<(), String> {
         .map(|tile| (tile.world_x, tile.world_y))
         .collect();
     
-    // Calculate scaling parameters based on map size
-    // CONSERVATIVE: Match original balance of 6-12 clusters for typical maps
-    // Original system: ~1 cluster per 25 road tiles, capped at 12 clusters max
+    // Calculate scaling parameters based on map size (scaled; no hard caps)
     let current_map_tiles = WORLD_WIDTH_TILES * WORLD_HEIGHT_TILES;
-    let barrel_density_per_map_tile = 0.00008; // REDUCED from 0.00040 to 0.00008 (0.008% vs 0.04%)
-    let target_clusters_from_map_size = (current_map_tiles as f32 * barrel_density_per_map_tile) as u32;
-    let target_clusters_from_roads = (dirt_road_tiles.len() / 25) as u32; // 1 cluster per 25 road tiles
-    
-    // Use the higher of the two calculations, but add a reasonable cap for sanity
-    let base_target = std::cmp::max(
-        target_clusters_from_map_size, 
-        std::cmp::max(3, target_clusters_from_roads) // Minimum 3 clusters even for tiny maps
-    );
-    
-    // SANITY CAP: Prevent excessive barrel counts on massive maps
-    let recommended_cluster_count = std::cmp::min(base_target, 24); // Cap at 24 clusters (48-96 barrels max)
+    let area_target = ((current_map_tiles as f32) * crate::barrel::BARREL_CLUSTER_DENSITY_PER_TILE).round() as u32;
+    let road_cap = (((dirt_road_tiles.len() as f32) / crate::barrel::ROAD_TILES_PER_CLUSTER).floor() as u32).max(1);
+    // Cap area target by road availability; ensure at least 1
+    let recommended_cluster_count = std::cmp::max(1, std::cmp::min(area_target, road_cap));
     
     log::info!("Found {} dirt road tiles for barrel spawning", dirt_road_tiles.len());
-    log::info!("Map size: {}x{} tiles ({}), Road-based target: {}, Map-based target: {}, Final target: {}", 
-               WORLD_WIDTH_TILES, WORLD_HEIGHT_TILES, current_map_tiles, 
-               target_clusters_from_roads, target_clusters_from_map_size, recommended_cluster_count);
+    log::info!(
+        "Map size: {}x{} tiles ({}), Area target: {}, Road cap: {}, Final target: {}",
+        WORLD_WIDTH_TILES,
+        WORLD_HEIGHT_TILES,
+        current_map_tiles,
+        area_target,
+        road_cap,
+        recommended_cluster_count
+    );
     
     // Spawn barrel clusters on dirt roads with scaling parameters
     match barrel::spawn_barrel_clusters_scaled(ctx, dirt_road_tiles, recommended_cluster_count) {

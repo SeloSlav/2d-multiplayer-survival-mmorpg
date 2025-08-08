@@ -779,7 +779,7 @@ export const useInputHandler = ({
 
                         // Handle tap actions using unified target system
                         if (connectionRef.current?.reducers && currentTarget && isTargetValid(currentTarget)) {
-                            console.log('[E-Tap ACTION] Processing tap for:', formatTargetForLogging(currentTarget));
+                            // console.log('[E-Tap ACTION] Processing tap for:', formatTargetForLogging(currentTarget));
                             
                             // Handle immediate tap actions (harvest/pickup)
                             if (isTapInteraction(currentTarget)) {
@@ -801,35 +801,35 @@ export const useInputHandler = ({
                                         }
                                         
                                         if (resourceEntity) {
-                                            console.log('[E-Tap ACTION] 🌱 HARVESTING RESOURCE - Details:', {
-                                                id: resourceId,
-                                                plantType: resourceEntity.plantType,
-                                                position: `(${resourceEntity.posX}, ${resourceEntity.posY})`,
-                                                chunkIndex: resourceEntity.chunkIndex,
-                                                respawnAt: resourceEntity.respawnAt,
-                                                isRespawning: !!resourceEntity.respawnAt
-                                            });
+                                            // console.log('[E-Tap ACTION] 🌱 HARVESTING RESOURCE - Details:', {
+                                            //     id: resourceId,
+                                            //     plantType: resourceEntity.plantType,
+                                            //     position: `(${resourceEntity.posX}, ${resourceEntity.posY})`,
+                                            //     chunkIndex: resourceEntity.chunkIndex,
+                                            //     respawnAt: resourceEntity.respawnAt,
+                                            //     isRespawning: !!resourceEntity.respawnAt
+                                            // });
                                             
                                             // Also log just the plant type tag for easy scanning
-                                            console.log(`[E-Tap ACTION] 🎯 Harvesting: ${resourceEntity.plantType.tag} at (${resourceEntity.posX.toFixed(1)}, ${resourceEntity.posY.toFixed(1)})`);
+                                            // console.log(`[E-Tap ACTION] 🎯 Harvesting: ${resourceEntity.plantType.tag} at (${resourceEntity.posX.toFixed(1)}, ${resourceEntity.posY.toFixed(1)})`);
                                         } else {
                                             console.warn('[E-Tap ACTION] ⚠️ Resource not found in cache:', resourceId);
                                             // Log target details we do have
-                                            console.log('[E-Tap ACTION] Target details:', {
-                                                id: resourceId,
-                                                type: currentTarget.type,
-                                                position: currentTarget.position,
-                                                distance: currentTarget.distance,
-                                                data: currentTarget.data
-                                            });
+                                            // console.log('[E-Tap ACTION] Target details:', {
+                                            //     id: resourceId,
+                                            //     type: currentTarget.type,
+                                            //     position: currentTarget.position,
+                                            //     distance: currentTarget.distance,
+                                            //     data: currentTarget.data
+                                            // });
                                         }
                                         
-                                        console.log('[E-Tap ACTION] Harvesting resource:', currentTarget.id);
+                                        // console.log('[E-Tap ACTION] Harvesting resource:', currentTarget.id);
                                         connectionRef.current.reducers.interactWithHarvestableResource(resourceId);
                                         tapActionTaken = true;
                                         break;
                                     case 'dropped_item':
-                                        console.log('[E-Tap ACTION] Picking up dropped item:', currentTarget.id);
+                                        // console.log('[E-Tap ACTION] Picking up dropped item:', currentTarget.id);
                                         connectionRef.current.reducers.pickupDroppedItem(currentTarget.id as bigint);
                                         tapActionTaken = true;
                                         break;
@@ -839,42 +839,42 @@ export const useInputHandler = ({
                             else if (isInterfaceInteraction(currentTarget)) {
                                 switch (currentTarget.type) {
                                     case 'campfire':
-                                        console.log('[E-Tap ACTION] Opening campfire interface:', currentTarget.id);
+                                        // console.log('[E-Tap ACTION] Opening campfire interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'campfire', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
                                     case 'furnace':
-                                        console.log('[E-Tap ACTION] Opening furnace interface:', currentTarget.id);
+                                        // console.log('[E-Tap ACTION] Opening furnace interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'furnace', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
                                     case 'lantern':
-                                        console.log('[E-Tap ACTION] Opening lantern interface:', currentTarget.id);
+                                        // console.log('[E-Tap ACTION] Opening lantern interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'lantern', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
                                     case 'box':
-                                        console.log('[E-Tap ACTION] Opening box interface:', currentTarget.id);
+                                        // console.log('[E-Tap ACTION] Opening box interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'wooden_storage_box', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
                                     case 'stash':
-                                        console.log('[E-Tap ACTION] Opening stash interface:', currentTarget.id);
+                                        // console.log('[E-Tap ACTION] Opening stash interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'stash', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
                                     case 'corpse':
-                                        console.log('[E-Tap ACTION] Opening corpse interface:', currentTarget.id);
+                                        // console.log('[E-Tap ACTION] Opening corpse interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'player_corpse', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
                                     case 'sleeping_bag':
-                                        console.log('[E-Tap ACTION] Opening sleeping bag interface:', currentTarget.id);
+                                        //  console.log('[E-Tap ACTION] Opening sleeping bag interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'sleeping_bag', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
                                     case 'rain_collector':
-                                        console.log('[E-Tap ACTION] Opening rain collector interface:', currentTarget.id);
+                                        // console.log('[E-Tap ACTION] Opening rain collector interface:', currentTarget.id);
                                         onSetInteractingWith({ type: 'rain_collector', id: currentTarget.id });
                                         tapActionTaken = true;
                                         break;
@@ -892,7 +892,7 @@ export const useInputHandler = ({
                             }
                         }
 
-                        console.log('[E-KeyUp] TAP processing complete. Action taken:', tapActionTaken);
+                        // console.log('[E-KeyUp] TAP processing complete. Action taken:', tapActionTaken);
                     }
                 }
             }
@@ -919,17 +919,17 @@ export const useInputHandler = ({
                                      activeElement?.tagName === 'TEXTAREA';
             
             if (isChatting || isChatInputFocused) {
-                console.log('[InputHandler] Mouse input blocked - chat focused:', { 
-                    isChatting, 
-                    isChatInputFocused,
-                    targetTag: target?.tagName,
-                    targetDataAttr: target?.getAttribute('data-is-chat-input')
-                });
+                // console.log('[InputHandler] Mouse input blocked - chat focused:', { 
+                //     isChatting, 
+                //     isChatInputFocused,
+                //     targetTag: target?.tagName,
+                //     targetDataAttr: target?.getAttribute('data-is-chat-input')
+                // });
                 
                 // If user is trying to left-click but chat input is blocking, try to clear focus
                 // Only clear if not actively searching in crafting recipes
                 if (event.button === 0 && isChatInputFocused && !isChatting && !isSearchingCraftRecipes) {
-                    console.log('[InputHandler] Attempting to clear stuck chat input focus on mouse click');
+                    // console.log('[InputHandler] Attempting to clear stuck chat input focus on mouse click');
                     forceClearInputFocus();
                 }
                 
@@ -939,7 +939,7 @@ export const useInputHandler = ({
             if (event.button === 0) { // Left Click
                 // 🎣 FISHING INPUT FIX: Disable left mouse button actions while fishing
                 if (isFishing) {
-                    console.log('[Input] Left mouse blocked - player is fishing');
+                    // console.log('[Input] Left mouse blocked - player is fishing');
                     event.preventDefault();
                     return;
                 }
@@ -983,28 +983,28 @@ export const useInputHandler = ({
                         }
                                                 // 5. Water Containers: Prevent left-click pouring while on water, only allow crop watering
                         else if (isWaterContainer(equippedItemDef.name) && localPlayerActiveEquipment.equippedItemInstanceId) {
-                            console.log('[InputHandler] Left-click with water container');
+                            // console.log('[InputHandler] Left-click with water container');
                             
                             // Get the water container item first
                             const waterContainer = inventoryItems.get(localPlayerActiveEquipment.equippedItemInstanceId.toString());
                             if (!waterContainer || !connectionRef.current?.reducers) {
-                                console.log('[InputHandler] No water container found or no connection');
+                                // console.log('[InputHandler] No water container found or no connection');
                                 return;
                             }
                             
                             // Prevent left-click actions while on water tiles to avoid race conditions
                             if (localPlayerRef.current?.isOnWater) {
-                                console.log('[InputHandler] Player is on water - left-click disabled for water containers (use F key to fill)');
+                                // console.log('[InputHandler] Player is on water - left-click disabled for water containers (use F key to fill)');
                                 return;
                             } else {
-                                console.log('[InputHandler] Player not on water - checking for crop watering');
+                                // console.log('[InputHandler] Player not on water - checking for crop watering');
                                 // Not on water - check if container has water for watering crops
                                 if (hasWaterContent(waterContainer)) {
-                                    console.log("[InputHandler] Water container with water equipped. Calling water_crops reducer.");
+                                    // console.log("[InputHandler] Water container with water equipped. Calling water_crops reducer.");
                                     connectionRef.current.reducers.waterCrops(localPlayerActiveEquipment.equippedItemInstanceId);
                                     return;
                                 } else {
-                                    console.log('[InputHandler] No water content - falling through to normal swing behavior');
+                                    // console.log('[InputHandler] No water content - falling through to normal swing behavior');
                                 }
                                 // If no water content, fall through to normal swing behavior
                             }
@@ -1069,7 +1069,7 @@ export const useInputHandler = ({
 
             // 🎣 FISHING INPUT FIX: Disable canvas click actions while fishing
             if (isFishing) {
-                console.log('[Input] Canvas click blocked - player is fishing');
+                // console.log('[Input] Canvas click blocked - player is fishing');
                 event.preventDefault();
                 return;
             }
@@ -1166,7 +1166,7 @@ export const useInputHandler = ({
 
             // 🎣 FISHING INPUT FIX: Disable context menu actions while fishing
             if (isFishing) {
-                console.log('[Input] Context menu blocked - player is fishing');
+                // console.log('[Input] Context menu blocked - player is fishing');
                 event.preventDefault();
                 return;
             }
@@ -1226,7 +1226,7 @@ export const useInputHandler = ({
                         }
                         return;
                     } else if (equippedItemDef.name === "Reed Water Bottle" || equippedItemDef.name === "Plastic Water Jug") {
-                        console.log("[InputHandler] Right-click with water container - attempting to drink");
+                        // console.log("[InputHandler] Right-click with water container - attempting to drink");
                         event.preventDefault();
                         
                         // Find the equipped item instance to check if it has water
@@ -1234,15 +1234,15 @@ export const useInputHandler = ({
                             item.instanceId === BigInt(localPlayerActiveEquipment?.equippedItemInstanceId || 0)
                         );
                         
-                        console.log(`[InputHandler] Found equipped item instance:`, !!equippedItemInstance);
-                        console.log(`[InputHandler] Has water content:`, equippedItemInstance ? hasWaterContent(equippedItemInstance) : false);
+                        // console.log(`[InputHandler] Found equipped item instance:`, !!equippedItemInstance);
+                        // console.log(`[InputHandler] Has water content:`, equippedItemInstance ? hasWaterContent(equippedItemInstance) : false);
                         
                         if (equippedItemInstance && hasWaterContent(equippedItemInstance)) {
                             if (connectionRef.current?.reducers && localPlayerActiveEquipment?.equippedItemInstanceId) {
-                                console.log("[InputHandler] Calling consumeFilledWaterContainer for equipped water container.");
+                                // console.log("[InputHandler] Calling consumeFilledWaterContainer for equipped water container.");
                                 try {
                                     connectionRef.current.reducers.consumeFilledWaterContainer(BigInt(localPlayerActiveEquipment.equippedItemInstanceId));
-                                    console.log("[InputHandler] Successfully called consumeFilledWaterContainer");
+                                    // console.log("[InputHandler] Successfully called consumeFilledWaterContainer");
                                 } catch (err) {
                                     console.error("[InputHandler] Error calling consumeFilledWaterContainer:", err);
                                 }
@@ -1250,7 +1250,7 @@ export const useInputHandler = ({
                                 console.warn("[InputHandler] No connection or reducers to call consumeFilledWaterContainer for water container.");
                             }
                         } else {
-                            console.log("[InputHandler] Water container is empty, cannot drink.");
+                            // console.log("[InputHandler] Water container is empty, cannot drink.");
                         }
                         return;
                     }
@@ -1269,18 +1269,18 @@ export const useInputHandler = ({
                 const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId));
 
                 if (equippedItemDef && isItemThrowable(equippedItemDef)) {
-                    console.log("[InputHandler] Right-click - attempting to throw item:", equippedItemDef.name);
+                    // console.log("[InputHandler] Right-click - attempting to throw item:", equippedItemDef.name);
                     event.preventDefault();
 
                     // Quick checks
                     if (!connectionRef.current?.reducers || !localPlayerId || isPlayerDead) {
-                        console.log("[InputHandler] Right-click throw - basic requirements not met");
+                        // console.log("[InputHandler] Right-click throw - basic requirements not met");
                         return;
                     }
 
                     const player = localPlayerRef.current;
                     if (!player) {
-                        console.log("[InputHandler] Right-click throw - no local player found");
+                        // console.log("[InputHandler] Right-click throw - no local player found");
                         return;
                     }
 
@@ -1305,12 +1305,12 @@ export const useInputHandler = ({
                         if (dx !== 0 || dy !== 0) {
                             throwingDirection = { dx, dy };
                         }
-                        console.log("[InputHandler] Right-click throw - using current movement direction:", throwingDirection);
+                        // console.log("[InputHandler] Right-click throw - using current movement direction:", throwingDirection);
                     } else {
                         // Player is not moving, use their stored facing direction
                         const playerFacingDirection = player.direction || 'down';
                         throwingDirection = getDirectionVector(playerFacingDirection);
-                        console.log("[InputHandler] Right-click throw - using player facing direction:", playerFacingDirection, "->", throwingDirection);
+                        // console.log("[InputHandler] Right-click throw - using player facing direction:", playerFacingDirection, "->", throwingDirection);
                     }
 
                     // Calculate target position based on direction and throwing distance
@@ -1322,11 +1322,11 @@ export const useInputHandler = ({
                     const targetX = player.positionX + (normalizedDx * THROWING_DISTANCE);
                     const targetY = player.positionY + (normalizedDy * THROWING_DISTANCE);
 
-                    console.log("[InputHandler] Right-click - THROWING:", equippedItemDef.name, "from", player.positionX, player.positionY, "to", targetX, targetY, "direction:", throwingDirection);
+                    // console.log("[InputHandler] Right-click - THROWING:", equippedItemDef.name, "from", player.positionX, player.positionY, "to", targetX, targetY, "direction:", throwingDirection);
 
                     try {
                         connectionRef.current.reducers.throwItem(targetX, targetY);
-                        console.log("[InputHandler] Right-click throw - throwItem called successfully!");
+                        // console.log("[InputHandler] Right-click throw - throwItem called successfully!");
                     } catch (err) {
                         console.error("[InputHandler] Right-click throw - Error throwing item:", err);
                     }
@@ -1336,7 +1336,7 @@ export const useInputHandler = ({
             }
 
             if (placementInfo) {
-                console.log("[InputHandler CTXMENU] Right-click during placement - cancelling placement.");
+                // console.log("[InputHandler CTXMENU] Right-click during placement - cancelling placement.");
                 event.preventDefault();
                 placementActionsRef.current?.cancelPlacement();
             }
@@ -1373,13 +1373,13 @@ export const useInputHandler = ({
         const forceClearInputFocus = () => {
             const activeEl = document.activeElement as HTMLElement;
             if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.getAttribute('data-is-chat-input'))) {
-                console.log('[InputHandler] Force clearing input focus from:', activeEl.tagName, activeEl.getAttribute('data-is-chat-input'));
+                // console.log('[InputHandler] Force clearing input focus from:', activeEl.tagName, activeEl.getAttribute('data-is-chat-input'));
                 activeEl.blur();
                 document.body.focus();
                 // Small delay to ensure focus change is processed
                 setTimeout(() => {
                     if (document.activeElement === activeEl) {
-                        console.log('[InputHandler] Secondary force focus clear');
+                        // console.log('[InputHandler] Secondary force focus clear');
                         document.body.focus();
                     }
                 }, 100);
@@ -1534,23 +1534,23 @@ export const useInputHandler = ({
     // Helper function to check if an item is throwable
     const isItemThrowable = useCallback((itemDef: SpacetimeDB.ItemDefinition | undefined): boolean => {
         if (!itemDef) {
-            console.log("[isItemThrowable] No item definition provided");
+            // console.log("[isItemThrowable] No item definition provided");
             return false;
         }
 
-        console.log("[isItemThrowable] Checking item:", itemDef.name, "category:", itemDef.category);
+        // console.log("[isItemThrowable] Checking item:", itemDef.name, "category:", itemDef.category);
 
         // Don't allow throwing ranged weapons, bandages, or consumables
         if (itemDef.category?.tag === "RangedWeapon") {
-            console.log("[isItemThrowable] Rejected: RangedWeapon");
+            // console.log("[isItemThrowable] Rejected: RangedWeapon");
             return false;
         }
         if (itemDef.name === "Bandage" || itemDef.name === "Selo Olive Oil") {
-            console.log("[isItemThrowable] Rejected: Bandage/Selo Olive Oil");
+            // console.log("[isItemThrowable] Rejected: Bandage/Selo Olive Oil");
             return false;
         }
         if (itemDef.name === "Torch") {
-            console.log("[isItemThrowable] Rejected: Torch");
+            // console.log("[isItemThrowable] Rejected: Torch");
             return false;
         }
 
@@ -1565,11 +1565,11 @@ export const useInputHandler = ({
         const nameMatch = throwableNames.includes(itemDef.name);
         const categoryMatch = itemDef.category?.tag === "Weapon" || itemDef.category?.tag === "Tool";
 
-        console.log("[isItemThrowable] Name match:", nameMatch, "Category match:", categoryMatch);
-        console.log("[isItemThrowable] Category tag:", itemDef.category?.tag);
+        // console.log("[isItemThrowable] Name match:", nameMatch, "Category match:", categoryMatch);
+        // console.log("[isItemThrowable] Category tag:", itemDef.category?.tag);
 
         const result = nameMatch || categoryMatch;
-        console.log("[isItemThrowable] Final result:", result);
+        // console.log("[isItemThrowable] Final result:", result);
 
         return result;
     }, []);

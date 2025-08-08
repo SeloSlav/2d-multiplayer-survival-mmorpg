@@ -92,6 +92,10 @@ export class ProceduralWorldRenderer {
         });
         
         this.tileCache.lastUpdate = Date.now();
+        // Only log significant cache updates
+        if (this.tileCache.tiles.size % 1000 === 0) {
+            console.log(`[TILES] Cache now contains ${this.tileCache.tiles.size} tiles`);
+        }
     }
     
     public renderProceduralWorld(
@@ -172,6 +176,12 @@ export class ProceduralWorldRenderer {
                 ctx.fillStyle = '#8FBC8F';
                 ctx.fillRect(pixelX, pixelY, pixelSize, pixelSize);
             }
+            // Disabled excessive logging - was running every frame
+            // if (!(window as any).missingTileCount) (window as any).missingTileCount = 0;
+            // (window as any).missingTileCount++;
+            // if ((window as any).missingTileCount % 50 === 0) {
+            //     console.log(`[TILES] ${(window as any).missingTileCount} missing tiles rendered as grass`);
+            // }
             return;
         }
         
@@ -189,6 +199,12 @@ export class ProceduralWorldRenderer {
                 ctx.drawImage(image, pixelX, pixelY, pixelSize, pixelSize);
             } else {
                 // Fallback based on tile type
+                // Disabled excessive logging for failed image loads
+                // if (!(window as any).failedImageCount) (window as any).failedImageCount = 0;
+                // (window as any).failedImageCount++;
+                // if ((window as any).failedImageCount % 20 === 0) {
+                //     console.log(`[TILES] ${(window as any).failedImageCount} tiles using fallback colors (images not loaded)`);
+                // }
                 this.renderFallbackTile(ctx, tile, pixelX, pixelY, pixelSize);
             }
         }

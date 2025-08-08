@@ -221,9 +221,8 @@ const PERFORMANCE_MODE = {
   EMERGENCY_MAX_DECORATIONS: 50,
 };
 
-// Frame counters for throttling
+// Frame counter for throttling
 let frameCounter = 0;
-let emergencyMode = false;
 
 // Cache for pre-filtered entities to avoid recalculation
 const entityCache = new Map<string, {
@@ -323,8 +322,8 @@ function getCachedFilteredEntities<T extends { posX: number; posY: number }>(
   const filteredEntities = filterEntitiesByDistance(
     entityArray,
     playerPos,
-    emergencyMode ? (800 * 800) : maxDistanceSq,
-    emergencyMode ? PERFORMANCE_MODE.EMERGENCY_MAX_TREES : maxCount
+    maxDistanceSq,
+    maxCount
   );
   
   // Update cache
@@ -373,17 +372,7 @@ export function useEntityFiltering(
   // Get player position for distance calculations
   const playerPos = getPlayerPosition(players);
   
-  // Count total entities to determine if we need emergency mode
-  const totalEntityCount = (trees?.size || 0) + (stones?.size || 0) + 
-                          (harvestableResources?.size || 0) + (grass?.size || 0) +
-                          (droppedItems?.size || 0) + (wildAnimals?.size || 0);
-  
-  // Update emergency mode
-  const shouldBeEmergencyMode = totalEntityCount > PERFORMANCE_MODE.EMERGENCY_TOTAL_ENTITIES;
-  if (shouldBeEmergencyMode !== emergencyMode) {
-    emergencyMode = shouldBeEmergencyMode;
-    console.log(`🚨 [PERFORMANCE] Emergency mode ${emergencyMode ? 'ACTIVATED' : 'DEACTIVATED'} - ${totalEntityCount} total entities`);
-  }
+  // Emergency mode removed
 
   // Get frame time for stable calculations across the function
   const currentTime = Date.now();
@@ -699,23 +688,10 @@ export function useEntityFiltering(
   let visibleGrass = useMemo(() => {
     if (!grass || !playerPos) return [];
     
-    // In emergency mode, severely limit grass rendering
-    if (emergencyMode) {
-      return getCachedFilteredEntities(
-        grass,
-        'grass_emergency',
-        PERFORMANCE_MODE.DECORATION_UPDATE_INTERVAL,
-        (800 * 800),
-        PERFORMANCE_MODE.EMERGENCY_MAX_DECORATIONS, // Only 10 grass entities in emergency mode
-        playerPos,
-        (grassEntity) => grassEntity.health > 0 && isEntityInView(grassEntity, viewBounds, stableTimestamp)
-      );
-    }
-    
     return Array.from(grass.values()).filter(e => 
       e.health > 0 && isEntityInView(e, viewBounds, stableTimestamp)
     );
-  }, [grass, playerPos, viewBounds, stableTimestamp, emergencyMode, frameCounter]);
+  }, [grass, playerPos, viewBounds, stableTimestamp, frameCounter]);
 
   // ADDED: Filter visible shelters
   const visibleShelters = useMemo(() => {
@@ -1034,12 +1010,7 @@ export function useEntityFiltering(
     frameCounter // Add frame counter for cache invalidation
   ]);
 
-  if (emergencyMode) {
-    // Filter out grass and limit trees/resources
-    visibleGrass = [];
-    visibleHarvestableResources = visibleHarvestableResources.slice(0, PERFORMANCE_MODE.EMERGENCY_MAX_RESOURCES);
-    visibleTrees = visibleTrees.slice(0, PERFORMANCE_MODE.EMERGENCY_MAX_TREES);
-  }
+  // Emergency mode removed
 
   return {
     visibleHarvestableResources,

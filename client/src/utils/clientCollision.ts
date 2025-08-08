@@ -93,13 +93,12 @@ function filterEntitiesByDistance<T extends { posX?: number; posY?: number; posi
   playerX: number,
   playerY: number,
   maxDistanceSq: number,
-  maxCount: number,
-  emergencyMode: boolean = false
+  maxCount: number
 ): T[] {
   if (!entities || entities.size === 0) return [];
   
-  const effectiveMaxDistance = emergencyMode ? COLLISION_PERF.EMERGENCY_CULL_DISTANCE_SQ : maxDistanceSq;
-  const effectiveMaxCount = emergencyMode ? COLLISION_PERF.EMERGENCY_MAX_ENTITIES : maxCount;
+  const effectiveMaxDistance = maxDistanceSq;
+  const effectiveMaxCount = maxCount;
   const result: T[] = [];
   let count = 0;
   
@@ -133,14 +132,7 @@ function getCollisionCandidates(
   // PERFORMANCE FIX: Remove frameCounter++ to avoid unnecessary operations
   // frameCounter++;
   
-  // Count total entities to determine emergency mode
-  const totalEntities = entities.trees.size + entities.stones.size + 
-                       entities.boxes.size + entities.players.size + 
-                       entities.wildAnimals.size + entities.barrels.size;
-  
-  const emergencyMode = totalEntities > COLLISION_PERF.EMERGENCY_TOTAL_ENTITIES;
-  
-  // PERFORMANCE FIX: Remove frame-based logging that causes hitches
+  // Emergency mode removed
   // Logging removed - was causing micro-stutters every 5 seconds
   
   const shapes: CollisionShape[] = [];
@@ -153,8 +145,7 @@ function getCollisionCandidates(
     playerX,
     playerY,
     COLLISION_PERF.PLAYER_CULL_DISTANCE_SQ,
-    COLLISION_PERF.MAX_PLAYERS_TO_CHECK,
-    emergencyMode
+    COLLISION_PERF.MAX_PLAYERS_TO_CHECK
   );
   
   for (const player of nearbyPlayers) {
@@ -176,8 +167,7 @@ function getCollisionCandidates(
     playerX,
     playerY,
     COLLISION_PERF.TREE_CULL_DISTANCE_SQ,
-    COLLISION_PERF.MAX_TREES_TO_CHECK,
-    emergencyMode
+    COLLISION_PERF.MAX_TREES_TO_CHECK
   );
   
   for (const tree of nearbyTrees) {
@@ -198,8 +188,7 @@ function getCollisionCandidates(
     playerX,
     playerY,
     COLLISION_PERF.STONE_CULL_DISTANCE_SQ,
-    COLLISION_PERF.MAX_STONES_TO_CHECK,
-    emergencyMode
+    COLLISION_PERF.MAX_STONES_TO_CHECK
   );
   
   for (const stone of nearbyStones) {
@@ -220,8 +209,7 @@ function getCollisionCandidates(
     playerX,
     playerY,
     COLLISION_PERF.ANIMAL_CULL_DISTANCE_SQ,
-    COLLISION_PERF.MAX_ANIMALS_TO_CHECK,
-    emergencyMode
+    COLLISION_PERF.MAX_ANIMALS_TO_CHECK
   );
   
   for (const animal of nearbyAnimals) {
@@ -240,8 +228,7 @@ function getCollisionCandidates(
     playerX,
     playerY,
     COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ,
-    COLLISION_PERF.MAX_STRUCTURES_TO_CHECK,
-    emergencyMode
+    COLLISION_PERF.MAX_STRUCTURES_TO_CHECK
   );
   
   for (const box of nearbyBoxes) {
@@ -259,8 +246,7 @@ function getCollisionCandidates(
     playerX,
     playerY,
     COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ,
-    COLLISION_PERF.MAX_STRUCTURES_TO_CHECK,
-    emergencyMode
+    COLLISION_PERF.MAX_STRUCTURES_TO_CHECK
   );
   
   for (const barrel of nearbyBarrels) {
@@ -281,8 +267,7 @@ function getCollisionCandidates(
     playerX,
     playerY,
     COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ,
-    COLLISION_PERF.MAX_STRUCTURES_TO_CHECK,
-    emergencyMode
+    COLLISION_PERF.MAX_STRUCTURES_TO_CHECK
   );
   
   for (const furnace of nearbyFurnaces) {

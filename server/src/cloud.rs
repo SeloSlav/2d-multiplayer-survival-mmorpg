@@ -122,7 +122,7 @@ pub fn update_cloud_positions(ctx: &ReducerContext, schedule_args: CloudUpdateSc
         
         // Handle potential edge cases where chunk coords might go negative after wrapping
         let new_chunk_x = if chunk_x < 0 { 0 } else if chunk_x >= environment::WORLD_WIDTH_CHUNKS as i32 { environment::WORLD_WIDTH_CHUNKS - 1 } else { chunk_x as u32 };
-        let new_chunk_y = if chunk_y < 0 { 0 } else if chunk_y >= environment::WORLD_WIDTH_CHUNKS as i32 { environment::WORLD_WIDTH_CHUNKS - 1 } else { chunk_y as u32 };
+        let new_chunk_y = if chunk_y < 0 { 0 } else if chunk_y >= environment::WORLD_HEIGHT_CHUNKS as i32 { environment::WORLD_HEIGHT_CHUNKS - 1 } else { chunk_y as u32 };
         
         let new_chunk_index = new_chunk_x + new_chunk_y * environment::WORLD_WIDTH_CHUNKS;
 

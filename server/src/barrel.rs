@@ -44,6 +44,13 @@ pub const BARREL_RESPAWN_TIME_SECONDS: u32 = 600; // 10 minutes respawn time
 pub const BARREL_DAMAGE_PER_HIT: f32 = 25.0; // 2 hits to destroy
 pub const BARREL_ATTACK_COOLDOWN_MS: u64 = 1000; // 1 second between attacks
 
+/// Density of barrel clusters per map tile. Used to scale clusters with map size.
+/// Baseline: 500x500 tiles (250,000) -> 250000 * 0.00008 = 20 clusters.
+pub const BARREL_CLUSTER_DENSITY_PER_TILE: f32 = 0.00008;
+/// How many dirt road tiles roughly correspond to one barrel cluster capacity.
+/// Used as an upper bound so road-heavy maps don't explode cluster counts.
+pub const ROAD_TILES_PER_CLUSTER: f32 = 200.0;
+
 // Define the main barrel table
 #[spacetimedb::table(name = barrel, public)]
 #[derive(Clone, Debug)]
@@ -590,26 +597,24 @@ pub fn spawn_barrel_clusters(
         return Ok(());
     }
     
-    // UPDATED: Scale cluster count with map size instead of using hard caps
-    // CONSERVATIVE: Match original balance of 6-12 clusters for typical maps  
+    // UPDATED: Scale cluster count with map size using shared density constant (no hard caps)
     let current_map_tiles = crate::WORLD_WIDTH_TILES * crate::WORLD_HEIGHT_TILES;
-    let barrel_density_per_map_tile = 0.00008; // CONSERVATIVE: 0.008% vs original 0.04%
-    let target_clusters_from_map_size = (current_map_tiles as f32 * barrel_density_per_map_tile) as u32;
-    let target_clusters_from_roads = (dirt_road_tiles.len() / 25) as u32; // 1 cluster per 25 road tiles
-    
-    // Use the higher of the two calculations, but add a reasonable cap for sanity
-    let base_target = std::cmp::max(
-        target_clusters_from_map_size, 
-        std::cmp::max(3, target_clusters_from_roads) // Minimum 3 clusters even for tiny maps
-    );
-    
-    // SANITY CAP: Prevent excessive barrel counts on massive maps
-    let target_cluster_count = std::cmp::min(base_target, 24); // Cap at 24 clusters (48-96 barrels max)
+    let area_target = ((current_map_tiles as f32) * BARREL_CLUSTER_DENSITY_PER_TILE).round() as u32;
+    let road_cap = (((dirt_road_tiles.len() as f32) / ROAD_TILES_PER_CLUSTER).floor() as u32).max(1);
+    // Final target: cap area-based target by road availability, min 1
+    let target_cluster_count = std::cmp::max(1, std::cmp::min(area_target, road_cap));
     
     let max_attempts = target_cluster_count * 3;
     
-    log::info!("[BarrelSpawn] Attempting to spawn {} barrel clusters from {} dirt road tiles (scales with map size: {}x{})", 
-              target_cluster_count, dirt_road_tiles.len(), crate::WORLD_WIDTH_TILES, crate::WORLD_HEIGHT_TILES);
+    log::info!(
+        "[BarrelSpawn] Attempting to spawn {} barrel clusters (area target {}, road cap {}) from {} dirt road tiles (map {}x{})",
+        target_cluster_count,
+        area_target,
+        road_cap,
+        dirt_road_tiles.len(),
+        crate::WORLD_WIDTH_TILES,
+        crate::WORLD_HEIGHT_TILES
+    );
     
     let mut spawned_clusters = 0;
     let mut spawn_attempts = 0;

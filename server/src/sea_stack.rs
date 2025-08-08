@@ -59,7 +59,7 @@ pub fn get_chunk_index_for_position(pos_x: f32, pos_y: f32) -> u32 {
     
     // Clamp to world bounds
     let chunk_x = chunk_x.min(WORLD_WIDTH_CHUNKS - 1);
-    let chunk_y = chunk_y.min(WORLD_WIDTH_CHUNKS - 1); // Assuming square world
+    let chunk_y = chunk_y.min(crate::environment::WORLD_HEIGHT_CHUNKS - 1); // Fixed: use height for Y coordinate
     
     chunk_y * WORLD_WIDTH_CHUNKS + chunk_x
 } 

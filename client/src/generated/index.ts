@@ -106,8 +106,6 @@ import { FinishFishing } from "./finish_fishing_reducer.ts";
 export { FinishFishing };
 import { FireProjectile } from "./fire_projectile_reducer.ts";
 export { FireProjectile };
-import { GenerateDefaultWorld } from "./generate_default_world_reducer.ts";
-export { GenerateDefaultWorld };
 import { GenerateMinimapData } from "./generate_minimap_data_reducer.ts";
 export { GenerateMinimapData };
 import { GenerateWorld } from "./generate_world_reducer.ts";
@@ -1300,10 +1298,6 @@ const REMOTE_MODULE = {
       reducerName: "fire_projectile",
       argsType: FireProjectile.getTypeScriptAlgebraicType(),
     },
-    generate_default_world: {
-      reducerName: "generate_default_world",
-      argsType: GenerateDefaultWorld.getTypeScriptAlgebraicType(),
-    },
     generate_minimap_data: {
       reducerName: "generate_minimap_data",
       argsType: GenerateMinimapData.getTypeScriptAlgebraicType(),
@@ -1932,7 +1926,6 @@ export type Reducer = never
 | { name: "FillWaterContainerFromNaturalSource", args: FillWaterContainerFromNaturalSource }
 | { name: "FinishFishing", args: FinishFishing }
 | { name: "FireProjectile", args: FireProjectile }
-| { name: "GenerateDefaultWorld", args: GenerateDefaultWorld }
 | { name: "GenerateMinimapData", args: GenerateMinimapData }
 | { name: "GenerateWorld", args: GenerateWorld }
 | { name: "GetKnockedOutStatus", args: GetKnockedOutStatus }
@@ -2645,18 +2638,6 @@ export class RemoteReducers {
 
   removeOnFireProjectile(callback: (ctx: ReducerEventContext, targetWorldX: number, targetWorldY: number) => void) {
     this.connection.offReducer("fire_projectile", callback);
-  }
-
-  generateDefaultWorld() {
-    this.connection.callReducer("generate_default_world", new Uint8Array(0), this.setCallReducerFlags.generateDefaultWorldFlags);
-  }
-
-  onGenerateDefaultWorld(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.onReducer("generate_default_world", callback);
-  }
-
-  removeOnGenerateDefaultWorld(callback: (ctx: ReducerEventContext) => void) {
-    this.connection.offReducer("generate_default_world", callback);
   }
 
   generateMinimapData(minimapWidth: number, minimapHeight: number) {
@@ -5013,11 +4994,6 @@ export class SetReducerFlags {
   fireProjectileFlags: CallReducerFlags = 'FullUpdate';
   fireProjectile(flags: CallReducerFlags) {
     this.fireProjectileFlags = flags;
-  }
-
-  generateDefaultWorldFlags: CallReducerFlags = 'FullUpdate';
-  generateDefaultWorld(flags: CallReducerFlags) {
-    this.generateDefaultWorldFlags = flags;
   }
 
   generateMinimapDataFlags: CallReducerFlags = 'FullUpdate';

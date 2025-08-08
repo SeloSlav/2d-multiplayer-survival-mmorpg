@@ -931,28 +931,6 @@ fn generate_tile_variant(noise: &Perlin, x: i32, y: i32, tile_type: &TileType) -
 }
 
 #[spacetimedb::reducer]
-pub fn generate_default_world(ctx: &ReducerContext) -> Result<(), String> {
-    // TEMPORARILY REMOVED: Security check for testing
-    // if ctx.sender != ctx.identity() {
-    //     return Err("Only server can generate world".to_string());
-    // }
-    
-    let default_config = WorldGenConfig {
-        seed: 12345,
-        world_width_tiles: WORLD_WIDTH_TILES,
-        world_height_tiles: WORLD_HEIGHT_TILES,
-        chunk_size: 10,
-        island_border_width: 8,
-        beach_width: 6,
-        river_frequency: 0.8,
-        dirt_patch_frequency: 0.3,
-        road_density: 0.2,
-    };
-    
-    generate_world(ctx, default_config)
-}
-
-#[spacetimedb::reducer]
 pub fn generate_minimap_data(ctx: &ReducerContext, minimap_width: u32, minimap_height: u32) -> Result<(), String> {
     log::info!("Generating minimap data ({}x{}) from stored world tiles", minimap_width, minimap_height);
     

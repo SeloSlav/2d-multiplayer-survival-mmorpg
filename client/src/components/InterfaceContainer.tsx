@@ -48,7 +48,7 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
       for (const itemDef of connection.connection.db.itemDefinition.iter()) {
         if (itemDef.name === 'Memory Shard') {
           memoryShardDefId = itemDef.id;
-          console.log(`🔍 [Memory Grid Debug] Found Memory Shard definition ID: ${memoryShardDefId}`);
+          // console.log(`🔍 [Memory Grid Debug] Found Memory Shard definition ID: ${memoryShardDefId}`);
           break;
         }
       }
@@ -60,31 +60,31 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
         return;
       }
       
-      console.log(`🔍 [Memory Grid Debug] Scanning inventory for Memory Shards (def_id: ${memoryShardDefId})`);
-      console.log(`🔍 [Memory Grid Debug] Current player identity: ${connection.dbIdentity}`);
+      // console.log(`🔍 [Memory Grid Debug] Scanning inventory for Memory Shards (def_id: ${memoryShardDefId})`);
+      // console.log(`🔍 [Memory Grid Debug] Current player identity: ${connection.dbIdentity}`);
       
       // Use the exact same pattern as projectile.rs line 171-187
       for (const item of connection.connection.db.inventoryItem.iter()) {
         if (item.itemDefId === memoryShardDefId && item.quantity > 0) {
-          console.log(`🔍 [Memory Grid Debug] Found Memory Shard item instance:`, {
-            instanceId: item.instanceId,
-            quantity: item.quantity,
-            location: item.location,
-            locationValue: item.location && 'value' in item.location ? item.location.value : null
-          });
+          // console.log(`🔍 [Memory Grid Debug] Found Memory Shard item instance:`, {
+          //   instanceId: item.instanceId,
+          //   quantity: item.quantity,
+          //   location: item.location,
+          //   locationValue: item.location && 'value' in item.location ? item.location.value : null
+          // });
           
           // Match the exact pattern from projectile.rs
           const location = item.location;
           
           // Debug the identity comparison issue
-          console.log(`🔍 [Memory Grid Debug] Identity comparison:`, {
-            currentPlayer: connection.dbIdentity,
-            currentPlayerString: connection.dbIdentity?.toString(),
-            locationOwnerId: location && 'value' in location ? (location.value as any).ownerId : null,
-            locationOwnerIdString: location && 'value' in location ? (location.value as any).ownerId?.toString() : null,
-            areEqual: location && 'value' in location ? (location.value as any).ownerId === connection.dbIdentity : false,
-            areEqualString: location && 'value' in location ? (location.value as any).ownerId?.toString() === connection.dbIdentity?.toString() : false
-          });
+          // console.log(`🔍 [Memory Grid Debug] Identity comparison:`, {
+          //   currentPlayer: connection.dbIdentity,
+          //   currentPlayerString: connection.dbIdentity?.toString(),
+          //   locationOwnerId: location && 'value' in location ? (location.value as any).ownerId : null,
+          //   locationOwnerIdString: location && 'value' in location ? (location.value as any).ownerId?.toString() : null,
+          //   areEqual: location && 'value' in location ? (location.value as any).ownerId === connection.dbIdentity : false,
+          //   areEqualString: location && 'value' in location ? (location.value as any).ownerId?.toString() === connection.dbIdentity?.toString() : false
+          // });
           
           // Try both direct comparison and string comparison
           let isOwnedByPlayer = false;
@@ -100,33 +100,33 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
           
           if ((location?.tag === 'Inventory' || location?.tag === 'Hotbar') && isOwnedByPlayer) {
             totalShards += item.quantity;
-            console.log(`✅ [Memory Grid Debug] Added ${item.quantity} shards from ${location.tag} (total: ${totalShards})`);
+            // console.log(`✅ [Memory Grid Debug] Added ${item.quantity} shards from ${location.tag} (total: ${totalShards})`);
           } else {
             let ownerId = 'N/A';
             if (location && 'value' in location) {
               ownerId = (location.value as any).ownerId?.toString() || 'N/A';
             }
-            console.log(`❌ [Memory Grid Debug] Memory Shard not in player's inventory/hotbar:`, {
-              locationTag: location?.tag,
-              ownerId,
-              expectedOwner: connection.dbIdentity?.toString(),
-              isOwnedByPlayer
-            });
+            // console.log(`❌ [Memory Grid Debug] Memory Shard not in player's inventory/hotbar:`, {
+            //   locationTag: location?.tag,
+            //   ownerId,
+            //   expectedOwner: connection.dbIdentity?.toString(),
+            //   isOwnedByPlayer
+            // });
           }
         }
       }
       setPlayerShards(totalShards);
       
       // Get purchased nodes from memory grid progress
-      console.log(`🔍 [Memory Grid Debug] Looking for progress for player: ${connection.dbIdentity?.toString()}`);
+      //  console.log(`🔍 [Memory Grid Debug] Looking for progress for player: ${connection.dbIdentity?.toString()}`);
       
       let progress = null;
       for (const p of connection.connection.db.memoryGridProgress.iter()) {
-        console.log(`🔍 [Memory Grid Debug] Found progress entry:`, {
-          playerId: p.playerId?.toString(),
-          purchasedNodes: p.purchasedNodes,
-          matches: p.playerId?.toString() === connection.dbIdentity?.toString()
-        });
+        // console.log(`🔍 [Memory Grid Debug] Found progress entry:`, {
+        //   playerId: p.playerId?.toString(),
+        //   purchasedNodes: p.purchasedNodes,
+        //   matches: p.playerId?.toString() === connection.dbIdentity?.toString()
+        // });
         
         if (p.playerId?.toString() === connection.dbIdentity?.toString()) {
           progress = p;
@@ -137,13 +137,13 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
       if (progress) {
         const nodeIds = progress.purchasedNodes.split(',').filter((id: string) => id.trim() !== '');
         setPurchasedNodes(new Set(nodeIds));
-        console.log(`✅ [Memory Grid Debug] Loaded ${nodeIds.length} purchased nodes:`, nodeIds);
-        console.log(`📊 Memory Grid: ${totalShards} shards, ${nodeIds.length} nodes purchased`);
+        // console.log(`✅ [Memory Grid Debug] Loaded ${nodeIds.length} purchased nodes:`, nodeIds);
+        // console.log(`📊 Memory Grid: ${totalShards} shards, ${nodeIds.length} nodes purchased`);
       } else {
         // Initialize if no progress found
         setPurchasedNodes(new Set(['center']));
         connection.connection.reducers.initializePlayerMemoryGrid();
-        console.log(`📊 Memory Grid: ${totalShards} shards, initializing progress`);
+        //  console.log(`📊 Memory Grid: ${totalShards} shards, initializing progress`);
       }
       
     } catch (error) {
@@ -166,7 +166,7 @@ const InterfaceContainer: React.FC<InterfaceContainerProps> = ({
     try {
       // Call server reducer to purchase node
       connection.connection.reducers.purchaseMemoryGridNode(node.id);
-      console.log(`✅ Attempting to purchase ${node.name} on server`);
+      // console.log(`✅ Attempting to purchase ${node.name} on server`);
       
       // The state will be updated automatically through SpacetimeDB subscriptions
       // We'll trigger an update manually for immediate feedback

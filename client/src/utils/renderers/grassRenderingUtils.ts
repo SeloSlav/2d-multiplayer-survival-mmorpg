@@ -61,7 +61,6 @@ const FRAME_THROTTLE_SETTINGS = {
   NEAR_GRASS_INTERVAL: 1,   // Update every frame
   MID_GRASS_INTERVAL: 2,    // Update every 2 frames
   FAR_GRASS_INTERVAL: 5,    // Update every 5 frames
-  EMERGENCY_INTERVAL: 10,   // Update every 10 frames in emergency mode
 };
 
 // PERFORMANCE: Grass density control
@@ -69,13 +68,9 @@ const GRASS_DENSITY_LIMITS = {
   NEAR_MAX_COUNT: 50,       // Max grass entities to render at near distance
   MID_MAX_COUNT: 30,        // Max grass entities to render at mid distance
   FAR_MAX_COUNT: 15,        // Max grass entities to render at far distance
-  EMERGENCY_MAX_COUNT: 5,   // Max grass entities in emergency mode
 };
 
-// PERFORMANCE: Emergency mode detection
-let emergencyModeActive = false;
-let lastEmergencyCheck = 0;
-let totalGrassCount = 0;
+// Emergency mode removed
 
 // PERFORMANCE: Pre-computed sin/cos lookup table for common angles
 const SIN_COS_LOOKUP: { [key: number]: { sin: number; cos: number } } = {};
@@ -263,7 +258,7 @@ function isInViewport(
     viewportWidth: number, 
     viewportHeight: number
 ): boolean {
-    const margin = emergencyModeActive ? 50 : VIEWPORT_MARGIN_PX; // Reduced margin in emergency mode
+    const margin = VIEWPORT_MARGIN_PX;
     const left = cameraX - viewportWidth / 2 - margin;
     const right = cameraX + viewportWidth / 2 + margin;
     const top = cameraY - viewportHeight / 2 - margin;
@@ -274,14 +269,6 @@ function isInViewport(
 
 // PERFORMANCE: Level-of-detail (LOD) system
 function getLODLevel(distanceSq: number): 'near' | 'mid' | 'far' | 'cull' {
-  if (emergencyModeActive) {
-    // In emergency mode, use much more aggressive culling
-    if (distanceSq <= LOD_NEAR_DISTANCE_SQ / 4) return 'near';
-    if (distanceSq <= LOD_MID_DISTANCE_SQ / 4) return 'mid';
-    if (distanceSq <= LOD_FAR_DISTANCE_SQ / 4) return 'far';
-    return 'cull';
-  }
-  
   if (distanceSq <= LOD_NEAR_DISTANCE_SQ) return 'near';
   if (distanceSq <= LOD_MID_DISTANCE_SQ) return 'mid';
   if (distanceSq <= LOD_FAR_DISTANCE_SQ) return 'far';
@@ -292,8 +279,7 @@ function getLODLevel(distanceSq: number): 'near' | 'mid' | 'far' | 'cull' {
 function shouldRenderGrassThisFrame(lodLevel: 'near' | 'mid' | 'far' | 'cull'): boolean {
   if (lodLevel === 'cull') return false;
   
-  const interval = emergencyModeActive ? FRAME_THROTTLE_SETTINGS.EMERGENCY_INTERVAL : 
-                   lodLevel === 'near' ? FRAME_THROTTLE_SETTINGS.NEAR_GRASS_INTERVAL :
+  const interval = lodLevel === 'near' ? FRAME_THROTTLE_SETTINGS.NEAR_GRASS_INTERVAL :
                    lodLevel === 'mid' ? FRAME_THROTTLE_SETTINGS.MID_GRASS_INTERVAL :
                    FRAME_THROTTLE_SETTINGS.FAR_GRASS_INTERVAL;
   
@@ -362,30 +348,10 @@ function sortAndLimitGrassByDistance(
     .sort((a, b) => a.distanceSq - b.distanceSq)
     .map(item => item.grass);
   
-  // Apply emergency limits
-  if (emergencyModeActive) {
-    return allGrass.slice(0, GRASS_DENSITY_LIMITS.EMERGENCY_MAX_COUNT);
-  }
-  
   return allGrass;
 }
 
-// PERFORMANCE: Emergency mode detection
-function updateEmergencyMode(grassEntityCount: number): void {
-  totalGrassCount = grassEntityCount;
-  
-  // Check emergency mode every 60 frames (1 second at 60fps)
-  if (frameCounter - lastEmergencyCheck >= 60) {
-    const shouldBeEmergencyMode = grassEntityCount > 100; // Threshold for emergency mode
-    
-    if (shouldBeEmergencyMode !== emergencyModeActive) {
-      emergencyModeActive = shouldBeEmergencyMode;
-      console.log(`🌱 [GRASS] Emergency mode ${emergencyModeActive ? 'ACTIVATED' : 'DEACTIVATED'} - ${grassEntityCount} grass entities`);
-    }
-    
-    lastEmergencyCheck = frameCounter;
-  }
-}
+// Emergency mode removed
 
 // Configuration for rendering grass using the generic renderer
 const grassConfig: GroundEntityConfig<InterpolatedGrassData> = {
@@ -760,7 +726,7 @@ export function renderGrassEntities(
     const optimizedGrassEntities = sortAndLimitGrassByDistance(visibleGrassEntities, cameraX, cameraY);
     
     if (ENABLE_GRASS_PERF_LOGGING && frameCounter % 60 === 0) { // Log every 60 frames (~1 second)
-        console.log(`🌱 [GRASS_RENDER] Total: ${grassEntities.length}, Visible: ${visibleGrassEntities.length}, Optimized: ${optimizedGrassEntities.length}, Emergency: ${emergencyModeActive}`);
+        console.log(`🌱 [GRASS_RENDER] Total: ${grassEntities.length}, Visible: ${visibleGrassEntities.length}, Optimized: ${optimizedGrassEntities.length}`);
     }
 
     // PERFORMANCE: Batch render by LOD level to minimize canvas state changes
@@ -783,7 +749,7 @@ export function renderGrassEntities(
             currentLodLevel = lodLevel;
             
             // Optimize canvas state for this LOD level
-            if (lodLevel === 'far' || emergencyModeActive) {
+            if (lodLevel === 'far') {
                 // Disable anti-aliasing for distant grass (performance boost)
                 ctx.imageSmoothingEnabled = false;
                 // Use simpler composite operation
@@ -821,7 +787,7 @@ export function renderGrassEntities(
         
         // Log if rendering takes too long or periodically
         if (renderTime > 2.0 || frameCounter % 300 === 0) { // Log if >2ms or every 5 seconds
-            console.log(`🌱 [GRASS_RENDER] Rendered ${renderedCount}/${optimizedGrassEntities.length} grass entities in ${renderTime.toFixed(2)}ms (Emergency: ${emergencyModeActive})`);
+            console.log(`🌱 [GRASS_RENDER] Rendered ${renderedCount}/${optimizedGrassEntities.length} grass entities in ${renderTime.toFixed(2)}ms`);
         }
     }
 }

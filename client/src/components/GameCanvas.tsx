@@ -102,6 +102,7 @@ import {
   SERVER_CAMPFIRE_DAMAGE_RADIUS,
   SERVER_CAMPFIRE_DAMAGE_CENTER_Y_OFFSET
 } from '../utils/renderers/campfireRenderingUtils';
+// V2 system removed due to performance issues
 import { BOX_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils';
 import { useInputHandler } from '../hooks/useInputHandler';
 import { useRemotePlayerInterpolation } from '../hooks/useRemotePlayerInterpolation';
@@ -758,21 +759,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Performance monitoring - detect lag spikes
   const checkPerformance = useCallback((frameStartTime: number) => {
     const frameTime = performance.now() - frameStartTime;
-    const perf = performanceMode.current;
-    
-    // Emergency mode if frame takes > 50ms
-    if (frameTime > 50) {
-      perf.isEmergencyMode = true;
-      perf.maxEntitiesPerFrame = 30; // Severely limit entities
-      console.warn(`🚨 Emergency performance mode activated - ${frameTime.toFixed(1)}ms frame`);
-    } else if (frameTime < 20 && perf.isEmergencyMode) {
-      // Exit emergency mode if performance improves
-      perf.isEmergencyMode = false;
-      perf.maxEntitiesPerFrame = 100;
-      console.log(`✅ Emergency performance mode deactivated`);
-    }
-    
-    perf.lastFrameTime = frameTime;
+    // Emergency mode removed; retain frame time tracking only
+    performanceMode.current.lastFrameTime = frameTime;
   }, []);
 
   const renderGame = useCallback(() => {
@@ -783,16 +771,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Emergency performance check
-    const perf = performanceMode.current;
-    
-    // Skip frame if in emergency mode and frame counter says so
-    if (perf.isEmergencyMode) {
-      perf.skipFrameCounter++;
-      if (perf.skipFrameCounter % 2 === 0) {
-        return; // Skip every other frame during emergency
-      }
-    }
+    // Emergency performance mode removed
 
     const now_ms = Date.now();
     const currentWorldMouseX = worldMousePos.x;
@@ -1122,7 +1101,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // EMERGENCY: Aggressive entity culling in dense areas
     frameNumber.current++;
     const entityCount = allEntitiesExceptSwimmingBottoms.length + swimmingPlayers.length;
-    const maxEntities = perf.isEmergencyMode ? perf.maxEntitiesPerFrame : 100;
+    const maxEntities = 100;
     
     // Aggressively limit entities if too many
     let limitedEntitiesExceptSwimming = allEntitiesExceptSwimmingBottoms;
@@ -1151,7 +1130,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     // CRITICAL FIX: Don't re-sort! The ySortedEntities are already properly sorted by useEntityFiltering
     // Re-sorting here was overriding the shelter priority and Y-position adjustments
     // Just insert swimming players at the correct position based on their Y coordinate
-    if (entityCount <= 150 && !perf.isEmergencyMode && frameNumber.current % sortInterval === 0) {
+    if (entityCount <= 150 && frameNumber.current % sortInterval === 0) {
       // Only sort swimming players into the existing sorted array
       swimmingPlayers.forEach(swimmingPlayer => {
         const playerY = swimmingPlayer.yPosition;
@@ -1186,9 +1165,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       
       combinedEntities = limitedEntitiesExceptSwimming;
     } else {
-      // Emergency mode or too many entities - just combine without sorting
-      if (entityCount > 150 || perf.isEmergencyMode) {
-        console.log(`⚡ Skipping Y-sort for ${entityCount} entities (emergency mode: ${perf.isEmergencyMode})`);
+      // Too many entities - just combine without sorting
+      if (entityCount > 150) {
+        // Skipping Y-sort for performance
       }
       combinedEntities = [
         ...limitedEntitiesExceptSwimming.map(entity => ({ ...entity, isSwimmingPlayerTopHalf: false })),
@@ -1316,13 +1295,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           worldMouseX: currentWorldMouseX,
           worldMouseY: currentWorldMouseY,
           localPlayerId: localPlayerId,
-          animationFrame: perf.isEmergencyMode ? 0 : animationFrame, // Freeze animations during lag
-          sprintAnimationFrame: perf.isEmergencyMode ? 0 : sprintAnimationFrame,
-          idleAnimationFrame: perf.isEmergencyMode ? 0 : idleAnimationFrame,
+          animationFrame,
+          sprintAnimationFrame,
+          idleAnimationFrame,
           nowMs: now_ms,
           hoveredPlayerIds,
           onPlayerHover: handlePlayerHover,
-          cycleProgress: perf.isEmergencyMode ? 0.5 : currentCycleProgress, // Fixed lighting during lag
+          cycleProgress: currentCycleProgress,
           renderPlayerCorpse: (props) => renderPlayerCorpse({ ...props, cycleProgress: currentCycleProgress, heroImageRef: heroImageRef, heroWaterImageRef: heroWaterImageRef, heroCrouchImageRef: heroCrouchImageRef }),
           localPlayerPosition: predictedPosition ?? { x: localPlayer?.positionX ?? 0, y: localPlayer?.positionY ?? 0 },
           playerDodgeRollStates,
@@ -1353,8 +1332,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
     // Wild animals are now rendered through the Y-sorted entities system for proper layering
 
-    // EMERGENCY: Skip expensive particle systems during lag
-    if (ctx && !perf.isEmergencyMode) { // Disable particles in emergency mode
+    // Render particle systems
+    if (ctx) {
       // Call without camera offsets, as ctx is already translated
       renderParticlesToCanvas(ctx, campfireParticles);
       renderParticlesToCanvas(ctx, torchParticles);
@@ -1850,12 +1829,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Game loop for processing actions
   useGameLoop(processInputsAndActions);
 
-  // Emergency performance mode
+  // Performance tracking (emergency mode removed)
   const performanceMode = useRef({ 
-    isEmergencyMode: false, 
-    lastFrameTime: 0,
-    skipFrameCounter: 0,
-    maxEntitiesPerFrame: 100
+    lastFrameTime: 0
   });
 
   return (
