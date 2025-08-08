@@ -26,6 +26,7 @@ import {
   DeathMarker as SpacetimeDBDeathMarker,
   Shelter as SpacetimeDBShelter,
   MinimapCache as SpacetimeDBMinimapCache,
+  WorldChunkData as SpacetimeDBWorldChunkData,
   FishingSession,
   PlantedSeed as SpacetimeDBPlantedSeed,
   PlantType as SpacetimeDBPlantType,
@@ -143,7 +144,6 @@ interface GameCanvasProps {
   predictedPosition: { x: number; y: number } | null;
   activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
   grass: Map<string, SpacetimeDBGrass>;
-  worldTiles: Map<string, any>; // Add this for procedural world tiles
   placementInfo: PlacementItemInfo | null;
   placementActions: PlacementActions;
   placementError: string | null;
@@ -225,7 +225,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   isSearchingCraftRecipes,
   showInventory,
   grass,
-  worldTiles,
   gameCanvasRef,
   projectiles,
   deathMarkers,
@@ -387,75 +386,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     remotePlayerInterpolation,
   });
 
-  const {
-    closestInteractableTarget,
-    closestInteractableHarvestableResourceId,
-    closestInteractableCampfireId,
-    closestInteractableDroppedItemId,
-    closestInteractableBoxId,
-    isClosestInteractableBoxEmpty,
-    closestInteractableCorpseId,
-    closestInteractableStashId,
-    closestInteractableSleepingBagId,
-    closestInteractableKnockedOutPlayerId,
-    closestInteractableWaterPosition,
-  } = useInteractionFinder({
-    localPlayer,
-    campfires,
-    furnaces, // ADDED: Furnaces to useInteractionFinder
-    droppedItems,
-    woodenStorageBoxes,
-    playerCorpses,
-    stashes,
-    sleepingBags,
-    players,
-    shelters,
-    connection,
-    lanterns,
-    inventoryItems,
-    itemDefinitions,
-    playerDrinkingCooldowns,
-    rainCollectors,
-    harvestableResources,
-  });
+  // useInteractionFinder moved after visibleWorldTiles definition
 
-  // --- Action Input Handler ---
-  const {
-    interactionProgress: holdInteractionProgress,
-    isActivelyHolding,
-    currentJumpOffsetY,
-    isAutoAttacking,
-    isCrouching: localPlayerIsCrouching,
-    processInputsAndActions,
-  } = useInputHandler({
-    canvasRef: gameCanvasRef,
-    connection,
-    localPlayerId: localPlayer?.identity?.toHexString(),
-    localPlayer,
-    activeEquipments,
-    itemDefinitions,
-    inventoryItems,
-    placementInfo,
-    placementActions,
-    worldMousePos,
-    // UNIFIED INTERACTION TARGET - single source of truth
-    closestInteractableTarget,
-    // Essential entity maps for validation and data lookup
-    woodenStorageBoxes,
-    stashes,
-    players,
-    onSetInteractingWith: onSetInteractingWith,
-    isMinimapOpen,
-    setIsMinimapOpen,
-    isChatting: isChatting,
-    isInventoryOpen: showInventory,
-    isGameMenuOpen,
-    isSearchingCraftRecipes,
-    isFishing,
-    setMusicPanelVisible,
-    movementDirection,
-    // Individual entity IDs for consistency and backward compatibility
-  });
+  // useInputHandler moved after unifiedInteractableTarget definition
 
   const animationFrame = useWalkingAnimationCycle(); // Faster, smoother walking animation
   const sprintAnimationFrame = useSprintAnimationCycle(); // Even faster animation for sprinting
@@ -551,12 +484,203 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // --- Procedural World Tile Management ---
   const { proceduralRenderer, isInitialized: isWorldRendererInitialized, updateTileCache } = useWorldTileCache();
 
-  // Update world tile cache when worldTiles data changes
+  // Compressed chunk cache (avoids per-tile subscriptions)
+  const chunkCacheRef = useRef<Map<string, SpacetimeDBWorldChunkData>>(new Map());
+  const chunkSizeRef = useRef<number>(8);
+  const [chunkCacheVersion, setChunkCacheVersion] = useState(0);
+
+  // Subscribe once to all compressed chunks (small row count, stable; avoids spatial churn)
   useEffect(() => {
-    if (worldTiles && worldTiles.size > 0) {
-      updateTileCache(worldTiles);
+    if (!connection) return;
+
+    // Row callbacks
+    const handleChunkInsert = (_ctx: any, row: SpacetimeDBWorldChunkData) => {
+      const key = `${row.chunkX},${row.chunkY}`;
+      chunkCacheRef.current.set(key, row);
+      chunkSizeRef.current = row.chunkSize || chunkSizeRef.current;
+      setChunkCacheVersion(v => v + 1);
+    };
+    const handleChunkUpdate = (_ctx: any, _oldRow: SpacetimeDBWorldChunkData, row: SpacetimeDBWorldChunkData) => {
+      const key = `${row.chunkX},${row.chunkY}`;
+      chunkCacheRef.current.set(key, row);
+      chunkSizeRef.current = row.chunkSize || chunkSizeRef.current;
+      setChunkCacheVersion(v => v + 1);
+    };
+    const handleChunkDelete = (_ctx: any, row: SpacetimeDBWorldChunkData) => {
+      const key = `${row.chunkX},${row.chunkY}`;
+      chunkCacheRef.current.delete(key);
+      setChunkCacheVersion(v => v + 1);
+    };
+
+    // Register callbacks
+    connection.db.worldChunkData.onInsert(handleChunkInsert);
+    connection.db.worldChunkData.onUpdate(handleChunkUpdate);
+    connection.db.worldChunkData.onDelete(handleChunkDelete);
+
+    // Subscribe to the entire table once (hundreds of rows, lightweight)
+    const handle = connection
+      .subscriptionBuilder()
+      .onError((err: any) => console.error('[WORLD_CHUNK_DATA Sub Error]:', err))
+      .subscribe('SELECT * FROM world_chunk_data');
+
+    return () => {
+      try { handle?.unsubscribe?.(); } catch {}
+    };
+  }, [connection]);
+
+  // Build a lightweight worldTiles map only for the current viewport from compressed chunks
+  const visibleWorldTiles = useMemo(() => {
+    const map = new Map<string, any>();
+    const tileSize = 48; // matches server TILE_SIZE_PX
+    const chunkSize = chunkSizeRef.current;
+
+    const viewMinX = Math.floor((-cameraOffsetX) / tileSize);
+    const viewMinY = Math.floor((-cameraOffsetY) / tileSize);
+    const viewMaxX = Math.ceil((-cameraOffsetX + canvasSize.width) / tileSize);
+    const viewMaxY = Math.ceil((-cameraOffsetY + canvasSize.height) / tileSize);
+
+    // Small buffer to avoid popping at edges
+    const minTileX = Math.max(0, viewMinX - 2);
+    const minTileY = Math.max(0, viewMinY - 2);
+    const maxTileX = viewMaxX + 2;
+    const maxTileY = viewMaxY + 2;
+
+    const typeFromU8 = (v: number): string => {
+      switch (v) {
+        case 0: return 'Grass';
+        case 1: return 'Dirt';
+        case 2: return 'DirtRoad';
+        case 3: return 'Sea';
+        case 4: return 'Beach';
+        case 5: return 'Sand';
+        default: return 'Grass';
+      }
+    };
+
+    for (let ty = minTileY; ty < maxTileY; ty++) {
+      for (let tx = minTileX; tx < maxTileX; tx++) {
+        const cx = Math.floor(tx / chunkSize);
+        const cy = Math.floor(ty / chunkSize);
+        const chunk = chunkCacheRef.current.get(`${cx},${cy}`);
+        if (!chunk) continue;
+
+        const localX = tx % chunkSize;
+        const localY = ty % chunkSize;
+        if (localX < 0 || localY < 0) continue;
+        const idx = localY * chunk.chunkSize + localX;
+        if (idx < 0 || idx >= chunk.tileTypes.length) continue;
+
+        const t = chunk.tileTypes[idx];
+        const v = chunk.variants?.[idx] ?? 0;
+        const key = `${tx}_${ty}`;
+        map.set(key, {
+          worldX: tx,
+          worldY: ty,
+          tileType: { tag: typeFromU8(t) },
+          variant: v,
+        });
+      }
     }
-  }, [worldTiles, updateTileCache]);
+    return map;
+  }, [cameraOffsetX, cameraOffsetY, canvasSize.width, canvasSize.height, chunkCacheVersion]);
+
+  // Feed the renderer with only the visible tiles
+  useEffect(() => {
+    if (visibleWorldTiles && visibleWorldTiles.size > 0) {
+      updateTileCache(visibleWorldTiles);
+    }
+  }, [visibleWorldTiles, updateTileCache]);
+
+  // --- Interaction Finding System ---
+  const {
+    closestInteractableTarget,
+    closestInteractableHarvestableResourceId,
+    closestInteractableCampfireId,
+    closestInteractableDroppedItemId,
+    closestInteractableBoxId,
+    isClosestInteractableBoxEmpty,
+    closestInteractableCorpseId,
+    closestInteractableStashId,
+    closestInteractableSleepingBagId,
+    closestInteractableKnockedOutPlayerId,
+    closestInteractableWaterPosition,
+  } = useInteractionFinder({
+    localPlayer,
+    campfires,
+    furnaces, // ADDED: Furnaces to useInteractionFinder
+    droppedItems,
+    woodenStorageBoxes,
+    playerCorpses,
+    stashes,
+    sleepingBags,
+    players,
+    shelters,
+    connection,
+    lanterns,
+    inventoryItems,
+    itemDefinitions,
+    playerDrinkingCooldowns,
+    rainCollectors,
+    harvestableResources,
+    worldTiles: visibleWorldTiles,
+  });
+
+  // Synthesize unified target including water when no other target exists
+  const unifiedInteractableTarget = useMemo(() => {
+    // If we have a regular target, use it
+    if (closestInteractableTarget) return closestInteractableTarget;
+    
+    // If no regular target but we have water position, create water target
+    if (closestInteractableWaterPosition) {
+      return {
+        type: 'water' as const,
+        id: 'water',
+        position: { x: closestInteractableWaterPosition.x, y: closestInteractableWaterPosition.y },
+        distance: 0,
+        data: undefined,
+      };
+    }
+    
+    return null;
+  }, [closestInteractableTarget, closestInteractableWaterPosition]);
+
+  // --- Action Input Handler ---
+  const {
+    interactionProgress: holdInteractionProgress,
+    isActivelyHolding,
+    currentJumpOffsetY,
+    isAutoAttacking,
+    isCrouching: localPlayerIsCrouching,
+    processInputsAndActions,
+  } = useInputHandler({
+    canvasRef: gameCanvasRef,
+    connection,
+    localPlayerId: localPlayer?.identity?.toHexString(),
+    localPlayer,
+    activeEquipments,
+    itemDefinitions,
+    inventoryItems,
+    placementInfo,
+    placementActions,
+    worldMousePos,
+    // UNIFIED INTERACTION TARGET - single source of truth (includes water fallback)
+    closestInteractableTarget: unifiedInteractableTarget,
+    // Essential entity maps for validation and data lookup
+    woodenStorageBoxes,
+    stashes,
+    players,
+    onSetInteractingWith: onSetInteractingWith,
+    isMinimapOpen,
+    setIsMinimapOpen,
+    isChatting: isChatting,
+    isInventoryOpen: showInventory,
+    isGameMenuOpen,
+    isSearchingCraftRecipes,
+    isFishing,
+    setMusicPanelVisible,
+    movementDirection,
+    // Individual entity IDs for consistency and backward compatibility
+  });
 
   // Define camera and canvas dimensions for rendering
   const camera = { x: cameraOffsetX, y: cameraOffsetY };
@@ -812,7 +936,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     
     // Pass the necessary viewport parameters to the optimized background renderer
     // console.log('[GameCanvas DEBUG] Rendering world background at camera offset:', cameraOffsetX, cameraOffsetY, 'worldTiles size:', worldTiles?.size || 0);
-    renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, worldTiles, showAutotileDebug);
+    renderWorldBackground(ctx, grassImageRef, cameraOffsetX, cameraOffsetY, currentCanvasWidth, currentCanvasHeight, visibleWorldTiles, showAutotileDebug);
 
     // MOVED: Swimming shadows now render after water overlay to appear above sea stack underwater zones
 
@@ -1052,7 +1176,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       canvasSize.width,
       canvasSize.height,
       deltaTimeRef.current / 1000, // Convert ms to seconds
-      worldTiles
+      visibleWorldTiles
     );
     // --- END WATER OVERLAY ---
 
@@ -1627,7 +1751,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     visibleSheltersMap,
     shelterImageRef.current,
     minimapCache,
-    worldTiles,
     visibleHarvestableResourcesMap,
      // Viewport-culled resource maps for sparkles
   ]);

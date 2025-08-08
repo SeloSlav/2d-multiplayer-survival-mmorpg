@@ -113,7 +113,7 @@ interface GameScreenProps {
     stashes: Map<string, SpacetimeDBStash>;
     shelters: Map<string, SpacetimeDBShelter>;
     plantedSeeds: Map<string, SpacetimeDBPlantedSeed>;
-    worldTiles: Map<string, any>;
+    // worldTiles removed – world background now derived client-side from compressed chunk data
     minimapCache: SpacetimeDBMinimapCache | null;
     wildAnimals: Map<string, SpacetimeDBWildAnimal>;
     viperSpittles: Map<string, SpacetimeDBViperSpittle>;
@@ -262,7 +262,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
         playerPins, playerCorpses, stashes,
         shelters,
         plantedSeeds,
-        worldTiles,
+        
         minimapCache,
         wildAnimals,
         viperSpittles,
@@ -819,7 +819,6 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                 activeConsumableEffects={activeConsumableEffects}
                 showInventory={showInventoryState}
                 grass={grass}
-                worldTiles={worldTiles}
                 gameCanvasRef={canvasRef}
                 projectiles={projectiles}
                 deathMarkers={deathMarkers}
@@ -950,12 +949,7 @@ const GameScreen: React.FC<GameScreenProps> = (props) => {
                             }
                         }
                         
-                        // Also check worldTiles prop
-                        console.log('[WATER DEBUG] WorldTiles prop size:', worldTiles.size);
-                        if (worldTiles.size > 0) {
-                            const sampleEntries = Array.from(worldTiles.entries()).slice(0, 3);
-                            console.log('[WATER DEBUG] Sample worldTiles entries:', sampleEntries);
-                        }
+                        
                     }
                     
                     // Use the exact same algorithm as placementRenderingUtils.ts

@@ -17,7 +17,7 @@ use crate::{PLAYER_RADIUS, TILE_SIZE_PX};
 
 // Drinking mechanics constants
 const DRINKING_INTERACTION_DISTANCE_SQUARED: f32 = 64.0 * 64.0; // Close to water to drink
-const DRINKING_COOLDOWN_MS: u64 = 2_000; // 2 second cooldown between drinks
+const DRINKING_COOLDOWN_MS: u64 = 1_000; // 1 second cooldown between drinks
 const RIVER_WATER_THIRST_GAIN: f32 = 15.0; // One gulp ≈ 1 liter equivalent (15 thirst per liter scale)
 const SEA_WATER_THIRST_LOSS: f32 = -10.0; // Reduced dehydration to match new scale
 

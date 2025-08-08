@@ -67,7 +67,7 @@ const SEA_STACK_SPAWN_NOISE_THRESHOLD: f64 = 0.3; // Noise threshold for spawnin
 
 // --- Constants for Chunk Calculation ---
 // Size of a chunk in tiles (e.g., 20x20 tiles per chunk)
-pub const CHUNK_SIZE_TILES: u32 = 5;
+pub const CHUNK_SIZE_TILES: u32 = 3;
 // World dimensions in chunks
 pub const WORLD_WIDTH_CHUNKS: u32 = (WORLD_WIDTH_TILES + CHUNK_SIZE_TILES - 1) / CHUNK_SIZE_TILES;
 pub const WORLD_HEIGHT_CHUNKS: u32 = (WORLD_HEIGHT_TILES + CHUNK_SIZE_TILES - 1) / CHUNK_SIZE_TILES;

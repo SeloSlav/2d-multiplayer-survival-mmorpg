@@ -72,6 +72,7 @@ interface UseInteractionFinderProps {
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
     connection: DbConnection | null; // NEW: Connection for water tile access
     playerDrinkingCooldowns: Map<string, SpacetimeDBPlayerDrinkingCooldown>; // NEW: Player drinking cooldowns
+    worldTiles?: Map<string, any>; // NEW: World tiles for water detection
 }
 
 // Define the hook's return type
@@ -185,6 +186,7 @@ export function useInteractionFinder({
     itemDefinitions,
     connection,
     playerDrinkingCooldowns,
+    worldTiles,
 }: UseInteractionFinderProps): UseInteractionFinderResult {
 
     // State for closest interactable IDs
@@ -545,7 +547,7 @@ export function useInteractionFinder({
                 if (drinkingCooldown) {
                     const currentTime = Date.now() * 1000; // Convert to microseconds
                     const timeSinceLastDrink = currentTime - Number(drinkingCooldown.lastDrinkTime.__timestamp_micros_since_unix_epoch__);
-                    const cooldownMicros = 2000 * 1000; // 2 seconds in microseconds
+                    const cooldownMicros = 1000 * 1000; // 1 second in microseconds
                     isOnCooldown = timeSinceLastDrink < cooldownMicros;
                 }
                 
@@ -571,16 +573,14 @@ export function useInteractionFinder({
                             
                             // Only check tiles within drinking distance
                             if (distanceToTileSq <= closestWaterDistSq) {
-                                // Check if this tile is water by looking through all world tiles
-                                for (const tile of connection.db.worldTile.iter()) {
-                                    if (tile.worldX === checkTileX && tile.worldY === checkTileY) {
-                                        // Found the tile at this position, check if it's water
-                                        if (tile.tileType.tag === 'Sea') {
-                                            // This is a water tile and it's closer than our current closest
-                                            closestWaterDistSq = distanceToTileSq;
-                                            closestWaterPosition = { x: tileCenterX, y: tileCenterY };
-                                            break; // Found water at this position, no need to continue checking this tile
-                                        }
+                                // Check if this tile is water using the new world tiles system
+                                if (worldTiles) {
+                                    const tileKey = `${checkTileX}_${checkTileY}`;
+                                    const tile = worldTiles.get(tileKey);
+                                    if (tile && tile.tileType.tag === 'Sea') {
+                                        // This is a water tile and it's closer than our current closest
+                                        closestWaterDistSq = distanceToTileSq;
+                                        closestWaterPosition = { x: tileCenterX, y: tileCenterY };
                                     }
                                 }
                             }

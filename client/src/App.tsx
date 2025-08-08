@@ -198,7 +198,6 @@ function AppContent() {
       deathMarkers, // Ensure this is destructured
       shelters, // <<< ADD shelters HERE
       plantedSeeds, // <<< ADD plantedSeeds HERE
-      worldTiles, // <<< ADD worldTiles HERE
       minimapCache, // <<< ADD minimapCache HERE
       fishingSessions, // <<< ADD fishingSessions HERE
       soundEvents, // <<< ADD soundEvents HERE
@@ -820,7 +819,7 @@ function AppContent() {
                             stashes={stashes}
                             shelters={shelters}
                             plantedSeeds={plantedSeeds}
-                            worldTiles={worldTiles}
+                             
                             minimapCache={minimapCache}
                             wildAnimals={wildAnimals}
                             viperSpittles={viperSpittles}

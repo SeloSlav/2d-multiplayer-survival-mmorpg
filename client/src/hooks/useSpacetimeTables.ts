@@ -121,7 +121,6 @@ export interface SpacetimeTableStates {
     projectiles: Map<string, SpacetimeDBProjectile>;
     deathMarkers: Map<string, SpacetimeDB.DeathMarker>;
     shelters: Map<string, SpacetimeDB.Shelter>;
-    worldTiles: Map<string, SpacetimeDB.WorldTile>;
     minimapCache: SpacetimeDB.MinimapCache | null;
     playerDodgeRollStates: Map<string, SpacetimeDB.PlayerDodgeRollState>;
     fishingSessions: Map<string, SpacetimeDB.FishingSession>;
@@ -187,7 +186,6 @@ export const useSpacetimeTables = ({
     const [projectiles, setProjectiles] = useState<Map<string, SpacetimeDBProjectile>>(() => new Map());
     const [deathMarkers, setDeathMarkers] = useState<Map<string, SpacetimeDB.DeathMarker>>(() => new Map());
     const [shelters, setShelters] = useState<Map<string, SpacetimeDB.Shelter>>(() => new Map());
-    const [worldTiles, setWorldTiles] = useState<Map<string, SpacetimeDB.WorldTile>>(() => new Map());
     const [minimapCache, setMinimapCache] = useState<SpacetimeDB.MinimapCache | null>(null);
     const [playerDodgeRollStates, setPlayerDodgeRollStates] = useState<Map<string, SpacetimeDB.PlayerDodgeRollState>>(() => new Map());
     const [fishingSessions, setFishingSessions] = useState<Map<string, SpacetimeDB.FishingSession>>(() => new Map());
@@ -224,7 +222,6 @@ export const useSpacetimeTables = ({
     const isSubscribingRef = useRef(false);
     
     // --- NEW: Refs for state that shouldn't trigger re-renders on every update ---
-    const worldTilesRef = useRef<Map<string, SpacetimeDB.WorldTile>>(new Map());
     const playerDodgeRollStatesRef = useRef<Map<string, SpacetimeDB.PlayerDodgeRollState>>(new Map());
     
     // Throttle spatial subscription updates to prevent frame drops
@@ -937,49 +934,7 @@ export const useSpacetimeTables = ({
                 setShelters(prev => { const newMap = new Map(prev); newMap.delete(shelter.id.toString()); return newMap; });
             };
 
-            // --- WorldTile Handlers (Optimized to avoid React re-renders) ---
-            const handleWorldTileInsert = (ctx: any, tile: SpacetimeDB.WorldTile) => {
-                // Use world coordinates as key to match ProceduralWorldRenderer lookup
-                const tileKey = `${tile.worldX}_${tile.worldY}`;
-                worldTilesRef.current.set(tileKey, tile);
-                
-                // Count tiles received and log coordinate ranges
-                if (!(window as any).tileInsertCount) (window as any).tileInsertCount = 0;
-                (window as any).tileInsertCount++;
-                
-                // Log coordinate ranges every 1000 tiles to see coverage
-                if ((window as any).tileInsertCount % 1000 === 0) {
-                    const allTiles = Array.from(worldTilesRef.current.values());
-                    const minX = Math.min(...allTiles.map(t => t.worldX));
-                    const maxX = Math.max(...allTiles.map(t => t.worldX));
-                    const minY = Math.min(...allTiles.map(t => t.worldY));
-                    const maxY = Math.max(...allTiles.map(t => t.worldY));
-                    console.log(`[TILES] Received ${(window as any).tileInsertCount} tiles. Coverage: X(${minX}-${maxX}), Y(${minY}-${maxY})`);
-                }
-                
-                // Log specific tile details for debugging dead zones
-                if (tile.worldX >= 155 && tile.worldX <= 165 && tile.worldY >= 70 && tile.worldY <= 80) {
-                    console.log(`[TILE DEBUG] Received tile at (${tile.worldX}, ${tile.worldY}) chunk(${tile.chunkX}, ${tile.chunkY}) type: ${tile.tileType.tag}`);
-                }
-            };
-            const handleWorldTileUpdate = (ctx: any, oldTile: SpacetimeDB.WorldTile, newTile: SpacetimeDB.WorldTile) => {
-                const tileKey = `${newTile.worldX}_${newTile.worldY}`;
-                worldTilesRef.current.set(tileKey, newTile);
-                // Removed excessive debugging
-            };
-            const handleWorldTileDelete = (ctx: any, tile: SpacetimeDB.WorldTile) => {
-                // SOLUTION: Disable tile deletion to prevent dead zones
-                // The chunk subscription system works correctly, but when chunks are unsubscribed,
-                // tiles get deleted from cache, creating dead zones. Keep tiles in cache for continuity.
-                
-                // const tileKey = `${tile.worldX}_${tile.worldY}`;
-                // worldTilesRef.current.delete(tileKey);
-                
-                // Optional: Log only occasionally to avoid spam
-                // if (Math.random() < 0.01) { // 1% chance to log
-                //     console.log(`[DEBUG] Keeping tile at (${tile.worldX}, ${tile.worldY}) in cache instead of deleting`);
-                // }
-            };
+            // WorldTile handlers removed – world background now uses compressed chunk data on client
 
             // --- MinimapCache Handlers ---
             const handleMinimapCacheInsert = (ctx: any, cache: SpacetimeDB.MinimapCache) => {
@@ -1222,10 +1177,7 @@ export const useSpacetimeTables = ({
             connection.db.shelter.onUpdate(handleShelterUpdate);
             connection.db.shelter.onDelete(handleShelterDelete);
 
-            // Register WorldTile callbacks - ADDED
-            connection.db.worldTile.onInsert(handleWorldTileInsert);
-            connection.db.worldTile.onUpdate(handleWorldTileUpdate);
-            connection.db.worldTile.onDelete(handleWorldTileDelete);
+            // WorldTile callbacks removed – no longer subscribing to per-tile updates
 
             // Register MinimapCache callbacks - ADDED
             connection.db.minimapCache.onInsert(handleMinimapCacheInsert);
@@ -1586,9 +1538,7 @@ export const useSpacetimeTables = ({
                  setProjectiles(new Map());
                  setDeathMarkers(new Map());
                  setShelters(new Map());
-                 setWorldTiles(new Map());
-                 // Clear the worldTiles ref as well
-                 worldTilesRef.current.clear();
+                  // world tile client cache removed
                  setPlayerDodgeRollStates(new Map());
                  // Clear the playerDodgeRollStates ref as well
                  playerDodgeRollStatesRef.current.clear();
@@ -1640,7 +1590,7 @@ export const useSpacetimeTables = ({
         projectiles,
         deathMarkers,
         shelters,
-        worldTiles: worldTilesRef.current,
+         
         minimapCache,
         playerDodgeRollStates: playerDodgeRollStatesRef.current,
         fishingSessions,
