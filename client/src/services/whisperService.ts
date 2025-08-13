@@ -1,7 +1,7 @@
 // OpenAI Whisper Service for Speech-to-Text
 // Enhanced with audio processing and accuracy optimizations
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || 'your-openai-api-key-here';
+const OPENAI_API_KEY = import.meta.env.OPENAI_API_KEY || 'your-openai-api-key-here';
 const WHISPER_API_URL = 'https://api.openai.com/v1/audio/transcriptions';
 
 export interface WhisperResponse {

@@ -25,12 +25,12 @@ This guide explains how to set up OpenAI integration to give SOVA an intelligent
    - Create a `.env` file in the `client/` directory:
    ```bash
    # client/.env
-   VITE_OPENAI_API_KEY=sk-your-actual-api-key-here
+   OPENAI_API_KEY=sk-your-actual-api-key-here
    ```
 
 2. **The service automatically uses the environment variable:**
    ```typescript
-   const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || 'your-openai-api-key-here';
+   const OPENAI_API_KEY = import.meta.env.OPENAI_API_KEY || 'your-openai-api-key-here';
    ```
 
 ### **Option B: Direct Configuration (Not Recommended)**

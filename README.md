@@ -296,7 +296,7 @@ This project includes SOVA (Sentient Ocular Virtual Assistant), an intelligent A
 2. **AI Personality (OpenAI API):**
    ```bash
    # Create client/.env file
-   echo "VITE_OPENAI_API_KEY=sk-your-openai-api-key-here" > client/.env
+   echo "OPENAI_API_KEY=sk-your-openai-api-key-here" > client/.env
    ```
 
 ### Features

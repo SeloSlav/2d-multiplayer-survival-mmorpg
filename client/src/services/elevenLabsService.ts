@@ -14,7 +14,7 @@ let TTS_ENDPOINT = '';
 // Safely load configuration
 try {
   if (import.meta && import.meta.env) {
-    ELEVENLABS_API_KEY = import.meta.env.VITE_ELEVENLABS_API_KEY || 'not-configured';
+    ELEVENLABS_API_KEY = import.meta.env.ELEVENLABS_API_KEY || 'not-configured';
     console.log('[ElevenLabsService] ✅ API key status:', ELEVENLABS_API_KEY ? 'loaded' : 'missing');
   }
   TTS_ENDPOINT = `${ELEVENLABS_BASE_URL}/text-to-speech/${ELEVENLABS_VOICE_ID}`;
@@ -122,7 +122,7 @@ class ElevenLabsService {
       console.log('[ElevenLabsService] 🔑 Checking API configuration...');
       if (!this.isConfigured()) {
         console.error('[ElevenLabsService] ❌ API not configured');
-        return { success: false, error: 'ElevenLabs API key not configured. Please set VITE_ELEVENLABS_API_KEY environment variable.' };
+        return { success: false, error: 'ElevenLabs API key not configured. Please set ELEVENLABS_API_KEY environment variable.' };
       }
       console.log('[ElevenLabsService] ✅ API configuration OK');
     } catch (error) {
@@ -636,7 +636,7 @@ ${report.recentTimings.slice(-5).map((timing, index) =>
   isConfigured(): boolean {
     const configured = !!(this.apiKey && this.apiKey !== 'your-elevenlabs-api-key-here');
     if (!configured) {
-      console.warn('[ElevenLabsService] ⚠️ Service not configured - missing VITE_ELEVENLABS_API_KEY');
+      console.warn('[ElevenLabsService] ⚠️ Service not configured - missing ELEVENLABS_API_KEY');
     }
     return configured;
   }

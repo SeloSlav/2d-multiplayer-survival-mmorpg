@@ -9,7 +9,7 @@ These variables are used by the React client application:
 
 ```bash
 # client/.env
-VITE_OPENAI_API_KEY=sk-your-openai-api-key-here
+OPENAI_API_KEY=sk-your-openai-api-key-here
 ```
 
 **Note:** The same OpenAI API key is used for both:
@@ -33,7 +33,7 @@ PROXY_PORT=3001
 1. Create `client/.env`:
 ```bash
 # client/.env
-VITE_OPENAI_API_KEY=sk-your-actual-openai-api-key-here
+OPENAI_API_KEY=sk-your-actual-openai-api-key-here
 ```
 
 #### For Proxy Server (Kikashi)
@@ -58,21 +58,21 @@ require('dotenv').config();
 
 #### Windows (Command Prompt)
 ```cmd
-set VITE_OPENAI_API_KEY=sk-your-openai-api-key-here
+set OPENAI_API_KEY=sk-your-openai-api-key-here
 set KIKASHI_API_KEY=your-kikashi-api-key-here
 set PROXY_PORT=3001
 ```
 
 #### Windows (PowerShell)
 ```powershell
-$env:VITE_OPENAI_API_KEY="sk-your-openai-api-key-here"
+$env:OPENAI_API_KEY="sk-your-openai-api-key-here"
 $env:KIKASHI_API_KEY="your-kikashi-api-key-here"
 $env:PROXY_PORT="3001"
 ```
 
 #### macOS/Linux (Bash)
 ```bash
-export VITE_OPENAI_API_KEY="sk-your-openai-api-key-here"
+export OPENAI_API_KEY="sk-your-openai-api-key-here"
 export KIKASHI_API_KEY="your-kikashi-api-key-here"
 export PROXY_PORT="3001"
 ```
@@ -117,7 +117,7 @@ project-root/
 │   ├── .env               # Client environment variables
 │   └── src/
 │       └── services/
-│           ├── openaiService.ts    # Reads VITE_OPENAI_API_KEY
+│           ├── openaiService.ts    # Reads OPENAI_API_KEY
 │           └── kikashiService.ts   # Uses proxy server
 └── start-with-proxy.bat   # Startup script
 ```
@@ -125,7 +125,7 @@ project-root/
 ## 🧪 Testing Configuration
 
 ### Test OpenAI Integration
-1. Set `VITE_OPENAI_API_KEY` in `client/.env`
+1. Set `OPENAI_API_KEY` in `client/.env`
 2. Start the client: `npm run dev`
 3. Open chat and type: "Hello SOVA"
 4. Should receive AI-generated response
@@ -176,7 +176,7 @@ curl http://localhost:3001/health
 
 | Variable | Location | Purpose | Example |
 |----------|----------|---------|---------|
-| `VITE_OPENAI_API_KEY` | `client/.env` | OpenAI API access | `sk-abc123...` |
+| `OPENAI_API_KEY` | `client/.env` | OpenAI API access | `sk-abc123...` |
 | `KIKASHI_API_KEY` | System/Root `.env` | Kikashi voice API | `LtfpwqMw...` |
 | `PROXY_PORT` | System/Root `.env` | Proxy server port | `3001` |
 
