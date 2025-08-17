@@ -21,15 +21,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faDiscord, faXTwitter, faGithub } from '@fortawesome/free-brands-svg-icons';
 import loginBackground from '../assets/login_background2.png';
 import logo from '../assets/logo.png';
-import combatLadle from '../assets/combat_ladle.png';
-import ocularImplant from '../assets/ocular_implant.png';
-import fieldCauldron from '../assets/field_cauldron.png';
-import persistentOpenWorld from '../assets/persistent_open_world.png';
-import buildGovern from '../assets/build_govern.png';
-import chooseCombat from '../assets/choose_combat.png';
-import livingEconomy from '../assets/living_economy.png';
-import dynamicSeasons from '../assets/dynamic_seasons.png';
-import endlessBrewing from '../assets/endless_brewing.png';
+import ShipwreckCarousel from './ShipwreckCarousel';
+import GameplayFeaturesCarousel from './GameplayFeaturesCarousel';
 // Remove Supabase imports
 // import { signInWithEmail, signUpWithEmail, signInWithGoogle, signOut } from '../services/supabase'; 
 
@@ -878,7 +871,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                     maxWidth: '800px',
                                     margin: '0 auto',
                                 }}>
-                                    Where Rust's intense survival meets Blazing Beaks' quirky combat, all wrapped in Stardew Valley's
+                                    Where <strong>Rust's</strong> intense survival meets <strong>Blazing Beaks'</strong> quirky combat, all wrapped in <strong>Stardew Valley's</strong>
                                     cozy farming vibes. Survive as a resourceful babushka in this top-down multiplayer experience where
                                     every meal matters and every trade counts. Start with basic gear, hunt wild animals, grow crops,
                                     and brew nourishing soups that keep you alive through harsh winters. Build from simple shelters to
@@ -916,7 +909,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
 
                                 <h2 style={{
                                     fontSize: 'clamp(36px, 5vw, 56px)',
-                                    marginBottom: '60px',
+                                    marginBottom: '30px',
                                     color: 'white',
                                     textAlign: 'center',
                                     textShadow: '2px 2px 6px rgba(0,0,0,0.9)',
@@ -928,91 +921,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                     THE SHIPWRECK
                                 </h2>
 
-                                {/* Tools Grid */}
-                                <div style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 'clamp(20px, 4vw, 40px)',
-                                    maxWidth: '700px',
-                                    margin: '0 auto',
-                                }}>
-                                    {[
-                                        {
-                                            title: "Combat Ladle",
-                                            description: "Your trusty kitchen ladle doubles as both a weapon and cooking tool. Use it to stir soups and broths - better ladles create superior broths with enhanced stat bonuses and special effects. Upgrade it with tungsten plating for extra damage or add a retractable blade for surprise attacks.",
-                                            icon: combatLadle,
-                                        },
-                                        {
-                                            title: "Neuroveil™ Ocular Implant",
-                                            description: "Miraculously intact after the shipwreck, this cutting-edge device was designed in Gred by Rozhkov Neuroscience. Powered by bioelectrical stimulation, it never runs out of batteries. Scan your environment for resources, receive tactical advice, detect threats, and unlock hidden secrets.",
-                                            icon: ocularImplant,
-                                        },
-                                        {
-                                            title: "Cerametal Field Cauldron",
-                                            description: "Your Scavenger-grade Cerametal Field Cauldron, Mk.I is where you actually brew life-sustaining broths and sterilize contaminated water. Must be placed on a campfire to function, but can cook much faster when positioned over natural geysers and steam vents you discover in the world.",
-                                            icon: fieldCauldron,
-                                        },
-                                    ].map((feature, index) => (
-                                        <div key={index} style={{
-                                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                                            borderRadius: '12px',
-                                            padding: 'clamp(20px, 4vw, 32px)', // Responsive padding for tools section cards
-                                            transition: 'all 0.3s ease',
-                                            width: '100%',
-                                            boxSizing: 'border-box',
-                                            overflowX: 'hidden',
-                                            wordWrap: 'break-word',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            textAlign: 'center',
-                                        }}>
-                                            {/* Feature Icon */}
-                                            <img
-                                                src={feature.icon}
-                                                alt={feature.title}
-                                                style={{
-                                                    width: '80px',
-                                                    height: '80px',
-                                                    objectFit: 'contain',
-                                                    marginBottom: '24px',
-                                                    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))',
-                                                }}
-                                                onError={(e) => {
-                                                    // Fallback if image fails to load
-                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                }}
-                                            />
-
-                                            {/* Feature Title */}
-                                            <h3 style={{
-                                                fontSize: '22px',
-                                                color: '#ff8c00',
-                                                marginBottom: '16px',
-                                                fontWeight: 'bold',
-                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                                                letterSpacing: '1px',
-                                                textAlign: 'center',
-                                                lineHeight: '1.2',
-                                            }}>
-                                                {feature.title}
-                                            </h3>
-
-                                            {/* Feature Description */}
-                                            <p style={{
-                                                fontSize: '16px',
-                                                lineHeight: '1.7',
-                                                color: 'rgba(255, 255, 255, 0.85)',
-                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                                                textAlign: 'center',
-                                                margin: '0',
-                                            }}>
-                                                {feature.description}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
+                                {/* Shipwreck Carousel */}
+                                <ShipwreckCarousel />
                             </div>
 
                             {/* Game Features Section */}
@@ -1044,7 +954,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
 
                                 <h2 style={{
                                     fontSize: 'clamp(36px, 5vw, 56px)',
-                                    marginBottom: '60px',
+                                    marginBottom: '30px',
                                     color: 'white',
                                     textAlign: 'center',
                                     textShadow: '2px 2px 6px rgba(0,0,0,0.9)',
@@ -1056,106 +966,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                     FORGE YOUR DESTINY
                                 </h2>
 
-                                {/* Features Grid */}
-                                <div style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 'clamp(20px, 4vw, 40px)',
-                                    maxWidth: '700px',
-                                    margin: '0 auto',
-                                }}>
-                                    {[
-                                        {
-                                            title: "Persistent Open World",
-                                            description: "Explore one massive, persistent world where your actions matter. Every structure built, every tree chopped, and every alliance forged remains forever. The world evolves even when you're offline as other players continue shaping the landscape.",
-                                            icon: persistentOpenWorld,
-                                        },
-                                        {
-                                            title: "Build & Govern",
-                                            description: "Start with simple shelters and grow into sprawling bases. Found towns, establish trade routes, and build defensive fortifications. Start babushka clans and elect Pra Matrons to govern large swathes of land through regional politics.",
-                                            icon: buildGovern,
-                                        },
-                                        {
-                                            title: "Choose Your Combat",
-                                            description: "Enjoy optional PvP with personal flags and dedicated PvP zones. Toggle your combat preference or seek out dangerous regions for high-risk, high-reward encounters. Peace-loving babushkas can trade and build without fear.",
-                                            icon: chooseCombat,
-                                        },
-                                        {
-                                            title: "Living Economy",
-                                            description: "Master a complex economy system with player-driven marketplaces and auction houses. Corner markets on rare materials, establish trading empires, and become the wealthiest babushka in the land through shrewd business dealings.",
-                                            icon: livingEconomy,
-                                        },
-                                        {
-                                            title: "Dynamic Seasons",
-                                            description: "Experience realistic weather patterns and seasonal changes with a dynamic cloud system. Crops grow differently in each season, harsh winters test your food stores, and spring rains bring abundant harvests.",
-                                            icon: dynamicSeasons,
-                                        },
-                                        {
-                                            title: "Endless Brewing",
-                                            description: "Combine plant materials and foods to create unique broths with endless procedural recipes. Discover rare ingredient combinations that produce powerful stat bonuses, unique effects, and legendary rarities sought by all survivors.",
-                                            icon: endlessBrewing,
-                                        },
-                                    ].map((feature, index) => (
-                                        <div key={index} style={{
-                                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                                            borderRadius: '12px',
-                                            padding: 'clamp(20px, 4vw, 32px)', // Responsive padding for features section cards
-                                            transition: 'all 0.3s ease',
-                                            width: '100%',
-                                            boxSizing: 'border-box',
-                                            overflowX: 'hidden',
-                                            wordWrap: 'break-word',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            textAlign: 'center',
-                                        }}>
-                                            {/* Feature Icon */}
-                                            <img
-                                                src={feature.icon}
-                                                alt={feature.title}
-                                                style={{
-                                                    width: '80px',
-                                                    height: '80px',
-                                                    objectFit: 'contain',
-                                                    marginBottom: '24px',
-                                                    filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))',
-                                                }}
-                                                onError={(e) => {
-                                                    // Fallback if image fails to load
-                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                }}
-                                            />
-
-                                            {/* Feature Title */}
-                                            <h3 style={{
-                                                fontSize: '20px',
-                                                color: '#ff8c00',
-                                                marginBottom: '16px',
-                                                fontWeight: 'bold',
-                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                                                letterSpacing: '1px',
-                                                textAlign: 'center',
-                                                lineHeight: '1.2',
-                                            }}>
-                                                {feature.title}
-                                            </h3>
-
-                                            {/* Feature Description */}
-                                            <p style={{
-                                                fontSize: '16px',
-                                                lineHeight: '1.7',
-                                                color: 'rgba(255, 255, 255, 0.85)',
-                                                textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                                                textAlign: 'center',
-                                                margin: '0',
-                                            }}>
-                                                {feature.description}
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
+                                {/* Gameplay Features Carousel */}
+                                <GameplayFeaturesCarousel />
                             </div>
 
                             {/* FAQ Section */}
@@ -1383,7 +1195,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                                                     { name: "🏗️ Advanced Construction", status: "10%" },
                                                                     { name: "🐟 Advanced Fishing & Aquaculture", status: "10%" },
                                                                     { name: "🔫 Firearms & Advanced Combat", status: "10%" },
-                                                                    { name: "🤖 AI & NPCs", status: "10%" },
+                                                                    { name: "🤖 Neutral Faction & NPCs", status: "10%" },
+                                                                    { name: "🍲 Cauldron & Procedural Brewing System", status: "0%" },
                                                                 ].map((feature, index) => (
                                                                     <tr key={index} style={{
                                                                         backgroundColor: 'rgba(150, 0, 0, 0.2)',

@@ -39,7 +39,7 @@ class OpenAIService {
    */
   private getRainIntensityDescription(intensityPercent: number): string {
     if (intensityPercent < 20) return "light precipitation";
-    if (intensityPercent < 40) return "moderate precipitation"; 
+    if (intensityPercent < 40) return "moderate precipitation";
     if (intensityPercent < 60) return "steady precipitation";
     if (intensityPercent < 80) return "heavy precipitation";
     if (intensityPercent < 95) return "intense precipitation";
