@@ -1,5 +1,3 @@
-![Vibe Coding Starter Pack Banner](./github.png)
-
 # Vibe Coding Starter Pack: 2D Multiplayer Survival 
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
@@ -7,9 +5,9 @@
 ![Vite](https://img.shields.io/badge/Vite-6-purple.svg)
 ![SpacetimeDB](https://img.shields.io/badge/SpacetimeDB-latest-orange.svg)
 
-A lightweight 2D multiplayer survival game starter kit built with modern web technologies. Create interactive survival experiences with persistent player state, real-time multiplayer synchronization, and modular game logic.
+What started as an open source project for a generic 2D survival game is now a full-fledged game called **Broth & Bullets**. You can read more about it at [https://www.brothandbullets.com/blog](https://www.brothandbullets.com/blog).
 
-![Gameplay Preview](preview.png)
+This repository serves as a lightweight 2D multiplayer survival game starter kit built with modern web technologies. Create interactive survival experiences with persistent player state, real-time multiplayer synchronization, and modular game logic.
 
 ## Table of Contents
 
