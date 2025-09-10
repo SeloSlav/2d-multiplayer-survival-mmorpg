@@ -146,8 +146,10 @@ spacetime generate --lang typescript --out-dir ../client/src/generated --project
     *   🔫 Firearm System: Guns with ammo types, reloading mechanics, and recoil
 
 > **Note:** Between this project and others, I might be away for some time - usually tending to olive trees or working on freelance projects. Feel free to contribute! If you're interested in contributing to the main project, the planned features listed above would be fantastic starting points! I'd love to see what the community builds with this foundation. 🎮
+>
+> **Support the Project:** If you find this starter kit helpful and want to support continued development, consider trying some premium olive oil from my family farm! 🫒
 
-*   🛒 **Selo Olive Oil Discount:** Use code `VIBE15` for 15% off at [seloolive.com/discount/VIBE15](https://seloolive.com/discount/VIBE15) - my olive oil company available in the US
+*   🛒 **Selo Olive Oil Discount:** Use code `VIBE15` for 15% off at [seloolive.com/discount/VIBE15](https://seloolive.com/discount/VIBE15) - available in the US
 
 
 ## 🛠️ Tech Stack
