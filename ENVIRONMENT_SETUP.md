@@ -1,6 +1,6 @@
 # 🔧 Environment Variables Setup
 
-This guide explains how to configure environment variables for SOVA's (Sentient Ocular Virtual Assistant) voice and AI systems.
+This guide explains how to configure environment variables for the game's AI systems.
 
 ## 📋 Required Environment Variables
 
@@ -10,48 +10,23 @@ These variables are used by the React client application:
 ```bash
 # client/.env
 OPENAI_API_KEY=sk-your-openai-api-key-here
+ELEVENLABS_API_KEY=your-elevenlabs-api-key-here
 ```
 
-**Note:** The same OpenAI API key is used for both:
-- **GPT-4o**: AI personality and intelligent responses
-- **Whisper**: Speech-to-text transcription for voice commands
-
-### Server-Side Variables (Node.js Proxy)
-These variables are used by the proxy server:
-
-```bash
-# Root directory or system environment
-KIKASHI_API_KEY=your-kikashi-api-key-here
-PROXY_PORT=3001
-```
+**Note:** 
+- **OpenAI API key** is used for both GPT-4o (AI personality) and Whisper (speech-to-text)
+- **ElevenLabs API key** is used for voice synthesis (optional)
 
 ## 🚀 Setup Methods
 
 ### Method 1: Environment Files (Recommended)
 
-#### For Client (OpenAI)
+#### For Client (AI Services)
 1. Create `client/.env`:
 ```bash
 # client/.env
 OPENAI_API_KEY=sk-your-actual-openai-api-key-here
-```
-
-#### For Proxy Server (Kikashi)
-1. Create `.env` in project root:
-```bash
-# .env (project root)
-KIKASHI_API_KEY=your-actual-kikashi-api-key-here
-PROXY_PORT=3001
-```
-
-2. Install dotenv for the proxy server:
-```bash
-npm install dotenv
-```
-
-3. Update `proxy-server.cjs` to load environment variables:
-```javascript
-require('dotenv').config();
+ELEVENLABS_API_KEY=your-actual-elevenlabs-api-key-here
 ```
 
 ### Method 2: System Environment Variables
@@ -59,22 +34,19 @@ require('dotenv').config();
 #### Windows (Command Prompt)
 ```cmd
 set OPENAI_API_KEY=sk-your-openai-api-key-here
-set KIKASHI_API_KEY=your-kikashi-api-key-here
-set PROXY_PORT=3001
+set ELEVENLABS_API_KEY=your-elevenlabs-api-key-here
 ```
 
 #### Windows (PowerShell)
 ```powershell
 $env:OPENAI_API_KEY="sk-your-openai-api-key-here"
-$env:KIKASHI_API_KEY="your-kikashi-api-key-here"
-$env:PROXY_PORT="3001"
+$env:ELEVENLABS_API_KEY="your-elevenlabs-api-key-here"
 ```
 
 #### macOS/Linux (Bash)
 ```bash
 export OPENAI_API_KEY="sk-your-openai-api-key-here"
-export KIKASHI_API_KEY="your-kikashi-api-key-here"
-export PROXY_PORT="3001"
+export ELEVENLABS_API_KEY="your-elevenlabs-api-key-here"
 ```
 
 ## 🔑 Getting API Keys
@@ -85,11 +57,11 @@ export PROXY_PORT="3001"
 3. Click "Create new secret key"
 4. Copy the key (starts with `sk-...`)
 
-### Kikashi API Key
-1. Go to [Kikashi.io](https://kikashi.io/)
+### ElevenLabs API Key (Optional)
+1. Go to [ElevenLabs](https://elevenlabs.io/)
 2. Sign up for an account
-3. Navigate to your API dashboard
-4. Copy your API key
+3. Navigate to your [Profile Settings](https://elevenlabs.io/profile)
+4. Copy your API key from the "API Key" section
 
 ## 🛡️ Security Best Practices
 
@@ -110,16 +82,13 @@ export PROXY_PORT="3001"
 
 ```
 project-root/
-├── .env                    # Proxy server environment variables
 ├── .gitignore             # Should include .env files
-├── proxy-server.cjs       # Reads KIKASHI_API_KEY, PROXY_PORT
 ├── client/
 │   ├── .env               # Client environment variables
 │   └── src/
 │       └── services/
-│           ├── openaiService.ts    # Reads OPENAI_API_KEY
-│           └── kikashiService.ts   # Uses proxy server
-└── start-with-proxy.bat   # Startup script
+│           ├── openaiService.ts      # Reads OPENAI_API_KEY
+│           └── elevenLabsService.ts  # Reads ELEVENLABS_API_KEY
 ```
 
 ## 🧪 Testing Configuration
@@ -130,21 +99,11 @@ project-root/
 3. Open chat and type: "Hello SOVA"
 4. Should receive AI-generated response
 
-### Test Kikashi Voice Synthesis
-1. Set `KIKASHI_API_KEY` environment variable
-2. Start proxy: `node proxy-server.cjs`
-3. Start client: `npm run dev`
-4. Type a message in chat
-5. Should hear synthesized voice response
-
-### Test Health Endpoints
-```bash
-# Test proxy server
-curl http://localhost:3001/health
-
-# Expected response:
-# {"status":"OK","timestamp":"2024-01-01T12:00:00.000Z"}
-```
+### Test ElevenLabs Voice Synthesis (Optional)
+1. Set `ELEVENLABS_API_KEY` in `client/.env`
+2. Start the client: `npm run dev`
+3. Type a message in chat
+4. Should hear synthesized voice response
 
 ## 🐛 Troubleshooting
 
@@ -160,27 +119,19 @@ curl http://localhost:3001/health
 - Verify environment variable syntax
 - Restart development servers
 
-### CORS Issues
-- Ensure proxy server is running
-- Check proxy port matches client configuration
-- Verify no firewall blocking localhost connections
-
 ## 📚 Related Documentation
 
 - [OPENAI_SETUP.md](./OPENAI_SETUP.md) - OpenAI configuration details
-- [VOICE_PROXY_README.md](./VOICE_PROXY_README.md) - Voice proxy setup
 - [Vite Environment Variables](https://vitejs.dev/guide/env-and-mode.html)
-- [Node.js Environment Variables](https://nodejs.org/en/learn/command-line/how-to-read-environment-variables-from-nodejs)
 
 ## 🎯 Quick Reference
 
 | Variable | Location | Purpose | Example |
 |----------|----------|---------|---------|
 | `OPENAI_API_KEY` | `client/.env` | OpenAI API access | `sk-abc123...` |
-| `KIKASHI_API_KEY` | System/Root `.env` | Kikashi voice API | `LtfpwqMw...` |
-| `PROXY_PORT` | System/Root `.env` | Proxy server port | `3001` |
+| `ELEVENLABS_API_KEY` | `client/.env` | ElevenLabs voice API | `sk_abc123...` |
 
-Your SOVA system is now configured for secure, environment-based API key management! 🎖️
+Your AI system is now configured for secure, environment-based API key management! 🎖️
 
 ## 🎯 What Each Service Does
 
@@ -194,7 +145,7 @@ Your SOVA system is now configured for secure, environment-based API key managem
 - **Usage**: Hold V key to record voice, release to process
 - **Features**: Real-time transcription with noise suppression
 
-### Kikashi Voice Synthesis (Proxy Server)
-- **Purpose**: Converts SOVA text responses to robot voice audio
+### ElevenLabs Voice Synthesis (Client)
+- **Purpose**: Converts SOVA text responses to high-quality voice audio
 - **Usage**: Automatic voice playback for SOVA responses
-- **Voice**: "robot2" - military/tactical sound profile 
+- **Features**: Advanced voice cloning and natural speech synthesis 

@@ -24,6 +24,7 @@ A lightweight 2D multiplayer survival game starter kit built with modern web tec
 *   [📁 Project Structure](#-project-structure)
 *   [🔧 Troubleshooting Local Setup](#-troubleshooting-local-setup)
 *   [🔄 Development Workflow](#-development-workflow)
+*   [🚀 Deployment Scripts](#-deployment-scripts)
 *   [🎨 Art Generation Prompts](#-art-generation-prompts)
 *   [🤝 Contributing](#-contributing)
 *   [📜 License](#-license)
@@ -36,64 +37,73 @@ For experienced users familiar with Node.js, Rust, and SpacetimeDB. See detailed
 Follow the instructions for your OS: [https://spacetimedb.com/install](https://spacetimedb.com/install)
 (e.g., `curl -sSf https://install.spacetimedb.com | sh` on macOS/Linux)
 
-**1. Clone & Install Client Deps:**
+**1. Clone & Install Dependencies:**
 ```bash
 git clone https://github.com/SeloSlav/vibe-coding-starter-pack-2d-multiplayer-survival.git
 cd vibe-coding-starter-pack-2d-multiplayer-survival
 npm install
 ```
 
-**2. Setup & Run Auth Server (Terminal 1):**
+**2. Generate Auth Keys:**
 ```bash
 # Ensure OpenSSL is installed (https://www.openssl.org/source/)
-
-# From the project root directory, create a 'keys' directory:
 mkdir keys
-
-# Generate RSA private and public key files inside the 'keys' directory:
 openssl genpkey -algorithm RSA -out keys/private.pem -pkeyopt rsa_keygen_bits:2048
 openssl rsa -pubout -in keys/private.pem -out keys/public.pem
+```
 
-# Navigate to the auth server directory and run it:
+**3. Start All Services (3 Terminals):**
+
+**Terminal 1 - Auth Server:**
+```bash
 cd auth-server-openauth/
 npm install
-npm start
-# Keep this terminal running (Auth Server on http://localhost:4001)
+npm run dev
+# Auth Server running on http://localhost:4001
 ```
 
-**3. Run SpacetimeDB Server (Terminal 2):**
-```bash
-# In project root directory
-spacetime start
-# Keep this terminal running (SpacetimeDB Server)
-```
-
-**4. Publish Server & Generate Bindings (Terminal 3):**
+**Terminal 2 - SpacetimeDB Server:**
 ```bash
 cd server/
-# Optional: Clean previous DB state if needed
-# spacetime delete vibe-survival-game
-spacetime publish vibe-survival-game
-spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
-cd ..
+spacetime start
+# SpacetimeDB Server running on http://localhost:3000
 ```
 
-**5. Run Client Dev Server (Terminal 3 or 4):**
+**Terminal 3 - Client:**
 ```bash
-# In project root directory
 npm run dev
-# Access game at http://localhost:3008 (or similar)
+# Client running on http://localhost:3008 (or similar)
 ```
-*   **For Multiplayer Testing:** Open a **new terminal** in the project root and run `npm run dev` again. The second client will likely open on a different port (e.g., 3009). Open this URL in a separate browser tab or window.
+
+**4. Deploy Database (First Time Setup):**
+```bash
+# In server/ directory - choose one:
+./deploy-local-clean.ps1     # Windows - Fresh database
+./deploy-local.ps1           # Windows - Update existing database
+# Or manually:
+spacetime publish broth-bullets-local
+spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
+```
+
+*   **For Multiplayer Testing:** Open a **new terminal** and run `npm run dev` again. The second client will open on a different port. Open this URL in a separate browser tab.
 
 **Updating Server Code:**
-*   **Logic Change Only:** `cd server && spacetime publish vibe-survival-game`
-*   **Schema Change (Tables/Reducers):**
-    1.  `(Optional but Recommended)` `spacetime delete vibe-survival-game` (Run *before* publish to prevent schema conflicts).
-    2.  `cd server`
-    3.  `spacetime publish vibe-survival-game`
-    4.  `spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .`
-    5.  `cd ..`
+*   **Quick Updates:** Use deployment scripts in `server/` directory:
+    ```bash
+    cd server/
+    ./deploy-local.ps1           # Update local database
+    ./deploy-local-clean.ps1     # Fresh local database (wipes data)
+    ./deploy-production.ps1      # Update production database
+    ./deploy-production-clean.ps1 # Fresh production database (wipes data)
+    ```
+*   **Manual Deployment:**
+    ```bash
+    cd server/
+    spacetime publish broth-bullets-local  # Local
+    # OR
+    spacetime publish --server maincloud broth-bullets  # Production
+    spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
+    ```
 
 ## 🗺️ Roadmap
 
@@ -282,25 +292,20 @@ This project includes SOVA (Sentient Ocular Virtual Assistant), an intelligent A
 
 ### Quick Setup
 
-1. **Voice Synthesis (Kikashi API):**
-   ```bash
-   # Set environment variable (recommended)
-   export KIKASHI_API_KEY="your-kikashi-api-key-here"
-   
-   # Start proxy server and game
-   ./start-with-proxy.sh  # macOS/Linux
-   # OR
-   start-with-proxy.bat   # Windows
-   ```
-
-2. **AI Personality (OpenAI API):**
+1. **AI Personality (OpenAI API):**
    ```bash
    # Create client/.env file
    echo "OPENAI_API_KEY=sk-your-openai-api-key-here" > client/.env
    ```
 
+2. **Voice Synthesis (ElevenLabs API - Optional):**
+   ```bash
+   # Add to client/.env file
+   echo "ELEVENLABS_API_KEY=your-elevenlabs-api-key-here" >> client/.env
+   ```
+
 ### Features
-- 🎤 **Voice Synthesis:** Robot voice responses using Kikashi API
+- 🎤 **Voice Synthesis:** High-quality voice responses using ElevenLabs API
 - 🎙️ **Voice Commands:** Hold V key for speech-to-text input (OpenAI Whisper)
 - 🧠 **AI Personality:** Intelligent responses powered by OpenAI GPT-4o
 - 🎯 **Game Knowledge:** Contextual survival tips and tactical advice
@@ -317,7 +322,6 @@ This project includes SOVA (Sentient Ocular Virtual Assistant), an intelligent A
 ### Documentation
 - **[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)** - Complete environment variable guide
 - **[OPENAI_SETUP.md](./OPENAI_SETUP.md)** - AI personality configuration
-- **[VOICE_PROXY_README.md](./VOICE_PROXY_README.md)** - Voice synthesis setup
 
 ## 🌍 World Configuration (Tile Size & Map Dimensions)
 
@@ -508,14 +512,68 @@ vibe-coding-starter-pack-2d-survival/
 
 1.  **Server Development (`server/src`)**:
     *   Modify Rust code (add features, fix bugs).
-    *   **If schema changes (tables, reducer signatures):**
-        1.  Run `spacetime publish vibe-survival-game` (from `server/`).
-        2.  Run `spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .` (from `server/`).
-    *   **If only logic changes (no schema impact):**
-        1.  Run `spacetime publish vibe-survival-game` (from `server/`). (Generate is not strictly needed but doesn't hurt).
+    *   **Deploy changes using scripts:**
+        ```bash
+        cd server/
+        ./deploy-local.ps1           # Quick local update
+        ./deploy-local-clean.ps1     # Fresh local database (for schema changes)
+        ```
 2.  **Client Development (`client/src`)**:
     *   Modify React/TypeScript code.
-    *   The Vite dev server (`npm run dev`) usually provides Hot Module Replacement (HMR) for fast updates. If things seem broken after large changes, try restarting the dev server.
+    *   The Vite dev server (`npm run dev`) provides Hot Module Replacement (HMR) for fast updates.
+
+## 🚀 Deployment Scripts
+
+The project includes PowerShell scripts in the `server/` directory for streamlined deployment:
+
+### Local Development Scripts
+- **`deploy-local.ps1`** - Updates existing local database
+  - Publishes to `broth-bullets-local`
+  - Regenerates client bindings
+  - Preserves existing data
+
+- **`deploy-local-clean.ps1`** - Fresh local database deployment
+  - Deletes existing `broth-bullets-local` database
+  - Creates fresh database with latest schema
+  - Regenerates client bindings
+  - **⚠️ Wipes all data** - use for schema changes
+
+### Production Scripts
+- **`deploy-production.ps1`** - Updates production database
+  - Publishes to `broth-bullets` on maincloud
+  - Regenerates client bindings
+  - **Commits from root directory** to capture all changes (server + client)
+  - Pushes to trigger Vercel deployment
+  - Preserves existing data
+
+- **`deploy-production-clean.ps1`** - Fresh production deployment
+  - Deletes existing `broth-bullets` database on maincloud
+  - Creates fresh database with latest schema
+  - Regenerates client bindings
+  - **Commits from root directory** to capture all changes (server + client)
+  - Pushes to trigger Vercel deployment
+  - **⚠️ Wipes all production data** - use carefully
+
+### Usage Examples
+```bash
+# Local development - quick update
+cd server/
+./deploy-local.ps1
+
+# Local development - schema changes
+cd server/
+./deploy-local-clean.ps1
+
+# Production deployment - safe update
+cd server/
+./deploy-production.ps1
+
+# Production deployment - major schema changes
+cd server/
+./deploy-production-clean.ps1  # ⚠️ Use with caution!
+```
+
+**📝 Important Note:** Production scripts automatically navigate to the root directory before committing to ensure all changes (both server and client bindings) are captured in the git commit. This ensures Vercel deployments include the latest generated client bindings.
 
 ## 🎨 Art Generation Prompts
 

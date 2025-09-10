@@ -26,6 +26,10 @@ Cargo.lock
 .env.test.local
 .env.production.local
 
+# Allow example environment files
+!.env.example
+!env.example
+
 # SpacetimeDB server configuration (may contain secrets or placeholders)
 server.config.yml
 
