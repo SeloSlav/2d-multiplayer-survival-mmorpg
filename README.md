@@ -7,7 +7,9 @@
 
 What started as an open source project for a generic 2D survival game is now a full-fledged game called **Broth & Bullets**. You can read more about it at [https://www.brothandbullets.com/blog](https://www.brothandbullets.com/blog).
 
-This repository serves as a lightweight 2D multiplayer survival game starter kit built with modern web technologies. Create interactive survival experiences with persistent player state, real-time multiplayer synchronization, and modular game logic.
+I've committed to open sourcing the entire project and providing the best documentation possible to help you get up and running, fork the project, create your own games, or even contribute back to Broth & Bullets itself. This repository serves as a comprehensive starter kit and learning resource.
+
+This is a lightweight 2D multiplayer survival game starter kit built with modern web technologies. Create interactive survival experiences with persistent player state, real-time multiplayer synchronization, and modular game logic.
 
 ## Table of Contents
 
