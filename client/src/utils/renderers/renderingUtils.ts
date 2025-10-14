@@ -578,12 +578,23 @@ export const renderYSortedEntities = ({
            let dodgeRollProgress = 0;
            
            if (dodgeRollState) {
-               const elapsed = nowMs - Number(dodgeRollState.startTimeMs);
+               const serverStartTime = Number(dodgeRollState.startTimeMs);
+               const elapsed = nowMs - serverStartTime;
+               const timeDiff = nowMs - serverStartTime;
+               console.log(`[DODGE RENDER DEBUG] Player ${playerId}:`);
+               console.log(`  Server startTimeMs: ${serverStartTime}`);
+               console.log(`  Client nowMs: ${nowMs}`);
+               console.log(`  Elapsed: ${elapsed}ms`);
+               console.log(`  Should animate (< 500ms): ${elapsed < 500}`);
                if (elapsed < 500) { // 500ms dodge roll duration (match server)
                    isDodgeRolling = true;
                    dodgeRollProgress = elapsed / 500.0;
-                   // console.log(`[DODGE DEBUG] Player ${playerId} dodge roll progress: ${(dodgeRollProgress * 100).toFixed(1)}%`);
+                   console.log(`[DODGE RENDER DEBUG] ✅ DODGE ROLLING! Progress: ${(dodgeRollProgress * 100).toFixed(1)}%`);
+               } else {
+                   console.log(`[DODGE RENDER DEBUG] ❌ TOO LATE! Elapsed ${elapsed}ms > 500ms. Animation window missed!`);
                }
+           } else {
+               console.log(`[DODGE RENDER DEBUG] Player ${playerId} has NO dodge state in map. Map size: ${playerDodgeRollStates.size}`);
            }
            
            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, playerForRendering);
