@@ -578,24 +578,21 @@ export const renderYSortedEntities = ({
            let dodgeRollProgress = 0;
            
            if (dodgeRollState) {
-               const serverStartTime = Number(dodgeRollState.startTimeMs);
-               const elapsed = nowMs - serverStartTime;
-               const timeDiff = nowMs - serverStartTime;
-               console.log(`[DODGE RENDER DEBUG] Player ${playerId}:`);
-               console.log(`  Server startTimeMs: ${serverStartTime}`);
-               console.log(`  Client nowMs: ${nowMs}`);
-               console.log(`  Elapsed: ${elapsed}ms`);
-               console.log(`  Should animate (< 500ms): ${elapsed < 500}`);
+               // Use CLIENT reception time instead of server time to avoid clock drift issues
+               const clientReceptionTime = (dodgeRollState as any).clientReceptionTimeMs || Date.now();
+               const elapsed = nowMs - clientReceptionTime;
+               
                if (elapsed < 500) { // 500ms dodge roll duration (match server)
                    isDodgeRolling = true;
                    dodgeRollProgress = elapsed / 500.0;
-                   console.log(`[DODGE RENDER DEBUG] ✅ DODGE ROLLING! Progress: ${(dodgeRollProgress * 100).toFixed(1)}%`);
-               } else {
-                   console.log(`[DODGE RENDER DEBUG] ❌ TOO LATE! Elapsed ${elapsed}ms > 500ms. Animation window missed!`);
+                   // Only log successful dodge rolls occasionally to reduce spam
+                   if (Math.random() < 0.05) { // 5% chance to log
+                       console.log(`[DODGE] Player dodging - Progress: ${(dodgeRollProgress * 100).toFixed(1)}%, elapsed: ${elapsed.toFixed(0)}ms`);
+                   }
                }
-           } else {
-               console.log(`[DODGE RENDER DEBUG] Player ${playerId} has NO dodge state in map. Map size: ${playerDodgeRollStates.size}`);
+               // Silently ignore expired dodge states (elapsed > 500ms)
            }
+           // No logging for players without dodge state - this is the normal case
            
            const currentlyHovered = isPlayerHovered(worldMouseX, worldMouseY, playerForRendering);
            const isPersistentlyHovered = hoveredPlayerIds.has(playerId);
