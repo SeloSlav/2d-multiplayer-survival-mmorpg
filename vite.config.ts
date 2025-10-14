@@ -33,6 +33,8 @@ export default defineConfig({
   // Enable experimental features for better performance
   esbuild: {
     // Remove console logs in production for better performance
-    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
+    // TEMPORARILY DISABLED FOR DEBUGGING DODGE ROLL
+    // drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
+    drop: [],
   }
 })

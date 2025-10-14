@@ -82,7 +82,7 @@
 }
 
 .hive-branch {
-  filter: drop-shadow(0 0 4px #22c55e);
+  filter: drop-shadow(0 0 4px #f59e0b);
 }
 
 .university-branch {
@@ -94,7 +94,7 @@
 }
 
 .battalion-branch {
-  filter: drop-shadow(0 0 4px #f59e0b);
+  filter: drop-shadow(0 0 4px #22c55e);
 }
 
 .admiralty-branch {

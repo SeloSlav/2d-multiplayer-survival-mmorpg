@@ -952,17 +952,17 @@ export const useSpacetimeTables = ({
 
             // --- PlayerDodgeRollState Handlers ---
             const handlePlayerDodgeRollStateInsert = (ctx: any, dodgeState: SpacetimeDB.PlayerDodgeRollState) => {
-                // console.log(`[DODGE DEBUG] Server state INSERT for player ${dodgeState.playerId.toHexString()}:`, dodgeState);
+                console.log(`[DODGE DEBUG] Server state INSERT for player ${dodgeState.playerId.toHexString()}:`, dodgeState);
                 playerDodgeRollStatesRef.current.set(dodgeState.playerId.toHexString(), dodgeState);
                 setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
             };
             const handlePlayerDodgeRollStateUpdate = (ctx: any, oldDodgeState: SpacetimeDB.PlayerDodgeRollState, newDodgeState: SpacetimeDB.PlayerDodgeRollState) => {
-                //console.log(`[DODGE DEBUG] Server state UPDATE for player ${newDodgeState.playerId.toHexString()}:`, newDodgeState);
+                console.log(`[DODGE DEBUG] Server state UPDATE for player ${newDodgeState.playerId.toHexString()}:`, newDodgeState);
                 playerDodgeRollStatesRef.current.set(newDodgeState.playerId.toHexString(), newDodgeState);
                 setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
             };
             const handlePlayerDodgeRollStateDelete = (ctx: any, dodgeState: SpacetimeDB.PlayerDodgeRollState) => {
-                //console.log(`[DODGE DEBUG] Server state DELETE for player ${dodgeState.playerId.toHexString()}`);
+                console.log(`[DODGE DEBUG] Server state DELETE for player ${dodgeState.playerId.toHexString()}`);
                 playerDodgeRollStatesRef.current.delete(dodgeState.playerId.toHexString());
                 setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
             };

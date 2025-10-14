@@ -40,7 +40,7 @@ export const FACTIONS: Record<string, MemoryGridFaction> = {
     id: 'hive',
     name: 'Hive',
     description: 'Chem-Industrial Branch',
-    color: '#22c55e', // Green
+    color: '#f59e0b', // Yellow/Amber
     philosophy: 'Evolution through chemical mastery',
     unlockCost: 2000,
     totalCost: 89000
@@ -67,7 +67,7 @@ export const FACTIONS: Record<string, MemoryGridFaction> = {
     id: 'battalion',
     name: 'Battalion',
     description: 'Conventional Military Branch',
-    color: '#f59e0b', // Amber
+    color: '#22c55e', // Green
     philosophy: 'Disciplined force multipliers',
     unlockCost: 2000,
     totalCost: 89000
