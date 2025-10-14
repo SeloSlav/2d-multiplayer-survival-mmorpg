@@ -85,27 +85,31 @@ spacetime publish broth-bullets-local
 spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
 ```
 
-*   **For Multiplayer Testing:** Open a **new terminal** and run `npm run dev` again. The second client will open on a different port. Open this URL in a separate browser tab.
-
 🎉 **That's it! Your multiplayer survival game is up and running!** 🎮✨
 
-**Updating Server Code:**
-*   **Quick Updates:** Use deployment scripts in `server/` directory:
-    ```bash
-    cd server/
-    ./deploy-local.ps1           # Update local database
-    ./deploy-local-clean.ps1     # Fresh local database (wipes data)
-    ./deploy-production.ps1      # Update production database
-    ./deploy-production-clean.ps1 # Fresh production database (wipes data)
-    ```
-*   **Manual Deployment:**
-    ```bash
-    cd server/
-    spacetime publish broth-bullets-local  # Local
-    # OR
-    spacetime publish --server maincloud broth-bullets  # Production
-    spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
-    ```
+### 🎮 Multiplayer Testing
+
+Open a **new terminal** and run `npm run dev` again. The second client will open on a different port. Open this URL in a separate browser tab to test multiplayer functionality!
+
+### 🔄 Updating Server Code
+
+**Quick Updates:** Use deployment scripts in `server/` directory:
+```bash
+cd server/
+./deploy-local.ps1           # Update local database
+./deploy-local-clean.ps1     # Fresh local database (wipes data)
+./deploy-production.ps1      # Update production database
+./deploy-production-clean.ps1 # Fresh production database (wipes data)
+```
+
+**Manual Deployment:**
+```bash
+cd server/
+spacetime publish broth-bullets-local  # Local
+# OR
+spacetime publish --server maincloud broth-bullets  # Production
+spacetime generate --lang typescript --out-dir ../client/src/generated --project-path .
+```
 
 ## 🗺️ Roadmap
 
