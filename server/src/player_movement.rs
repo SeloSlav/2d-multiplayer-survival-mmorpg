@@ -54,6 +54,16 @@ pub struct PlayerDodgeRollState {
     last_dodge_time_ms: u64, // For cooldown tracking
 }
 
+// Schedule table for dodge roll state cleanup
+#[spacetimedb::table(name = dodge_roll_cleanup_schedule, scheduled(cleanup_expired_dodge_rolls))]
+#[derive(Clone)]
+pub struct DodgeRollCleanupSchedule {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub scheduled_at: spacetimedb::ScheduleAt,
+}
+
 // Table to track walking sound cadence for each player
 #[spacetimedb::table(name = player_walking_sound_state, public)]
 #[derive(Clone, Debug)]
@@ -658,4 +668,69 @@ pub fn update_player_position_simple(
     }
 
     Ok(())
+}
+
+/// Scheduled reducer that cleans up expired dodge roll states.
+/// 
+/// This reducer is called periodically (every 100ms) to remove dodge roll states
+/// that are older than the animation duration (500ms). This prevents stale states
+/// from accumulating in the database and confusing clients on reconnect.
+#[spacetimedb::reducer]
+pub fn cleanup_expired_dodge_rolls(ctx: &ReducerContext, _args: DodgeRollCleanupSchedule) -> Result<(), String> {
+    // Security check: only the module itself can call this
+    if ctx.sender != ctx.identity() {
+        return Err("Only the module can call cleanup_expired_dodge_rolls".to_string());
+    }
+
+    let now_ms = (ctx.timestamp.to_micros_since_unix_epoch() / 1000) as u64;
+    let dodge_roll_states = ctx.db.player_dodge_roll_state();
+    
+    let mut deleted_count = 0;
+    let states_to_delete: Vec<Identity> = dodge_roll_states.iter()
+        .filter(|state| {
+            let elapsed = now_ms.saturating_sub(state.start_time_ms);
+            elapsed > DODGE_ROLL_DURATION_MS
+        })
+        .map(|state| state.player_id)
+        .collect();
+    
+    for player_id in states_to_delete {
+        dodge_roll_states.player_id().delete(&player_id);
+        deleted_count += 1;
+    }
+    
+    if deleted_count > 0 {
+        log::info!("Cleaned up {} expired dodge roll states", deleted_count);
+    }
+    
+    Ok(())
+}
+
+/// Initialize the dodge roll cleanup system.
+/// 
+/// This function sets up a periodic task that runs every 100ms to clean up
+/// expired dodge roll states (older than 500ms).
+pub fn init_dodge_roll_cleanup_system(ctx: &ReducerContext) -> Result<(), String> {
+    // Check if already scheduled
+    if ctx.db.dodge_roll_cleanup_schedule().iter().next().is_some() {
+        log::info!("Dodge roll cleanup system already initialized.");
+        return Ok(());
+    }
+    
+    // Schedule cleanup to run every 100ms (0.1 seconds)
+    let cleanup_interval_micros = 100_000i64; // 100ms in microseconds
+    
+    match ctx.db.dodge_roll_cleanup_schedule().try_insert(DodgeRollCleanupSchedule {
+        id: 0, // auto_inc
+        scheduled_at: spacetimedb::TimeDuration::from_micros(cleanup_interval_micros).into(),
+    }) {
+        Ok(_) => {
+            log::info!("Dodge roll cleanup system initialized successfully (runs every 100ms)");
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to initialize dodge roll cleanup system: {}", e);
+            Err(format!("Failed to initialize dodge roll cleanup system: {}", e))
+        }
+    }
 }

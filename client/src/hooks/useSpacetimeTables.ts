@@ -951,12 +951,34 @@ export const useSpacetimeTables = ({
             };
 
             // --- PlayerDodgeRollState Handlers ---
+            const DODGE_ROLL_DURATION_MS = 500; // Match server-side constant
+            
             const handlePlayerDodgeRollStateInsert = (ctx: any, dodgeState: SpacetimeDB.PlayerDodgeRollState) => {
+                // CLIENT-SIDE FILTERING: Ignore stale dodge states on initial subscription load
+                const nowMs = Date.now();
+                const startTimeMs = Number(dodgeState.startTimeMs);
+                const elapsed = nowMs - startTimeMs;
+                
+                if (elapsed > DODGE_ROLL_DURATION_MS) {
+                    console.log(`[DODGE DEBUG] FILTERED OUT stale dodge state (elapsed ${elapsed}ms > ${DODGE_ROLL_DURATION_MS}ms) for player ${dodgeState.playerId.toHexString()}`);
+                    return; // Don't add stale states to cache
+                }
+                
                 console.log(`[DODGE DEBUG] Server state INSERT for player ${dodgeState.playerId.toHexString()}:`, dodgeState);
                 playerDodgeRollStatesRef.current.set(dodgeState.playerId.toHexString(), dodgeState);
                 setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));
             };
             const handlePlayerDodgeRollStateUpdate = (ctx: any, oldDodgeState: SpacetimeDB.PlayerDodgeRollState, newDodgeState: SpacetimeDB.PlayerDodgeRollState) => {
+                // CLIENT-SIDE FILTERING: Ignore stale dodge states
+                const nowMs = Date.now();
+                const startTimeMs = Number(newDodgeState.startTimeMs);
+                const elapsed = nowMs - startTimeMs;
+                
+                if (elapsed > DODGE_ROLL_DURATION_MS) {
+                    console.log(`[DODGE DEBUG] FILTERED OUT stale dodge state UPDATE (elapsed ${elapsed}ms > ${DODGE_ROLL_DURATION_MS}ms) for player ${newDodgeState.playerId.toHexString()}`);
+                    return; // Don't update with stale state
+                }
+                
                 console.log(`[DODGE DEBUG] Server state UPDATE for player ${newDodgeState.playerId.toHexString()}:`, newDodgeState);
                 playerDodgeRollStatesRef.current.set(newDodgeState.playerId.toHexString(), newDodgeState);
                 setPlayerDodgeRollStates(new Map(playerDodgeRollStatesRef.current));

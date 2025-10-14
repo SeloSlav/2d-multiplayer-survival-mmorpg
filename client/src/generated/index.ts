@@ -50,6 +50,8 @@ import { CheckResourceRespawns } from "./check_resource_respawns_reducer.ts";
 export { CheckResourceRespawns };
 import { CleanupExpiredAnimalCorpses } from "./cleanup_expired_animal_corpses_reducer.ts";
 export { CleanupExpiredAnimalCorpses };
+import { CleanupExpiredDodgeRolls } from "./cleanup_expired_dodge_rolls_reducer.ts";
+export { CleanupExpiredDodgeRolls };
 import { CleanupExpiredWaterPatches } from "./cleanup_expired_water_patches_reducer.ts";
 export { CleanupExpiredWaterPatches };
 import { CleanupOldSoundEvents } from "./cleanup_old_sound_events_reducer.ts";
@@ -424,6 +426,8 @@ import { CraftingQueueItemTableHandle } from "./crafting_queue_item_table.ts";
 export { CraftingQueueItemTableHandle };
 import { DeathMarkerTableHandle } from "./death_marker_table.ts";
 export { DeathMarkerTableHandle };
+import { DodgeRollCleanupScheduleTableHandle } from "./dodge_roll_cleanup_schedule_table.ts";
+export { DodgeRollCleanupScheduleTableHandle };
 import { DroppedItemTableHandle } from "./dropped_item_table.ts";
 export { DroppedItemTableHandle };
 import { DroppedItemDespawnScheduleTableHandle } from "./dropped_item_despawn_schedule_table.ts";
@@ -596,6 +600,8 @@ import { CraftingQueueItem } from "./crafting_queue_item_type.ts";
 export { CraftingQueueItem };
 import { DeathMarker } from "./death_marker_type.ts";
 export { DeathMarker };
+import { DodgeRollCleanupSchedule } from "./dodge_roll_cleanup_schedule_type.ts";
+export { DodgeRollCleanupSchedule };
 import { DroppedItem } from "./dropped_item_type.ts";
 export { DroppedItem };
 import { DroppedItemDespawnSchedule } from "./dropped_item_despawn_schedule_type.ts";
@@ -847,6 +853,11 @@ const REMOTE_MODULE = {
       tableName: "death_marker",
       rowType: DeathMarker.getTypeScriptAlgebraicType(),
       primaryKey: "playerId",
+    },
+    dodge_roll_cleanup_schedule: {
+      tableName: "dodge_roll_cleanup_schedule",
+      rowType: DodgeRollCleanupSchedule.getTypeScriptAlgebraicType(),
+      primaryKey: "id",
     },
     dropped_item: {
       tableName: "dropped_item",
@@ -1185,6 +1196,10 @@ const REMOTE_MODULE = {
     cleanup_expired_animal_corpses: {
       reducerName: "cleanup_expired_animal_corpses",
       argsType: CleanupExpiredAnimalCorpses.getTypeScriptAlgebraicType(),
+    },
+    cleanup_expired_dodge_rolls: {
+      reducerName: "cleanup_expired_dodge_rolls",
+      argsType: CleanupExpiredDodgeRolls.getTypeScriptAlgebraicType(),
     },
     cleanup_expired_water_patches: {
       reducerName: "cleanup_expired_water_patches",
@@ -1898,6 +1913,7 @@ export type Reducer = never
 | { name: "CheckPlantGrowth", args: CheckPlantGrowth }
 | { name: "CheckResourceRespawns", args: CheckResourceRespawns }
 | { name: "CleanupExpiredAnimalCorpses", args: CleanupExpiredAnimalCorpses }
+| { name: "CleanupExpiredDodgeRolls", args: CleanupExpiredDodgeRolls }
 | { name: "CleanupExpiredWaterPatches", args: CleanupExpiredWaterPatches }
 | { name: "CleanupOldSoundEvents", args: CleanupOldSoundEvents }
 | { name: "ClearActiveItemReducer", args: ClearActiveItemReducer }
@@ -2198,6 +2214,22 @@ export class RemoteReducers {
 
   removeOnCleanupExpiredAnimalCorpses(callback: (ctx: ReducerEventContext) => void) {
     this.connection.offReducer("cleanup_expired_animal_corpses", callback);
+  }
+
+  cleanupExpiredDodgeRolls(args: DodgeRollCleanupSchedule) {
+    const __args = { args };
+    let __writer = new BinaryWriter(1024);
+    CleanupExpiredDodgeRolls.getTypeScriptAlgebraicType().serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("cleanup_expired_dodge_rolls", __argsBuffer, this.setCallReducerFlags.cleanupExpiredDodgeRollsFlags);
+  }
+
+  onCleanupExpiredDodgeRolls(callback: (ctx: ReducerEventContext, args: DodgeRollCleanupSchedule) => void) {
+    this.connection.onReducer("cleanup_expired_dodge_rolls", callback);
+  }
+
+  removeOnCleanupExpiredDodgeRolls(callback: (ctx: ReducerEventContext, args: DodgeRollCleanupSchedule) => void) {
+    this.connection.offReducer("cleanup_expired_dodge_rolls", callback);
   }
 
   cleanupExpiredWaterPatches(args: WaterPatchCleanupSchedule) {
@@ -4856,6 +4888,11 @@ export class SetReducerFlags {
     this.cleanupExpiredAnimalCorpsesFlags = flags;
   }
 
+  cleanupExpiredDodgeRollsFlags: CallReducerFlags = 'FullUpdate';
+  cleanupExpiredDodgeRolls(flags: CallReducerFlags) {
+    this.cleanupExpiredDodgeRollsFlags = flags;
+  }
+
   cleanupExpiredWaterPatchesFlags: CallReducerFlags = 'FullUpdate';
   cleanupExpiredWaterPatches(flags: CallReducerFlags) {
     this.cleanupExpiredWaterPatchesFlags = flags;
@@ -5762,6 +5799,10 @@ export class RemoteTables {
 
   get deathMarker(): DeathMarkerTableHandle {
     return new DeathMarkerTableHandle(this.connection.clientCache.getOrCreateTable<DeathMarker>(REMOTE_MODULE.tables.death_marker));
+  }
+
+  get dodgeRollCleanupSchedule(): DodgeRollCleanupScheduleTableHandle {
+    return new DodgeRollCleanupScheduleTableHandle(this.connection.clientCache.getOrCreateTable<DodgeRollCleanupSchedule>(REMOTE_MODULE.tables.dodge_roll_cleanup_schedule));
   }
 
   get droppedItem(): DroppedItemTableHandle {

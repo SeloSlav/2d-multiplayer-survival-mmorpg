@@ -247,6 +247,7 @@ use crate::knocked_out::knocked_out_status as KnockedOutStatusTableTrait; // <<<
 use crate::world_tile as WorldTileTableTrait; // <<< ADDED: Import WorldTile table trait
 use crate::minimap_cache as MinimapCacheTableTrait; // <<< ADDED: Import MinimapCache table trait
 use crate::player_movement::player_dodge_roll_state as PlayerDodgeRollStateTableTrait; // <<< ADDED: Import PlayerDodgeRollState table trait
+use crate::player_movement::dodge_roll_cleanup_schedule as DodgeRollCleanupScheduleTableTrait; // <<< ADDED: Import DodgeRollCleanupSchedule table trait
 use crate::world_chunk_data as WorldChunkDataTableTrait; // <<< ADDED: Import WorldChunkData table trait
 use crate::fishing::fishing_session as FishingSessionTableTrait; // <<< ADDED: Import FishingSession table trait
 use crate::drinking::player_drinking_cooldown as PlayerDrinkingCooldownTableTrait; // <<< ADDED: Import PlayerDrinkingCooldown table trait
@@ -307,8 +308,8 @@ pub fn get_effective_player_radius(is_crouching: bool) -> f32 {
 pub const WATER_SPEED_PENALTY: f32 = 0.5; // 50% speed reduction (50% of normal speed)
 
 // World Dimensions (example)
-pub const WORLD_WIDTH_TILES: u32 = 200;
-pub const WORLD_HEIGHT_TILES: u32 = 200;
+pub const WORLD_WIDTH_TILES: u32 = 400;
+pub const WORLD_HEIGHT_TILES: u32 = 400;
 // Change back to f32 as they are used in float calculations
 pub const WORLD_WIDTH_PX: f32 = (WORLD_WIDTH_TILES * TILE_SIZE_PX) as f32;
 pub const WORLD_HEIGHT_PX: f32 = (WORLD_HEIGHT_TILES * TILE_SIZE_PX) as f32;
@@ -524,6 +525,9 @@ pub fn init_module(ctx: &ReducerContext) -> Result<(), String> {
     
     // ADD: Initialize WorldState for scheduled systems
     crate::world_state::seed_world_state(ctx)?;
+    
+    // ADD: Initialize dodge roll cleanup system
+    crate::player_movement::init_dodge_roll_cleanup_system(ctx)?;
 
     // ADD: Generate world automatically on first startup
     let existing_tiles_count = ctx.db.world_tile().iter().count();
