@@ -63,7 +63,7 @@ export function useAssetLoader(): AssetLoaderResult {
 
   useEffect(() => {
     let loadedCount = 0;
-    const totalStaticAssets = 8 + 5 + 1 + 3; // hero images (5) + clouds (5) + shelter (1) + animal corpse images (3) = 17 total
+    const totalStaticAssets = 6 + 5 + 1 + 3 + 1 + 1 + 2; // hero images (6) + clouds (5) + shelter (1) + animal corpse images (3) + grass (1) + campfire (1) + burlap/death (2) = 19 total
     
     // Count total item icons to preload
     const itemIconEntries = Object.entries(itemIcons).filter(([key, iconPath]) => iconPath);
