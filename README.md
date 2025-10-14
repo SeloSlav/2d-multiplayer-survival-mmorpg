@@ -87,6 +87,8 @@ spacetime generate --lang typescript --out-dir ../client/src/generated --project
 
 🎉 **That's it! Your multiplayer survival game is up and running!** 🎮✨
 
+---
+
 ### 🎮 Multiplayer Testing
 
 Open a **new terminal** and run `npm run dev` again. The second client will open on a different port. Open this URL in a separate browser tab to test multiplayer functionality!
