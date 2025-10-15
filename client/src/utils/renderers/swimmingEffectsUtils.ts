@@ -1,5 +1,6 @@
 import { Player as SpacetimeDBPlayer } from '../../generated';
 import { gameConfig } from '../../config/gameConfig';
+import { drawDynamicGroundShadow } from './shadowUtils';
 
 // Swimming effects configuration
 const SWIMMING_EFFECTS_CONFIG = {
@@ -365,7 +366,94 @@ function drawExpandingWakes(
 
 
 /**
+ * Draws an underwater shadow beneath and to the right of the swimming player using the sprite shape
+ * Shadow is angled 45 degrees to the right and positioned far below like it's on the sea floor
+ */
+function drawUnderwaterShadow(
+  ctx: CanvasRenderingContext2D,
+  spriteImage: CanvasImageSource,
+  sx: number,
+  sy: number,
+  centerX: number,
+  centerY: number,
+  spriteWidth: number,
+  spriteHeight: number
+): void {
+  // Extract the current sprite frame to a temporary canvas
+  const spriteCanvas = document.createElement('canvas');
+  spriteCanvas.width = gameConfig.spriteWidth;
+  spriteCanvas.height = gameConfig.spriteHeight;
+  const spriteCtx = spriteCanvas.getContext('2d');
+  
+  if (!spriteCtx) return;
+  
+  // Draw just the current sprite frame to the temporary canvas
+  spriteCtx.drawImage(
+    spriteImage,
+    sx, sy, gameConfig.spriteWidth, gameConfig.spriteHeight, // Source: specific frame from spritesheet
+    0, 0, gameConfig.spriteWidth, gameConfig.spriteHeight    // Destination: full temporary canvas
+  );
+  
+  // Shadow offset: closer to player and more to the left
+  const shadowOffsetX = spriteWidth * 0.2; // 40% to the right (closer and more left)
+  const shadowOffsetY = spriteHeight * 1.0; // 60% down (closer to player)
+  
+  // Shadow position
+  const shadowX = centerX + shadowOffsetX;
+  const shadowY = centerY + shadowOffsetY;
+  
+  ctx.save();
+  
+  // Translate to shadow position for rotation
+  ctx.translate(shadowX, shadowY);
+  
+  // Rotate 45 degrees to the right (PI/4 radians)
+  ctx.rotate(Math.PI / 4);
+  
+  // Translate back
+  ctx.translate(-shadowX, -shadowY);
+  
+  // Use drawDynamicGroundShadow with custom parameters for underwater effect
+  drawDynamicGroundShadow({
+    ctx,
+    entityImage: spriteCanvas, // Use the extracted sprite frame
+    entityCenterX: shadowX,
+    entityBaseY: shadowY,
+    imageDrawWidth: spriteWidth,
+    imageDrawHeight: spriteHeight,
+    cycleProgress: 0.5, // Fixed "noon" lighting for consistent underwater shadow
+    baseShadowColor: '0, 30, 50', // Blue-ish underwater tint
+    maxShadowAlpha: 0.75, // Slightly more transparent (deeper underwater)
+    maxStretchFactor: 1.0, // Minimal stretch (water diffuses light)
+    minStretchFactor: 0.9, // Keep shadow compact
+    shadowBlur: 6, // More blur for deep water diffusion effect
+    pivotYOffset: 0,
+  });
+  
+  ctx.restore();
+}
+
+/**
+ * Draws ONLY the underwater shadow (should be called in an early rendering layer, beneath water surface)
+ */
+export function drawUnderwaterShadowOnly(
+  ctx: CanvasRenderingContext2D,
+  spriteImage: CanvasImageSource,
+  spriteSx: number,
+  spriteSy: number,
+  spriteDrawX: number,
+  spriteDrawY: number,
+  spriteWidth: number = gameConfig.spriteWidth * 2,
+  spriteHeight: number = gameConfig.spriteHeight * 2
+): void {
+  const centerX = spriteDrawX + spriteWidth / 2;
+  const centerY = spriteDrawY + spriteHeight / 2;
+  drawUnderwaterShadow(ctx, spriteImage, spriteSx, spriteSy, centerX, centerY, spriteWidth, spriteHeight);
+}
+
+/**
  * Draws swimming effects that should appear UNDER the player sprite (but above water surface)
+ * Note: This no longer draws the underwater shadow - that should be drawn in an earlier layer
  */
 export function drawSwimmingEffectsUnder(
   ctx: CanvasRenderingContext2D,
@@ -376,10 +464,16 @@ export function drawSwimmingEffectsUnder(
   spriteDrawY: number,
   spriteWidth: number = gameConfig.spriteWidth * 2,
   spriteHeight: number = gameConfig.spriteHeight * 2,
-  cycleProgress?: number
+  cycleProgress?: number,
+  spriteImage?: CanvasImageSource,
+  spriteSx?: number,
+  spriteSy?: number
 ): void {
   const centerX = spriteDrawX + spriteWidth / 2;
   const centerY = spriteDrawY + spriteHeight / 2;
+  
+  // Underwater shadow is now rendered separately in an earlier layer
+  // No longer drawing it here to avoid appearing above water surface
   
   // Manage wake creation based on player movement
   manageWakeCreation(centerX, centerY, player, currentTimeMs, isMoving);
@@ -423,8 +517,11 @@ export function drawSwimmingEffects(
   spriteDrawY: number,
   spriteWidth: number = gameConfig.spriteWidth * 2,
   spriteHeight: number = gameConfig.spriteHeight * 2,
-  cycleProgress?: number
+  cycleProgress?: number,
+  spriteImage?: CanvasImageSource,
+  spriteSx?: number,
+  spriteSy?: number
 ): void {
-  drawSwimmingEffectsUnder(ctx, player, currentTimeMs, isMoving, spriteDrawX, spriteDrawY, spriteWidth, spriteHeight, cycleProgress);
+  drawSwimmingEffectsUnder(ctx, player, currentTimeMs, isMoving, spriteDrawX, spriteDrawY, spriteWidth, spriteHeight, cycleProgress, spriteImage, spriteSx, spriteSy);
   drawSwimmingEffectsOver(ctx, player, currentTimeMs, spriteDrawX, spriteDrawY, spriteWidth, spriteHeight);
 } 

@@ -87,6 +87,7 @@ import { renderWaterOverlay } from '../utils/renderers/waterOverlayUtils';
 import { renderPlayer, isPlayerHovered } from '../utils/renderers/playerRenderingUtils';
 import { renderSeaStackSingle } from '../utils/renderers/seaStackRenderingUtils';
 import { renderWaterPatches } from '../utils/renderers/waterPatchRenderingUtils';
+import { drawUnderwaterShadowOnly } from '../utils/renderers/swimmingEffectsUtils';
 import { renderWildAnimal, preloadWildAnimalImages } from '../utils/renderers/wildAnimalRenderingUtils';
 import { renderViperSpittle } from '../utils/renderers/viperSpittleRenderingUtils';
 import { renderAnimalCorpse, preloadAnimalCorpseImages } from '../utils/renderers/animalCorpseRenderingUtils';
@@ -97,7 +98,7 @@ import DeathScreen from './DeathScreen.tsx';
 import InterfaceContainer from './InterfaceContainer';
 import { itemIcons } from '../utils/itemIconUtils';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
-import { HOLD_INTERACTION_DURATION_MS, REVIVE_HOLD_DURATION_MS } from '../config/gameConfig';
+import { gameConfig, HOLD_INTERACTION_DURATION_MS, REVIVE_HOLD_DURATION_MS } from '../config/gameConfig';
 import {
   CAMPFIRE_HEIGHT,
   SERVER_CAMPFIRE_DAMAGE_RADIUS,
@@ -1166,7 +1167,58 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       });
     }
 
+    // --- STEP 1.5: Render underwater shadows for swimming players (must be BEFORE water overlay) ---
+    swimmingPlayersForBottomHalf.forEach(player => {
+      const playerId = player.identity.toHexString();
+      const isLocalPlayer = localPlayerId === playerId;
 
+      // Use predicted position for local player
+      let playerForRendering = player;
+      if (isLocalPlayer && predictedPosition) {
+        playerForRendering = {
+          ...player,
+          positionX: predictedPosition.x,
+          positionY: predictedPosition.y,
+          direction: localFacingDirection || player.direction,
+        };
+      }
+
+      // Determine which sprite image to use for shadow shape
+      let heroImg: HTMLImageElement | null = null;
+      const effectiveIsCrouching = isLocalPlayer && localPlayerIsCrouching !== undefined 
+        ? localPlayerIsCrouching 
+        : player.isCrouching;
+
+      // Choose sprite based on priority: water > crouching > default
+      if (player.isOnWater) {
+        heroImg = heroWaterImageRef.current;
+      } else if (effectiveIsCrouching) {
+        heroImg = heroCrouchImageRef.current;
+      } else {
+        heroImg = heroImageRef.current;
+      }
+
+      if (heroImg) {
+        // Calculate sprite position
+        const drawWidth = gameConfig.spriteWidth * 2;
+        const drawHeight = gameConfig.spriteHeight * 2;
+        const spriteBaseX = playerForRendering.positionX - drawWidth / 2;
+        const spriteBaseY = playerForRendering.positionY - drawHeight / 2;
+
+        // Call the underwater shadow function (imported at top of file)
+        drawUnderwaterShadowOnly(
+          ctx,
+          heroImg,
+          0, // sx - simplified, use first frame for shadow
+          0, // sy - simplified, use first frame for shadow  
+          spriteBaseX,
+          spriteBaseY,
+          drawWidth,
+          drawHeight
+        );
+      }
+    });
+    // --- END UNDERWATER SHADOWS ---
 
     // --- STEP 2: Render water overlay (appears over underwater shadows and below visible sprites) ---
     renderWaterOverlay(

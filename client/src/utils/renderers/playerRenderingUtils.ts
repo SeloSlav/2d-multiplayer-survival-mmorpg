@@ -979,7 +979,10 @@ export const renderPlayer = (
         spriteDrawY,
         drawWidth,
         drawHeight,
-        cycleProgress
+        cycleProgress,
+        currentSpriteImg, // Pass the current sprite image for shadow shape
+        sx, // Pass sprite frame x coordinate
+        sy  // Pass sprite frame y coordinate
       );
     }
 

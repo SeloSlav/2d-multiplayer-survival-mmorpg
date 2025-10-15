@@ -33,6 +33,8 @@ import { renderWoodenStorageBox } from './woodenStorageBoxRenderingUtils';
 import { renderEquippedItem } from './equippedItemRenderingUtils';
 // Import the extracted player renderer
 import { renderPlayer, isPlayerHovered } from './playerRenderingUtils';
+// Import underwater shadow renderer for early rendering pass
+import { drawUnderwaterShadowOnly } from './swimmingEffectsUtils';
 // Import unified resource renderer - these functions now work with HarvestableResource
 import { renderHarvestableResource } from './unifiedResourceRenderer';
 // Import planted seed renderer (will be activated once client bindings are generated)
@@ -448,6 +450,9 @@ export const renderYSortedEntities = ({
 }: RenderYSortedEntitiesProps) => {
     // PERFORMANCE: Clean up memory caches periodically
     cleanupCaches();
+    
+    // NOTE: Underwater shadows are now rendered separately in GameCanvas.tsx
+    // before the water overlay, not here in renderYSortedEntities
     
     // First Pass: Render all entities. Trees and stones will skip their dynamic ground shadows.
     // Other entities (players, boxes, etc.) render as normal.
