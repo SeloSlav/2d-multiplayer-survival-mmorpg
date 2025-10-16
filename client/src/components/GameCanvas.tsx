@@ -48,6 +48,7 @@ import { useInteractionFinder } from '../hooks/useInteractionFinder';
 import { useGameLoop } from '../hooks/useGameLoop';
 import type { FrameInfo } from '../hooks/useGameLoop';
 import { usePlayerHover } from '../hooks/usePlayerHover';
+import { usePlantedSeedHover } from '../hooks/usePlantedSeedHover';
 import { useMinimapInteraction } from '../hooks/useMinimapInteraction';
 import { useEntityFiltering, YSortedEntityType } from '../hooks/useEntityFiltering';
 import { useSpacetimeTables } from '../hooks/useSpacetimeTables';
@@ -96,6 +97,7 @@ import { renderEquippedItem } from '../utils/renderers/equippedItemRenderingUtil
 // --- Other Components & Utils ---
 import DeathScreen from './DeathScreen.tsx';
 import InterfaceContainer from './InterfaceContainer';
+import PlantedSeedTooltip from './PlantedSeedTooltip';
 import { itemIcons } from '../utils/itemIconUtils';
 import { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementManager';
 import { gameConfig, HOLD_INTERACTION_DURATION_MS, REVIVE_HOLD_DURATION_MS } from '../config/gameConfig';
@@ -469,6 +471,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   // --- UI State ---
   const { hoveredPlayerIds, handlePlayerHover } = usePlayerHover();
+  
+  // --- Planted Seed Hover Detection ---
+  const { hoveredSeed, hoveredSeedId } = usePlantedSeedHover(
+    plantedSeeds,
+    worldMousePos.x,
+    worldMousePos.y
+  );
 
   // --- Use the new Minimap Interaction Hook ---
   const { minimapZoom, isMouseOverMinimap, isMouseOverXButton, localPlayerPin, viewCenterOffset } = useMinimapInteraction({
@@ -2105,6 +2114,22 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             />
           </InterfaceContainer>
         </>
+      )}
+      
+      {/* Planted Seed Tooltip - shows info when hovering over seeds */}
+      {hoveredSeed && canvasMousePos && canvasMousePos.x !== null && canvasMousePos.y !== null && !isGameMenuOpen && !showInventory && (
+        <PlantedSeedTooltip
+          seed={hoveredSeed}
+          visible={true}
+          position={{ x: canvasMousePos.x, y: canvasMousePos.y }}
+          currentTime={Date.now()}
+          clouds={clouds}
+          worldState={worldState}
+          waterPatches={waterPatches}
+          campfires={campfires}
+          lanterns={lanterns}
+          furnaces={furnaces}
+        />
       )}
     </div>
   );

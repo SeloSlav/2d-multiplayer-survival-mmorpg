@@ -1,0 +1,291 @@
+.tooltipContainer {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  
+  min-width: 240px;
+  max-width: 320px;
+  
+  background: linear-gradient(135deg, rgba(15, 30, 25, 0.98), rgba(10, 25, 20, 0.98));
+  border: 2px solid #4CAF50;
+  border-radius: 8px;
+  box-shadow: 
+    0 0 20px rgba(76, 175, 80, 0.4),
+    inset 0 0 15px rgba(76, 175, 80, 0.1);
+  
+  backdrop-filter: blur(10px);
+  
+  padding: 12px;
+  
+  font-family: 'Courier New', Consolas, Monaco, monospace;
+  font-size: 13px;
+  color: #e0f2e0;
+  
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header Section */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.plantIcon {
+  font-size: 20px;
+  filter: drop-shadow(0 0 4px rgba(76, 175, 80, 0.6));
+}
+
+.plantName {
+  font-size: 15px;
+  font-weight: bold;
+  color: #c8e6c9;
+  text-shadow: 0 0 8px rgba(76, 175, 80, 0.8);
+  letter-spacing: 0.5px;
+}
+
+/* Growth stage color variants for header */
+.header.planted {
+  border-bottom-color: rgba(139, 69, 19, 0.5);
+}
+
+.header.sprouting {
+  border-bottom-color: rgba(156, 204, 101, 0.5);
+}
+
+.header.growing {
+  border-bottom-color: rgba(76, 175, 80, 0.5);
+}
+
+.header.almostMature {
+  border-bottom-color: rgba(102, 187, 106, 0.5);
+}
+
+.header.mature {
+  border-bottom-color: rgba(255, 215, 0, 0.6);
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { border-bottom-color: rgba(255, 215, 0, 0.6); }
+  50% { border-bottom-color: rgba(255, 215, 0, 0.9); }
+}
+
+/* Progress Section */
+.progressSection {
+  margin-bottom: 12px;
+}
+
+.progressLabel {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #a5d6a7;
+}
+
+.progressPercent {
+  font-weight: bold;
+  color: #81c784;
+}
+
+.progressBarContainer {
+  height: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.progressBarFill {
+  height: 100%;
+  transition: width 0.3s ease;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Progress bar color stages */
+.progressBarFill.planted {
+  background: linear-gradient(90deg, #8B4513, #A0522D);
+  box-shadow: 0 0 8px rgba(139, 69, 19, 0.6);
+}
+
+.progressBarFill.sprouting {
+  background: linear-gradient(90deg, #9CCC65, #AED581);
+  box-shadow: 0 0 8px rgba(156, 204, 101, 0.6);
+}
+
+.progressBarFill.growing {
+  background: linear-gradient(90deg, #4CAF50, #66BB6A);
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
+.progressBarFill.almostMature {
+  background: linear-gradient(90deg, #66BB6A, #81C784);
+  box-shadow: 0 0 8px rgba(102, 187, 106, 0.6);
+}
+
+.progressBarFill.mature {
+  background: linear-gradient(90deg, #FFD700, #FFA500);
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.8);
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
+  100% { filter: brightness(1); }
+}
+
+/* Info Section */
+.infoSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.infoLabel {
+  color: #81c784;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.infoValue {
+  color: #c8e6c9;
+  text-align: right;
+  word-break: break-word;
+  max-width: 60%;
+}
+
+/* Status-specific styling */
+.infoValue.planted {
+  color: #bcaaa4;
+}
+
+.infoValue.sprouting {
+  color: #aed581;
+}
+
+.infoValue.growing {
+  color: #81c784;
+}
+
+.infoValue.almostMature {
+  color: #66bb6a;
+}
+
+.infoValue.mature {
+  color: #ffd700;
+  font-weight: bold;
+  text-shadow: 0 0 6px rgba(255, 215, 0, 0.6);
+  animation: textPulse 2s ease-in-out infinite;
+}
+
+@keyframes textPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+/* Growth Conditions Section */
+.conditionsSection {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.conditionsHeader {
+  font-size: 13px;
+  font-weight: bold;
+  color: #81c784;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.conditionRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.conditionLabel {
+  color: #a5d6a7;
+  font-weight: 500;
+}
+
+.conditionValue {
+  text-align: right;
+  font-weight: 500;
+}
+
+/* Condition status colors */
+.conditionValue.positive {
+  color: #66bb6a;
+  text-shadow: 0 0 4px rgba(102, 187, 106, 0.6);
+}
+
+.conditionValue.negative {
+  color: #ef5350;
+  text-shadow: 0 0 4px rgba(239, 83, 80, 0.6);
+}
+
+.conditionValue.neutral {
+  color: #c8e6c9;
+}
+
+.baseTimeNote {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #81c784;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .tooltipContainer {
+    min-width: 200px;
+    max-width: 280px;
+    font-size: 11px;
+  }
+  
+  .plantName {
+    font-size: 13px;
+  }
+  
+  .infoRow {
+    font-size: 11px;
+  }
+  
+  .conditionRow {
+    font-size: 10px;
+  }
+}
+
