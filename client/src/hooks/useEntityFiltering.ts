@@ -262,6 +262,91 @@ export interface CompoundBuildingEntity {
   partType?: string; // For monument doodads: campfire, hut, lodge, etc.
 }
 
+const SIMPLE_YSORT_TYPES = new Set<YSortedEntityType['type']>([
+  'dropped_item', 'harvestable_resource', 'projectile', 'animal_corpse', 'player_corpse',
+  'barrel', 'road_lamppost', 'sleeping_bag', 'sea_stack', 'living_coral', 'barbecue',
+  'turret', 'furnace', 'lantern', 'homestead_hearth', 'planted_seed', 'rain_collector',
+  'wooden_storage_box', 'stash', 'cairn', 'rune_stone', 'basalt_column', 'fence'
+]);
+
+const SMALL_GROUND_TYPES = new Set<YSortedEntityType['type']>([
+  'barrel', 'road_lamppost', 'harvestable_resource', 'grass'
+]);
+
+const TALL_STRUCTURE_TYPES = new Set<YSortedEntityType['type']>([
+  'tree', 'stone', 'monument_doodad', 'compound_building'
+]);
+
+const FOG_MASKED_PLACEABLE_TYPES = new Set<YSortedEntityType['type']>([
+  'wooden_storage_box', 'stash', 'campfire', 'furnace', 'lantern',
+  'homestead_hearth', 'barrel', 'rain_collector', 'sleeping_bag'
+]);
+
+const NORTH_WALL_PLACEABLE_TYPES = new Set<YSortedEntityType['type']>([
+  'campfire', 'furnace', 'lantern', 'homestead_hearth', 'wooden_storage_box',
+  'stash', 'barrel', 'rain_collector', 'sleeping_bag', 'broth_pot'
+]);
+
+const SHELTER_PLACEABLE_TYPES = new Set<YSortedEntityType['type']>([
+  'broth_pot', 'campfire', 'furnace', 'barbecue', 'lantern', 'wooden_storage_box',
+  'stash', 'barrel', 'rain_collector', 'sleeping_bag'
+]);
+
+const FLYING_BIRD_GROUND_TYPES = new Set<YSortedEntityType['type']>([
+  'tree', 'stone', 'rune_stone', 'basalt_column', 'fumarole',
+  'wooden_storage_box', 'stash', 'campfire', 'furnace', 'lantern', 'homestead_hearth',
+  'planted_seed', 'dropped_item', 'harvestable_resource', 'barrel', 'rain_collector',
+  'broth_pot', 'sleeping_bag', 'animal_corpse', 'player_corpse', 'foundation_cell', 'alk_station'
+]);
+
+const TREE_STONE_Y_OVERLAP_PX = 120;
+const MONUMENT_FOOTPRINT_PADDING = 24;
+
+const getMonumentDoodadFraction = (doodad: CompoundBuildingEntity): number => {
+  if (doodad.imagePath === 'fv_campfire.png' || doodad.imagePath === 'av_campfire.png') return 0.75;
+  const pt = doodad.partType ?? '';
+  if (pt === 'hv_drying_rack' || pt === 'fv_drying_rack' || pt === 'av_drying_rack') return 0.25;
+  return 0.25;
+};
+
+const getSmallGroundEntityPosition = (entity: any, type: string): { x: number; y: number } => {
+  if (type === 'grass' && ('serverPosX' in (entity ?? {}))) {
+    return { x: (entity as any).serverPosX ?? 0, y: (entity as any).serverPosY ?? 0 };
+  }
+  return { x: entity?.posX ?? entity?.positionX ?? 0, y: entity?.posY ?? entity?.positionY ?? 0 };
+};
+
+const isSmallWithinMonumentFootprint = (
+  small: { x: number; y: number },
+  tallEntity: any,
+  pad: number
+): boolean => {
+  const w = tallEntity?.width ?? 0;
+  const h = tallEntity?.height ?? 0;
+  const anchor = tallEntity?.anchorYOffset ?? 0;
+  const worldX = tallEntity?.worldX ?? 0;
+  const worldY = tallEntity?.worldY ?? 0;
+  const left = worldX - w / 2 - pad;
+  const right = worldX + w / 2 + pad;
+  const top = worldY - h + anchor - pad;
+  const bottom = worldY + anchor + pad;
+  return small.x >= left && small.x <= right && small.y >= top && small.y <= bottom;
+};
+
+const isSmallNearTreeOrStone = (smallY: number, tallY: number): boolean =>
+  Math.abs(smallY - tallY) < TREE_STONE_Y_OVERLAP_PX;
+
+const isPlaceableInFogBounds = (
+  placeable: any,
+  fogBounds: { minX: number; minY: number; maxX: number; maxY: number }
+): boolean => {
+  if (!placeable || !placeable.posX || !placeable.posY) return false;
+  return placeable.posX >= fogBounds.minX &&
+         placeable.posX < fogBounds.maxX &&
+         placeable.posY >= fogBounds.minY &&
+         placeable.posY < fogBounds.maxY;
+};
+
 // ===== HELPER FUNCTIONS FOR Y-SORTING =====
 const PLAYER_SORT_FEET_OFFSET_PX = 48;
 const getEntityY = (item: YSortedEntityType, timestamp: number): number => {
@@ -1261,63 +1346,41 @@ export function useEntityFiltering(
       return [];
     }
     
-    // Removed excessive logging
-    
-    let filteredByHealth = 0;
-    let filteredByView = 0;
-    let filteredByWater = 0;
     const result: InterpolatedGrassData[] = [];
+    const chunkSize = gameConfig.chunkSizeTiles;
+    const tileSize = gameConfig.tileSize;
+
     for (const e of grass.values()) {
       if (e.health <= 0) {
-        filteredByHealth++;
         continue;
       }
       if (!isEntityInView(e, viewBounds, stableTimestamp)) {
-        filteredByView++;
         continue;
       }
       
       // Filter out grass on water tiles
-      const tileX = Math.floor(e.serverPosX / 48); // TILE_SIZE is 48
-      const tileY = Math.floor(e.serverPosY / 48);
-      
-      // Check tile type using compressed chunk data
-      const chunkSize = 16;
+      const tileX = Math.floor(e.serverPosX / tileSize);
+      const tileY = Math.floor(e.serverPosY / tileSize);
       const chunkX = Math.floor(tileX / chunkSize);
       const chunkY = Math.floor(tileY / chunkSize);
-      let isWaterTile = false;
-      
-      // Find the chunk
-      for (const chunk of worldChunkData?.values() || []) {
-        if (chunk.chunkX === chunkX && chunk.chunkY === chunkY) {
-          const localX = tileX % chunkSize;
-          const localY = tileY % chunkSize;
-          const localTileX = localX < 0 ? localX + chunkSize : localX;
-          const localTileY = localY < 0 ? localY + chunkSize : localY;
-          const tileIndex = localTileY * chunkSize + localTileX;
-          
-          if (tileIndex >= 0 && tileIndex < chunk.tileTypes.length) {
-            const tileTypeU8 = chunk.tileTypes[tileIndex];
-            // Filter out grass on Sea (3) and HotSpringWater (6) tiles
-            if (tileTypeU8 === 3 || tileTypeU8 === 6 || tileTypeU8 === 14) { // Sea, HotSpringWater, DeepSea
-              filteredByWater++;
-              isWaterTile = true;
-            }
+
+      const chunk = worldChunkData?.get(`${chunkX},${chunkY}`);
+      if (chunk) {
+        const localTileX = ((tileX % chunkSize) + chunkSize) % chunkSize;
+        const localTileY = ((tileY % chunkSize) + chunkSize) % chunkSize;
+        const tileIndex = localTileY * (chunk.chunkSize || chunkSize) + localTileX;
+
+        if (tileIndex >= 0 && tileIndex < chunk.tileTypes.length) {
+          const tileTypeU8 = chunk.tileTypes[tileIndex];
+          if (tileTypeU8 === 3 || tileTypeU8 === 6 || tileTypeU8 === 14) {
+            continue;
           }
-          break;
         }
       }
       
-      if (!isWaterTile) {
-        result.push(e);
-      }
+      result.push(e);
     }
-    
-    // Only log occasionally to reduce spam
-    // if (allGrass.length > 0 && (filteredByHealth > 0 || Math.random() < 0.01)) {
-    //   console.log(`[EntityFiltering] Grass filtering: ${allGrass.length} total -> ${result.length} visible (health: ${filteredByHealth}, view: ${filteredByView}, water: ${filteredByWater})`);
-    // }
-    
+
     return result;
   }, [grass, playerPos, viewBounds, stableTimestamp, frameCounter, worldChunkData]);
 
@@ -2410,12 +2473,6 @@ export function useEntityFiltering(
 
       // PERFORMANCE: Fast path for type pairs that only need numeric Y-sort (no special rules)
       // Skips ~50 type checks for common pairs like (dropped_item, harvestable_resource)
-      const SIMPLE_YSORT_TYPES = new Set<YSortedEntityType['type']>([
-        'dropped_item', 'harvestable_resource', 'projectile', 'animal_corpse', 'player_corpse',
-        'barrel', 'road_lamppost', 'sleeping_bag', 'sea_stack', 'living_coral', 'barbecue',
-        'turret', 'furnace', 'lantern', 'homestead_hearth', 'planted_seed', 'rain_collector',
-        'wooden_storage_box', 'stash', 'cairn', 'rune_stone', 'basalt_column', 'fence'
-      ]);
       if (SIMPLE_YSORT_TYPES.has(a.type) && SIMPLE_YSORT_TYPES.has(b.type)) {
         const yDiff = a._ySortKey - b._ySortKey;
         if (Math.abs(yDiff) > 0.1) return yDiff;
@@ -2497,12 +2554,6 @@ export function useEntityFiltering(
       // Formula: sortThresholdY = worldY - (height * fractionFromTop). fractionFromTop = distance from top as fraction of height.
       // For campfire: 0.75 = threshold at 75% from top = bottom 75% in front. For huts/drying racks: 0.25 = bottom 25% in front.
       // Drying racks (hv_drying_rack, fv_drying_rack, av_drying_rack) share same fraction for consistent y-sorting.
-      const getMonumentDoodadFraction = (doodad: CompoundBuildingEntity) => {
-        if (doodad.imagePath === 'fv_campfire.png' || doodad.imagePath === 'av_campfire.png') return 0.75;
-        const pt = doodad.partType ?? '';
-        if (pt === 'hv_drying_rack' || pt === 'fv_drying_rack' || pt === 'av_drying_rack') return 0.25;
-        return 0.25; // Default for huts, lodges, etc.
-      };
       if (isPlayerLike(a.type) && b.type === 'monument_doodad') {
         const playerY = getPlayerOrSwimY(a);
         const doodad = b.entity as CompoundBuildingEntity;
@@ -2577,34 +2628,8 @@ export function useEntityFiltering(
       // Visibility sets change with player (harvestables: 80 closest; grass: viewport). Use spatial footprint
       // so the SAME pair always sorts the same way. For monuments: entities within footprint ALWAYS render
       // BEHIND (inside/underneath) - berry bush, logs, grass at base stay hidden. Trees/stones: same.
-      const SMALL_GROUND_TYPES: Array<YSortedEntityType['type']> = ['barrel', 'road_lamppost', 'harvestable_resource', 'grass'];
-      const TALL_STRUCTURE_TYPES: Array<YSortedEntityType['type']> = ['tree', 'stone', 'monument_doodad', 'compound_building'];
-      const TREE_STONE_Y_OVERLAP_PX = 120;
-      const MONUMENT_FOOTPRINT_PADDING = 24; // Catch entities at edges
-      
-      const getSmallPos = (e: any, type: string): { x: number; y: number } => {
-        if (type === 'grass' && ('serverPosX' in (e ?? {}))) {
-          return { x: (e as any).serverPosX ?? 0, y: (e as any).serverPosY ?? 0 };
-        }
-        return { x: e?.posX ?? e?.positionX ?? 0, y: e?.posY ?? e?.positionY ?? 0 };
-      };
-      const isSmallWithinMonumentFootprint = (small: { x: number; y: number }, tallEntity: any, pad: number): boolean => {
-        const w = tallEntity?.width ?? 0;
-        const h = tallEntity?.height ?? 0;
-        const anchor = tallEntity?.anchorYOffset ?? 0;
-        const worldX = tallEntity?.worldX ?? 0;
-        const worldY = tallEntity?.worldY ?? 0;
-        const left = worldX - w / 2 - pad;
-        const right = worldX + w / 2 + pad;
-        const top = worldY - h + anchor - pad;
-        const bottom = worldY + anchor + pad;
-        return small.x >= left && small.x <= right && small.y >= top && small.y <= bottom;
-      };
-      const isSmallNearTreeOrStone = (smallY: number, tallY: number): boolean =>
-        Math.abs(smallY - tallY) < TREE_STONE_Y_OVERLAP_PX;
-      
-      if (SMALL_GROUND_TYPES.includes(a.type) && TALL_STRUCTURE_TYPES.includes(b.type)) {
-        const smallPos = getSmallPos(a.entity, a.type);
+      if (SMALL_GROUND_TYPES.has(a.type) && TALL_STRUCTURE_TYPES.has(b.type)) {
+        const smallPos = getSmallGroundEntityPosition(a.entity, a.type);
         const tall = b.entity as any;
         if (b.type === 'monument_doodad' || b.type === 'compound_building') {
           if (isSmallWithinMonumentFootprint(smallPos, tall, MONUMENT_FOOTPRINT_PADDING)) {
@@ -2614,8 +2639,8 @@ export function useEntityFiltering(
           return -1; // Tree/stone in front
         }
       }
-      if (TALL_STRUCTURE_TYPES.includes(a.type) && SMALL_GROUND_TYPES.includes(b.type)) {
-        const smallPos = getSmallPos(b.entity, b.type);
+      if (TALL_STRUCTURE_TYPES.has(a.type) && SMALL_GROUND_TYPES.has(b.type)) {
+        const smallPos = getSmallGroundEntityPosition(b.entity, b.type);
         const tall = a.entity as any;
         if (a.type === 'monument_doodad' || a.type === 'compound_building') {
           if (isSmallWithinMonumentFootprint(smallPos, tall, MONUMENT_FOOTPRINT_PADDING)) {
@@ -2707,22 +2732,8 @@ export function useEntityFiltering(
       
       // CRITICAL: Ensure fog ALWAYS renders above placeables within masked building clusters - THIRD CHECK (after players)
       // This MUST run before any other logic to guarantee placeables are always hidden by fog
-      const placeableTypes: Array<YSortedEntityType['type']> = [
-        'wooden_storage_box', 'stash', 'campfire', 'furnace', 'lantern', 
-        'homestead_hearth', 'barrel', 'rain_collector', 'sleeping_bag'
-      ];
-      
-      // Helper function to check if a placeable is within a building cluster bounds
-      const isPlaceableInFogBounds = (placeable: any, fogBounds: { minX: number; minY: number; maxX: number; maxY: number }): boolean => {
-        if (!placeable || !placeable.posX || !placeable.posY) return false;
-        return placeable.posX >= fogBounds.minX &&
-               placeable.posX < fogBounds.maxX &&
-               placeable.posY >= fogBounds.minY &&
-               placeable.posY < fogBounds.maxY;
-      };
-      
       // Fog must render above placeables within the same building cluster
-      if (aIsFog && placeableTypes.includes(b.type)) {
+      if (aIsFog && FOG_MASKED_PLACEABLE_TYPES.has(b.type)) {
         const fogEntity = a.entity as { clusterId: string; bounds: { minX: number; minY: number; maxX: number; maxY: number } };
         const placeable = b.entity as any;
         if (isPlaceableInFogBounds(placeable, fogEntity.bounds)) {
@@ -2730,7 +2741,7 @@ export function useEntityFiltering(
         }
       }
       
-      if (bIsFog && placeableTypes.includes(a.type)) {
+      if (bIsFog && FOG_MASKED_PLACEABLE_TYPES.has(a.type)) {
         const fogEntity = b.entity as { clusterId: string; bounds: { minX: number; minY: number; maxX: number; maxY: number } };
         const placeable = a.entity as any;
         if (isPlaceableInFogBounds(placeable, fogEntity.bounds)) {
@@ -2993,12 +3004,7 @@ export function useEntityFiltering(
       // CRITICAL FIX: Placeable objects should ALWAYS render above north walls (edge 0)
       // North walls extend upward visually, so placeables should always render on top
       // Simple rule: if it's a north wall and a placeable object, placeable always wins
-      const placeableObjectTypes: Array<YSortedEntityType['type']> = [
-        'campfire', 'furnace', 'lantern', 'homestead_hearth', 'wooden_storage_box', 
-        'stash', 'barrel', 'rain_collector', 'sleeping_bag', 'broth_pot'
-      ];
-      
-      if (placeableObjectTypes.includes(a.type) && b.type === 'wall_cell') {
+      if (NORTH_WALL_PLACEABLE_TYPES.has(a.type) && b.type === 'wall_cell') {
         const wall = b.entity as SpacetimeDBWallCell;
         // For north walls (edge 0), always render placeable above
         if (wall.edge === 0) {
@@ -3006,7 +3012,7 @@ export function useEntityFiltering(
         }
       }
       
-      if (placeableObjectTypes.includes(b.type) && a.type === 'wall_cell') {
+      if (NORTH_WALL_PLACEABLE_TYPES.has(b.type) && a.type === 'wall_cell') {
         const wall = a.entity as SpacetimeDBWallCell;
         // For north walls (edge 0), always render placeable above
         if (wall.edge === 0) {
@@ -3025,12 +3031,7 @@ export function useEntityFiltering(
       // SHELTER VS PLACEABLES: Shelters are tall structures that should render ABOVE ground placeables
       // when the placeable is within or near the shelter's visual footprint.
       // Without this, placeables with posY near shelter's visual base (shelter.posY - 100) would incorrectly render above.
-      const shelterPlaceableTypes: Array<YSortedEntityType['type']> = [
-        'broth_pot', 'campfire', 'furnace', 'barbecue', 'lantern', 'wooden_storage_box', 
-        'stash', 'barrel', 'rain_collector', 'sleeping_bag'
-      ];
-      
-      if (a.type === 'shelter' && shelterPlaceableTypes.includes(b.type)) {
+      if (a.type === 'shelter' && SHELTER_PLACEABLE_TYPES.has(b.type)) {
         const shelter = a.entity as SpacetimeDBShelter;
         const placeable = b.entity as { posX: number; posY: number };
         // Check if placeable is within shelter's visual footprint (roughly 200px radius)
@@ -3041,7 +3042,7 @@ export function useEntityFiltering(
           return 1; // Shelter renders after (above) placeable within its footprint
         }
       }
-      if (b.type === 'shelter' && shelterPlaceableTypes.includes(a.type)) {
+      if (b.type === 'shelter' && SHELTER_PLACEABLE_TYPES.has(a.type)) {
         const shelter = b.entity as SpacetimeDBShelter;
         const placeable = a.entity as { posX: number; posY: number };
         const SHELTER_VISUAL_RADIUS = 100;
@@ -3054,17 +3055,10 @@ export function useEntityFiltering(
       
       // CRITICAL: Flying birds MUST render above trees, stones, and all ground objects regardless of Y position
       // This check runs right before Y-sorting to ensure it's not overridden
-      // Reuse variables already declared at the top of the sort function
-      // Ground objects that flying birds should render above
-      const groundObjectTypes = ['tree', 'stone', 'rune_stone', 'basalt_column', 'fumarole', 
-        'wooden_storage_box', 'stash', 'campfire', 'furnace', 'lantern', 'homestead_hearth',
-        'planted_seed', 'dropped_item', 'harvestable_resource', 'barrel', 'rain_collector',
-        'broth_pot', 'sleeping_bag', 'animal_corpse', 'player_corpse', 'foundation_cell', 'alk_station'];
-      
-      if (aIsFlyingBird && groundObjectTypes.includes(b.type)) {
+      if (aIsFlyingBird && FLYING_BIRD_GROUND_TYPES.has(b.type)) {
         return 1; // Flying bird renders after (above) ground object
       }
-      if (bIsFlyingBird && groundObjectTypes.includes(a.type)) {
+      if (bIsFlyingBird && FLYING_BIRD_GROUND_TYPES.has(a.type)) {
         return -1; // Flying bird renders after (above) ground object
       }
       
