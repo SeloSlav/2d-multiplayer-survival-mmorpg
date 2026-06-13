@@ -36,6 +36,7 @@ Cargo.lock
 
 # SpacetimeDB
 .spacetime/
+.spacetime-local-data/
 
 # Environment variables
 .env
