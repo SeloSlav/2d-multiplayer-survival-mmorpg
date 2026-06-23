@@ -1,5 +1,7 @@
 ![Broth & Bullets - Alpha Launch](https://www.brothandbullets.com/images/blog/systems.png)
 
+> **Warning: Make sure to read the [license](#-license) before use.**
+
 # 2D Multiplayer Survival MMORPG
 
 🎮 **[Watch gameplay demo](https://x.com/SeloSlav/status/2023523837724221851?s=20)**
