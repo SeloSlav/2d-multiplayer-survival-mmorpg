@@ -1,5 +1,5 @@
 // entityFilteringUtils.ts
-import { ViewportBounds } from '../hooks/useEntityFiltering';
+import type { ViewportBounds } from '../engine/runtime/entityFilteringRuntime';
 
 export function isEntityInView(entity: any, bounds: ViewportBounds, currentTime: number): boolean {
   // Basic viewport check

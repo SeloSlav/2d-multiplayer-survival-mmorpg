@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BuildingMode, BuildingTier, FoundationShape } from '../hooks/useBuildingManager';
+import { BuildingMode, BuildingTier, FoundationShape } from '../engine/runtime/buildingPlacementRuntime';
 import { DbConnection } from '../generated';
 import { InventoryItem, ItemDefinition } from '../generated/types';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

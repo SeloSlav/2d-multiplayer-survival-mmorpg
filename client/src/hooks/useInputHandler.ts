@@ -16,7 +16,7 @@
  * 3. COMBAT & HARVEST: Left-click attacks/harvests based on equipped item and
  *    target. Triggers optimistic shake effects for responsive feedback.
  *
- * 4. BUILDING: Delegates to useBuildingManager for foundation/wall/door/fence
+ * 4. BUILDING: Delegates to the host-owned building placement runtime for foundation/wall/door/fence
  *    placement. Handles placement mode activation and cancellation.
  *
  * Performance: Uses refs for closest entity IDs to avoid re-renders on every
@@ -40,7 +40,7 @@ import {
 import type { Projectile, PlayerDiscoveredCairn, HarvestableResource } from '../generated/types';
 import { Identity } from 'spacetimedb';
 import { PlacementItemInfo, PlacementActions } from './usePlacementManager'; // Assuming usePlacementManager exports these
-import { BuildingMode } from './useBuildingManager'; // ADDED: Building mode enum
+import { BuildingMode } from '../engine/runtime/buildingPlacementRuntime';
 import React from 'react';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
 import { JUMP_DURATION_MS, JUMP_HEIGHT_PX, HOLD_INTERACTION_DURATION_MS, REVIVE_HOLD_DURATION_MS } from '../config/gameConfig';
@@ -59,6 +59,7 @@ import {
     formatTargetForLogging,
     isTargetValid
 } from '../types/interactions';
+import type { InteractionTargetRuntimeResult } from '../engine/runtime/interactionTargetRuntime';
 import { hasWaterContent, getWaterContent, getWaterCapacity, isWaterContainer } from '../utils/waterContainerHelpers';
 import { 
     isCampfire,
@@ -138,10 +139,12 @@ interface InputHandlerProps {
     buildingState?: { isBuilding: boolean; mode: string }; // ADDED: Building state
     buildingActions?: { startBuildingMode: (mode: BuildingMode, tier?: number, initialShape?: number) => void; attemptPlacement: (worldX: number, worldY: number) => void; cancelBuildingMode: () => void; cycleFoundationShape: (direction: 'next' | 'prev') => void; rotateTriangleShape: () => void }; // ADDED: rotateTriangleShape
     worldMousePos: { x: number | null; y: number | null };
+    worldMousePosRef?: MutableRefObject<{ x: number | null; y: number | null }>;
     canvasMousePos?: { x: number | null; y: number | null }; // ADDED: Canvas mouse position for radial menu
     
     // UNIFIED INTERACTION TARGET - replaces all individual closestInteractable* props
     closestInteractableTarget: InteractableTarget | null;
+    interactionTargetRef?: MutableRefObject<InteractionTargetRuntimeResult>;
     
     // Essential entity maps for validation and data lookup (for optimistic shake on hit)
     trees?: Map<string, { id: bigint; posX: number; posY: number; health?: number }>;
@@ -178,6 +181,11 @@ interface InputHandlerProps {
     targetedFoundation: any | null; // ADDED: Targeted foundation for upgrade menu
     targetedWall: any | null; // ADDED: Targeted wall for upgrade menu
     targetedFence: any | null; // ADDED: Targeted fence for repair/demolish
+    buildTargetingRef?: MutableRefObject<{
+        targetedFoundation: any | null;
+        targetedWall: any | null;
+        targetedFence: any | null;
+    }>;
     onProfilerRecordClick?: (canvasX: number, canvasY: number) => boolean; // Profiler Record button hit test
 }
 
@@ -245,6 +253,24 @@ const getDirectionVector = (direction: string): { dx: number; dy: number } => {
     }
 };
 
+function getUnifiedInteractionTarget(result: InteractionTargetRuntimeResult | null | undefined): InteractableTarget | null {
+    if (!result) return null;
+    if (result.closestInteractableTarget) return result.closestInteractableTarget;
+    if (result.closestInteractableWaterPosition) {
+        return {
+            type: 'water',
+            id: 'water',
+            position: {
+                x: result.closestInteractableWaterPosition.x,
+                y: result.closestInteractableWaterPosition.y,
+            },
+            distance: 0,
+            data: undefined,
+        };
+    }
+    return null;
+}
+
 export const useInputHandler = ({
     canvasRef,
     connection,
@@ -261,9 +287,11 @@ export const useInputHandler = ({
     buildingState, // ADDED: Building state
     buildingActions, // ADDED: Building actions
     worldMousePos,
+    worldMousePosRef,
     
     // UNIFIED INTERACTION TARGET - single source of truth
     closestInteractableTarget,
+    interactionTargetRef,
     
     // Essential entity maps for validation
     trees,
@@ -298,6 +326,7 @@ export const useInputHandler = ({
     targetedFoundation, // ADDED: Targeted foundation
     targetedWall, // ADDED: Targeted wall
     targetedFence, // ADDED: Targeted fence
+    buildTargetingRef,
     rangedWeaponStats, // ADDED: For auto-fire detection
     serverProjectiles,
     onProfilerRecordClick,
@@ -352,9 +381,15 @@ export const useInputHandler = ({
     const getCurrentPositionNowRef = useLatest(getCurrentPositionNow); // ADDED: Ref for exact position function
     const activeEquipmentsRef = useLatest(activeEquipments);
     // UNIFIED TARGET REF - single source of truth for current interaction target
-    const closestTargetRef = useLatest(closestInteractableTarget);
+    const latestClosestTargetRef = useLatest(closestInteractableTarget);
+    const closestTargetRef = useMemo(() => ({
+        get current(): InteractableTarget | null {
+            return getUnifiedInteractionTarget(interactionTargetRef?.current) ?? latestClosestTargetRef.current;
+        },
+    }), [interactionTargetRef, latestClosestTargetRef]);
     const onSetInteractingWithRef = useLatest(onSetInteractingWith);
-    const worldMousePosRefInternal = useLatest(worldMousePos); // Shadow prop name
+    const latestWorldMousePosRef = useLatest(worldMousePos);
+    const worldMousePosRefInternal = worldMousePosRef ?? latestWorldMousePosRef;
     const treesRef = useLatest(trees);
     const stonesRef = useLatest(stones);
     const livingCoralsRef = useLatest(livingCorals);
@@ -368,6 +403,7 @@ export const useInputHandler = ({
     const targetedFoundationRef = useLatest(targetedFoundation);
     const targetedWallRef = useLatest(targetedWall);
     const targetedFenceRef = useLatest(targetedFence);
+    const buildTargetingRefInternal = buildTargetingRef;
     const itemDefinitionsRef = useLatest(itemDefinitions);
     const rangedWeaponStatsRef = useLatest(rangedWeaponStats); // ADDED: Ref for ranged weapon stats
     const optimisticProjectileSeqRef = useRef<number>(0);
@@ -1983,8 +2019,12 @@ export const useInputHandler = ({
                     // ADDED: Check for Repair Hammer on right mouse down
                     // Prioritize walls over foundations - check walls first
                     if (equippedItemDef?.name === "Repair Hammer") {
+                        const currentBuildTargeting = buildTargetingRefInternal?.current;
+                        const currentTargetedWall = currentBuildTargeting?.targetedWall ?? targetedWallRef.current;
+                        const currentTargetedFence = currentBuildTargeting?.targetedFence ?? targetedFenceRef.current;
+                        const currentTargetedFoundation = currentBuildTargeting?.targetedFoundation ?? targetedFoundationRef.current;
                         // Check for targeted wall first
-                        if (targetedWallRef.current) {
+                        if (currentTargetedWall) {
                             // Don't show menu if it's already showing (prevent flickering)
                             if (showBuildingRadialMenu) {
                                 setShowBuildingRadialMenu(false);
@@ -1994,7 +2034,7 @@ export const useInputHandler = ({
                                 return;
                             }
                             // Store the wall ID so menu stays open even if targetedWall changes
-                            upgradeMenuWallIdRef.current = targetedWallRef.current.id;
+                            upgradeMenuWallIdRef.current = currentTargetedWall.id;
                             // Get mouse position for upgrade radial menu
                             const mouseX = event.clientX;
                             const mouseY = event.clientY;
@@ -2019,7 +2059,7 @@ export const useInputHandler = ({
                             return;
                         }
                         // Check for targeted fence
-                        else if (targetedFenceRef.current) {
+                        else if (currentTargetedFence) {
                             // Don't show menu if it's already showing (prevent flickering)
                             if (showBuildingRadialMenu) {
                                 setShowBuildingRadialMenu(false);
@@ -2029,7 +2069,7 @@ export const useInputHandler = ({
                                 return;
                             }
                             // Store the fence ID so menu stays open even if targetedFence changes
-                            upgradeMenuFenceIdRef.current = targetedFenceRef.current.id;
+                            upgradeMenuFenceIdRef.current = currentTargetedFence.id;
                             // Get mouse position for upgrade radial menu
                             const mouseX = event.clientX;
                             const mouseY = event.clientY;
@@ -2054,7 +2094,7 @@ export const useInputHandler = ({
                             return;
                         }
                         // Fall back to foundation if no wall or fence is targeted
-                        else if (targetedFoundationRef.current) {
+                        else if (currentTargetedFoundation) {
                             // Don't show menu if it's already showing (prevent flickering)
                             if (showBuildingRadialMenu) {
                                 setShowBuildingRadialMenu(false);
@@ -2064,7 +2104,7 @@ export const useInputHandler = ({
                                 return;
                             }
                             // Store the foundation ID so menu stays open even if targetedFoundation changes
-                            upgradeMenuFoundationIdRef.current = targetedFoundationRef.current.id;
+                            upgradeMenuFoundationIdRef.current = currentTargetedFoundation.id;
                             // Get mouse position for upgrade radial menu
                             const mouseX = event.clientX;
                             const mouseY = event.clientY;
@@ -2628,7 +2668,7 @@ export const useInputHandler = ({
         }
     }, [
         isPlayerDead, attemptSwing, attemptRangedFire, placementInfo,
-        localPlayerId, localPlayer, activeEquipments, worldMousePos, connection,
+        localPlayerId, localPlayer, activeEquipments, connection,
         closestInteractableTarget, onSetInteractingWith,
         isChatting, isSearchingCraftRecipes, setIsMinimapOpen, isInventoryOpen,
         isAutoAttacking, isFishing, movementDirection, isActivelyHolding, interactionProgress,

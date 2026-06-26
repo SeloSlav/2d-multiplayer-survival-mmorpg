@@ -9,7 +9,7 @@
 
 import { CollisionShape, COLLISION_OFFSETS, PLAYER_RADIUS } from '../clientCollision';
 import { Player, Tree, Stone, RuneStone, Cairn, WoodenStorageBox, RainCollector, Furnace, Barbecue, Shelter, WildAnimal, Barrel, SeaStack, WallCell, FoundationCell, HomesteadHearth, BasaltColumn, Door, AlkStation, Campfire, Lantern, DroppedItem, HarvestableResource, PlayerCorpse, Stash, SleepingBag, PlantedSeed, BrothPot, AnimalCorpse, Fumarole, LivingCoral, Projectile } from '../../generated/types';
-import { YSortedEntityType, CompoundBuildingEntity } from '../../hooks/useEntityFiltering';
+import type { YSortedEntityType, CompoundBuildingEntity } from '../../engine/runtime/entityFilteringRuntime';
 import {
   NPC_PROJECTILE_SPECTRAL_BOLT,
   NPC_PROJECTILE_SPECTRAL_SHARD,
@@ -426,7 +426,7 @@ export function renderCollisionDebug(
 }
 
 // ===== Y-SORT DEBUG =====
-// All Y-sort values come from _ySortKey on ySortedEntities (computed in useEntityFiltering).
+// All Y-sort values come from _ySortKey on ySortedEntities (computed in EntityFilteringRuntime).
 // No duplicate logic - debug overlay reflects actual sort data.
 
 /**

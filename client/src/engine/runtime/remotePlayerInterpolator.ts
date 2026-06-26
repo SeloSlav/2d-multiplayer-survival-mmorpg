@@ -107,3 +107,8 @@ class RemotePlayerInterpolator {
 }
 
 export const remotePlayerInterpolator = new RemotePlayerInterpolator();
+
+export const remotePlayerInterpolationRuntime = {
+  updateAndGetSmoothedPosition: remotePlayerInterpolator.updateAndGetSmoothedPosition.bind(remotePlayerInterpolator),
+  cleanupPlayer: remotePlayerInterpolator.cleanupPlayer.bind(remotePlayerInterpolator),
+};

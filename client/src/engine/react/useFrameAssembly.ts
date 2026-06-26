@@ -3,16 +3,12 @@
  * projectile presentation, and runtime frame publication into one
  * engine-owned boundary.
  */
-import { useEffect, useMemo } from 'react';
-import type { Projectile } from '../../generated/types';
-import { useEntityFiltering } from './useFrameEntityFiltering';
-import { runtimeEngine } from '../runtimeEngine';
-import { useRemotePlayerInterpolation } from '../../hooks/useRemotePlayerInterpolation';
-import { useDayNightCycle } from '../../hooks/useDayNightCycle';
-import { useProjectilePresentationStore } from '../../hooks/useProjectilePresentationStore';
-import { cleanupProjectileTrackingForDeleted, getProjectileVisualDedupKey } from '../../utils/renderers/projectileRenderingUtils';
+import { useMemo } from 'react';
+import { remotePlayerInterpolationRuntime } from '../runtime/remotePlayerInterpolator';
+import type { GameCanvasRuntimeHost } from '../runtime/GameCanvasRuntimeHost';
 
 interface UseFrameAssemblyOptions {
+  host: GameCanvasRuntimeHost;
   connection: any | null;
   players: Map<string, any>;
   trees: Map<string, any>;
@@ -74,11 +70,9 @@ interface UseFrameAssemblyOptions {
 }
 
 export function useFrameAssembly(options: UseFrameAssemblyOptions) {
-  const remotePlayerInterpolation = useRemotePlayerInterpolation();
-  const optimisticProjectiles =
-    (runtimeEngine.getSnapshot().input.optimisticProjectiles as Map<string, Projectile> | undefined) ?? new Map<string, Projectile>();
+  const remotePlayerInterpolation = remotePlayerInterpolationRuntime;
 
-  const filtering = useEntityFiltering(
+  const filtering = options.host.configureEntityFilteringRuntime(
     options.players,
     options.trees,
     options.stones,
@@ -135,7 +129,7 @@ export function useFrameAssembly(options: UseFrameAssemblyOptions) {
     return { x: options.predictedPosition.x, y: options.predictedPosition.y };
   }, [options.predictedPosition?.x, options.predictedPosition?.y]);
 
-  const { overlayRgba, maskCanvasRef, redrawMask } = useDayNightCycle({
+  const { overlayRgba, maskCanvasRef, redrawMask } = options.host.configureDayNightCycleRuntime({
     worldState: options.worldState,
     droppedItems: filtering.visibleDroppedItemsMap,
     campfires: options.campfires,
@@ -162,20 +156,10 @@ export function useFrameAssembly(options: UseFrameAssemblyOptions) {
     worldMouseY: options.worldMouseY,
   });
 
-  const renderableProjectiles = useProjectilePresentationStore({
+  const renderableProjectiles = options.host.configureProjectilePresentationRuntime({
     connection: options.connection,
-    authoritativeProjectiles: options.projectiles as Map<string, Projectile>,
-    optimisticProjectiles,
-    localPlayerId: options.localPlayerId,
+    authoritativeProjectiles: options.projectiles,
   });
-
-  // Keep projectile timing state aligned with the final renderable set so
-  // optimistic -> authoritative handoffs do not purge effects mid-flight.
-  useEffect(() => {
-    const ids = new Set<string>();
-    renderableProjectiles.forEach((projectile) => ids.add(getProjectileVisualDedupKey(projectile)));
-    cleanupProjectileTrackingForDeleted(ids);
-  }, [renderableProjectiles]);
 
   const corpseSourceAnimalIds = useMemo(() => {
     const ids = new Set<string>();
@@ -200,77 +184,6 @@ export function useFrameAssembly(options: UseFrameAssemblyOptions) {
     });
     return withProjectiles;
   }, [corpseSourceAnimalIds, filtering.ySortedEntities, renderableProjectiles]);
-
-  const frameVisibility = useMemo(
-    () => ({
-      ySortedEntities: finalizedYSortedEntities,
-      buildingClusters: filtering.buildingClusters,
-      visibleHarvestableResourcesMap: filtering.visibleHarvestableResourcesMap,
-      visibleTreesMap: filtering.visibleTreesMap,
-      visibleStonesMap: filtering.visibleStonesMap,
-      visibleDroppedItemsMap: filtering.visibleDroppedItemsMap,
-      visibleCampfiresMap: filtering.visibleCampfiresMap,
-      visibleFurnacesMap: filtering.visibleFurnacesMap,
-      visibleBarbecuesMap: filtering.visibleBarbecuesMap,
-      visibleRuneStonesMap: filtering.visibleRuneStonesMap,
-      visibleCairnsMap: filtering.visibleCairnsMap,
-      visibleLanternsMap: filtering.visibleLanternsMap,
-      visibleTurretsMap: filtering.visibleTurretsMap,
-      visibleBoxesMap: filtering.visibleBoxesMap,
-      visiblePlayerCorpsesMap: filtering.visiblePlayerCorpsesMap,
-      visibleStashesMap: filtering.visibleStashesMap,
-      visibleSleepingBagsMap: filtering.visibleSleepingBagsMap,
-      visibleGrassMap: filtering.visibleGrassMap,
-      visibleSheltersMap: filtering.visibleSheltersMap,
-      visibleWildAnimalsMap: filtering.visibleWildAnimalsMap,
-      visibleAnimalCorpsesMap: filtering.visibleAnimalCorpsesMap,
-      visibleBarrelsMap: filtering.visibleBarrelsMap,
-      visibleRoadLamppostsMap: filtering.visibleRoadLamppostsMap,
-      visibleFumarolesMap: filtering.visibleFumarolesMap,
-      visibleBasaltColumnsMap: filtering.visibleBasaltColumnsMap,
-      visibleLivingCoralsMap: filtering.visibleLivingCoralsMap,
-      visibleSeaStacksMap: filtering.visibleSeaStacksMap,
-      visibleHomesteadHearthsMap: filtering.visibleHomesteadHearthsMap,
-      visibleDoorsMap: filtering.visibleDoorsMap,
-      visibleFencesMap: filtering.visibleFencesMap,
-      visibleAlkStationsMap: filtering.visibleAlkStationsMap,
-      swimmingPlayersForBottomHalf: filtering.swimmingPlayersForBottomHalf,
-    }),
-    [
-      finalizedYSortedEntities,
-      filtering.buildingClusters,
-      filtering.visibleHarvestableResourcesMap,
-      filtering.visibleTreesMap,
-      filtering.visibleStonesMap,
-      filtering.visibleDroppedItemsMap,
-      filtering.visibleCampfiresMap,
-      filtering.visibleFurnacesMap,
-      filtering.visibleBarbecuesMap,
-      filtering.visibleRuneStonesMap,
-      filtering.visibleCairnsMap,
-      filtering.visibleLanternsMap,
-      filtering.visibleTurretsMap,
-      filtering.visibleBoxesMap,
-      filtering.visiblePlayerCorpsesMap,
-      filtering.visibleStashesMap,
-      filtering.visibleSleepingBagsMap,
-      filtering.visibleGrassMap,
-      filtering.visibleSheltersMap,
-      filtering.visibleWildAnimalsMap,
-      filtering.visibleAnimalCorpsesMap,
-      filtering.visibleBarrelsMap,
-      filtering.visibleRoadLamppostsMap,
-      filtering.visibleFumarolesMap,
-      filtering.visibleBasaltColumnsMap,
-      filtering.visibleLivingCoralsMap,
-      filtering.visibleSeaStacksMap,
-      filtering.visibleHomesteadHearthsMap,
-      filtering.visibleDoorsMap,
-      filtering.visibleFencesMap,
-      filtering.visibleAlkStationsMap,
-      filtering.swimmingPlayersForBottomHalf,
-    ]
-  );
 
   return {
     ...filtering,

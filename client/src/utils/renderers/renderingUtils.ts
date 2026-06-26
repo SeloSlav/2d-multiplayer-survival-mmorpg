@@ -3,7 +3,7 @@
  *
  * This module is the main renderer for game entities, drawing them in correct depth order
  * (Y-sorting) so that entities overlap correctly (e.g., player behind a tree). It receives
- * pre-sorted entity arrays from useEntityFiltering and renders each type via specialized
+ * pre-sorted entity arrays from EntityFilteringRuntime and renders each type via specialized
  * renderer modules (e.g., treeRenderingUtils, playerRenderingUtils).
  *
  * Responsibilities:
@@ -59,9 +59,8 @@ import { DbConnection } from '../../generated';
 import type { PlayerCorpse as SpacetimeDBPlayerCorpse } from '../../generated/types';
 import { gameConfig, JUMP_DURATION_MS, JUMP_HEIGHT_PX } from '../../config/gameConfig';
 import { COMPOUND_BUILDINGS, isCompoundMonument } from '../../config/compoundBuildings';
-import { CompoundBuildingEntity } from '../../hooks/useEntityFiltering';
-import { YSortedEntityType } from '../../hooks/useEntityFiltering';
-import { InterpolatedGrassData } from '../../hooks/useGrassInterpolation';
+import type { CompoundBuildingEntity, YSortedEntityType } from '../../engine/runtime/entityFilteringRuntime';
+import { InterpolatedGrassData } from '../../engine/runtime/grassInterpolationRuntime';
 
 // --- Entity renderers ---
 import { renderTree, renderTreeImpactEffects, renderTreeHitEffects } from './treeRenderingUtils';
@@ -2005,7 +2004,7 @@ export const renderYSortedEntities = ({
           
           // Draw all monument doodads (including village campfires) in main loop for correct Y-sorting with player.
           // Fire/smoke particles render in a separate pass and appear on top.
-          // The entity already has all the data we need from useEntityFiltering
+          // The entity already has all the data we need from EntityFilteringRuntime
           // Convert it to CompoundBuilding format for renderMonument
           const buildingForRendering = {
               id: buildingEntity.id,

@@ -29,7 +29,7 @@ export interface InteractableTarget {
     };
 }
 
-// All possible interaction target types (matches useInteractionFinder types)
+// All possible interaction target types (matches interactionTargetRuntime types)
 export type InteractionTargetType = 
     | 'harvestable_resource'  // Unified for all plants (mushroom, corn, potato, pumpkin, hemp, reed)
     | 'campfire' 

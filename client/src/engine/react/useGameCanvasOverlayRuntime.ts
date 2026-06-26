@@ -1,8 +1,7 @@
 import { usePlayerHover } from '../../hooks/usePlayerHover';
-import { usePlantedSeedHover } from '../../hooks/usePlantedSeedHover';
-import { useTamedAnimalHover } from '../../hooks/useTamedAnimalHover';
 import type { GameCanvasOverlayUIProps } from '../../components/GameCanvasOverlayUI';
 import type { GameCanvasRuntimeControllerSnapshot } from '../runtime/GameCanvasRuntimeHost';
+import type { GameCanvasPointerSnapshot } from '../runtime/gameCanvasPointerRuntime';
 
 interface UseGameCanvasOverlayRuntimeOptions {
   connection: any;
@@ -14,6 +13,7 @@ interface UseGameCanvasOverlayRuntimeOptions {
   torchOnImg: any;
   canvasSize: { width: number; height: number };
   controllerRuntime: GameCanvasRuntimeControllerSnapshot;
+  pointerSnapshot: GameCanvasPointerSnapshot;
   plantedSeeds: Map<any, any>;
   wildAnimals: Map<any, any>;
 }
@@ -32,22 +32,11 @@ export function useGameCanvasOverlayRuntime({
   torchOnImg,
   canvasSize,
   controllerRuntime,
+  pointerSnapshot,
   plantedSeeds,
   wildAnimals,
 }: UseGameCanvasOverlayRuntimeOptions) {
   const { hoveredPlayerIds, handlePlayerHover } = usePlayerHover();
-
-  const { hoveredSeed } = usePlantedSeedHover(
-    plantedSeeds,
-    controllerRuntime.worldMousePos.x,
-    controllerRuntime.worldMousePos.y,
-  );
-
-  const { hoveredTamedAnimal } = useTamedAnimalHover(
-    wildAnimals,
-    controllerRuntime.worldMousePos.x,
-    controllerRuntime.worldMousePos.y,
-  );
 
   const overlayProps: GameCanvasOverlayUIProps = {
     connection,
@@ -68,9 +57,9 @@ export function useGameCanvasOverlayRuntime({
     upgradeMenuFoundationRef: controllerRuntime.upgradeMenuFoundationRef,
     upgradeMenuWallRef: controllerRuntime.upgradeMenuWallRef,
     upgradeMenuFenceRef: controllerRuntime.upgradeMenuFenceRef,
-    hoveredSeed,
-    canvasMousePos: controllerRuntime.canvasMousePos,
-    hoveredTamedAnimal,
+    pointerSnapshot,
+    plantedSeeds,
+    wildAnimals,
   };
 
   return {

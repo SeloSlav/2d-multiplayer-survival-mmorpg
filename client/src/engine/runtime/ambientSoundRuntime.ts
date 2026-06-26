@@ -1,19 +1,17 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { TimeOfDay, WeatherType, ActiveConsumableEffect, Season } from '../generated/types'; // Import actual types
-import { calculateChunkIndex } from '../utils/chunkUtils'; // Import chunk calculation helper
-import { gameConfig } from '../config/gameConfig'; // Import game config for chunk dimensions
+import { TimeOfDay, WeatherType, ActiveConsumableEffect, Season } from '../../generated/types'; // Import actual types
+import { calculateChunkIndex } from '../../utils/chunkUtils'; // Import chunk calculation helper
 
 /**
  * ⚠️ WARNING: This ambient sound system is NOW INTEGRATED into the game!
  * 
  * Features:
  * 1. Uses seamless looping with overlapping audio instances (like main sound system)
- * 2. Integrated into GameCanvas with actual WorldState data
+ * 2. Integrated into GameCanvasRuntimeHost with actual WorldState data
  * 3. Controlled by environmentalVolume in GameSettingsMenu
  * 4. Professional audio caching and performance optimization
  */
 
-interface AmbientSoundProps {
+export interface AmbientSoundProps {
     masterVolume?: number;
     environmentalVolume?: number;
     timeOfDay?: TimeOfDay; // Use actual server TimeOfDay type
@@ -227,7 +225,7 @@ const AMBIENT_SOUND_DEFINITIONS = {
     }
 } as const;
 
-type AmbientSoundType = keyof typeof AMBIENT_SOUND_DEFINITIONS;
+export type AmbientSoundType = keyof typeof AMBIENT_SOUND_DEFINITIONS;
 
 // Ambient sound configuration
 const AMBIENT_CONFIG = {
@@ -1275,936 +1273,69 @@ const startSimpleLoopingSound = async (
     }
 };
 
-// Main ambient sound system hook
-export const useAmbientSounds = ({
-    masterVolume = 1.0,
-    environmentalVolume, // Remove default - use whatever is passed in (including 0)
-    timeOfDay, // No default - will be passed from actual game data
-    weatherCondition, // Deprecated - kept for backwards compatibility
-    chunkWeather,
-    localPlayer,
-    activeConsumableEffects,
-    localPlayerId,
-    isUnderwater = false, // Whether player is snorkeling/underwater
-    currentSeason, // Season affects ambient sounds (no crickets in winter)
-    isIndoors = false, // Whether player is inside a building - muffles outdoor sounds
-    distanceToShore = 0, // Distance in pixels to nearest water - affects ocean sound volume
-    distanceToMapEdge = Infinity, // Distance in pixels to nearest map boundary - for deep ocean
-    wildAnimals, // Wild animals for bee buzzing proximity
-}: AmbientSoundProps = {}) => {
-    // Use a fallback only if environmentalVolume is completely undefined, but allow 0
-    const effectiveEnvironmentalVolume = environmentalVolume !== undefined ? environmentalVolume : 0.7;
-    
-    const isInitializedRef = useRef(false);
-    const lastWeatherRef = useRef(weatherCondition);
-    const updateIntervalRef = useRef<number | undefined>(undefined);
-    const lastUnderwaterStateRef = useRef(false);
-    const lastIndoorStateRef = useRef(false);
-    const lastDistanceToShoreRef = useRef(distanceToShore);
-    const lastDistanceToMapEdgeRef = useRef(distanceToMapEdge);
-    lastDistanceToMapEdgeRef.current = distanceToMapEdge; // Keep current for random sound checks (e.g. no crow in deep ocean)
-    const lastDistanceToBeeRef = useRef<number>(Infinity);
+export class AmbientSoundRuntime {
+    private options: AmbientSoundProps = {};
+    private isStarted = false;
+    private isInitialized = false;
+    private updateIntervalId: number | undefined;
+    private healthCheckIntervalId: number | undefined;
+    private lastWeather: AmbientSoundProps['weatherCondition'];
+    private lastUnderwaterState = false;
+    private lastIndoorState = false;
+    private lastDistanceToShore = 0;
+    private lastDistanceToMapEdge = Infinity;
+    private lastDistanceToBee = Infinity;
+    private continuousSoundsKey = '';
+    private volumeKey = '';
+    private proximityKey = '';
+    private beeKey = '';
+    private continuousUpdateInFlight = false;
 
-    // 🐝 Calculate distance to nearest bee (for single buzzing loop for all bees)
-    const getDistanceToNearestBee = useCallback((): number => {
-        if (!localPlayer || !wildAnimals || wildAnimals.size === 0) {
-            return Infinity;
+    update(options: AmbientSoundProps = {}): void {
+        this.options = options;
+        this.lastDistanceToMapEdge = options.distanceToMapEdge ?? Infinity;
+
+        if (!this.isStarted) {
+            this.start();
         }
 
-        const playerX = localPlayer.positionX ?? localPlayer.position_x ?? 0;
-        const playerY = localPlayer.positionY ?? localPlayer.position_y ?? 0;
-        
-        let nearestDistance = Infinity;
-        
-        wildAnimals.forEach((animal) => {
-            // Check if this is a bee (species.tag === 'Bee')
-            if (animal.species?.tag !== 'Bee') return;
-            
-            const dx = (animal.posX ?? animal.pos_x ?? 0) - playerX;
-            const dy = (animal.posY ?? animal.pos_y ?? 0) - playerY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-            }
-        });
-        
-        return nearestDistance;
-    }, [localPlayer, wildAnimals]);
+        this.syncContinuousSounds();
+        this.updateVolumesIfNeeded();
+        this.updateUnderwaterState();
+        this.updateIndoorState();
+        this.updateProximityVolumesIfNeeded();
+        this.updateBeeVolumeIfNeeded();
+    }
 
-    // console.log(`🌊 [VOLUME DEBUG] useAmbientSounds called with environmentalVolume=${environmentalVolume}, effective=${effectiveEnvironmentalVolume}`);
-
-    // Calculate which continuous sounds should be playing
-    // Helper to get wind intensity based on player's current chunk weather
-    // Wind matches the weather type exactly - same as rain sounds
-    const getCurrentWindIntensity = useCallback((): 'light' | 'moderate' | 'strong' => {
-        // If no chunk weather data, fall back to global weather
-        if (!chunkWeather || !localPlayer) {
-            console.log('[AmbientSounds] No chunk data, using global weather fallback:', weatherCondition?.tag);
-            if (weatherCondition?.tag === 'HeavyRain' || weatherCondition?.tag === 'HeavyStorm') {
-                return 'strong';
-            } else if (weatherCondition?.tag === 'LightRain' || weatherCondition?.tag === 'ModerateRain') {
-                return 'moderate';
-            }
-            return 'light';
+    stop(): void {
+        if (this.updateIntervalId) {
+            window.clearInterval(this.updateIntervalId);
+            this.updateIntervalId = undefined;
         }
 
-        // Calculate chunk index for player's position using the same helper as DayNightTracker
-        const playerChunkIndex = calculateChunkIndex(localPlayer.positionX, localPlayer.positionY);
-        const playerChunkData = chunkWeather.get(playerChunkIndex.toString());
-        const playerWeatherTag = playerChunkData?.currentWeather?.tag || 'Clear';
-        
-        // Wind matches weather type exactly
-        if (playerWeatherTag === 'HeavyStorm' || playerWeatherTag === 'HeavyRain') {
-            return 'strong';
-        } else if (playerWeatherTag === 'ModerateRain' || playerWeatherTag === 'LightRain') {
-            return 'moderate';
-        }
-        return 'light'; // Clear weather = gentle breeze
-    }, [chunkWeather, localPlayer, weatherCondition]);
-
-    // Helper to check if player has Entrainment effect
-    const hasEntrainmentEffect = useCallback((): boolean => {
-        if (!activeConsumableEffects || !localPlayerId) return false;
-        
-        return Array.from(activeConsumableEffects.values()).some(
-            (effect: ActiveConsumableEffect) => effect.playerId.toHexString() === localPlayerId && 
-                      effect.effectType.tag === 'Entrainment'
-        );
-    }, [activeConsumableEffects, localPlayerId]);
-
-    const getActiveContinuousSounds = useCallback((): AmbientSoundType[] => {
-        const sounds: AmbientSoundType[] = [];
-        
-        // Entrainment ambient sound (highest priority - plays when player has Entrainment)
-        if (hasEntrainmentEffect()) {
-            sounds.push('entrainment_ambient');
-            // Don't add other ambient sounds when Entrainment is active (too chaotic)
-            return sounds;
-        }
-        
-        // 🌊 UNDERWATER: Add underwater ambient sound when snorkeling
-        if (isUnderwater) {
-            sounds.push('underwater_ambient');
-        }
-        
-        // Wind matches player's current chunk weather (same as rain)
-        // Note: When underwater, these will be muffled by the lowpass filter
-        const windIntensity = getCurrentWindIntensity();
-        
-        if (windIntensity === 'strong') {
-            sounds.push('wind_strong');
-        } else if (windIntensity === 'moderate') {
-            sounds.push('wind_moderate');
-        } else {
-            sounds.push('wind_light');
-        }
-        
-        // 🌊 Ocean sounds - shore vs deep ocean (mutually exclusive)
-        // Near shore: waves lapping (ocean_ambience). Near map edge: open water, no waves (deep_ocean_ambience)
-        const oceanDef = AMBIENT_SOUND_DEFINITIONS.ocean_ambience;
-        const oceanMaxDist = 'maxProximityDistance' in oceanDef ? oceanDef.maxProximityDistance : 800;
-        const deepOceanDef = AMBIENT_SOUND_DEFINITIONS.deep_ocean_ambience;
-        const deepOceanMaxDist = 'maxProximityDistance' in deepOceanDef ? deepOceanDef.maxProximityDistance : 600;
-        const inDeepOcean = distanceToMapEdge < deepOceanMaxDist;
-        if (inDeepOcean) {
-            // At map edge = deep ocean (ambient water, no waves)
-            sounds.push('deep_ocean_ambience');
-        } else if (distanceToShore < oceanMaxDist) {
-            // Near shore = waves lapping
-            sounds.push('ocean_ambience');
-        }
-        
-        // 🦗 Night crickets - only at night, not in winter (insects are dormant), not in deep ocean
-        const isNightTime = timeOfDay?.tag === 'Night' || timeOfDay?.tag === 'Midnight';
-        const isWinter = currentSeason?.tag === 'Winter';
-        if (isNightTime && !isWinter && !inDeepOcean) {
-            sounds.push('night_crickets');
-        }
-        
-        // 🐦 Dawn chorus - morning birds during dawn period, not in deep ocean
-        const isDawn = timeOfDay?.tag === 'Dawn';
-        if (isDawn && !inDeepOcean) {
-            sounds.push('dawn_chorus');
-        }
-        
-        // General nature ambience (always present but quiet), not in deep ocean (no land = no birds/insects)
-        // When underwater, this gets heavily muffled (birds, insects become very faint)
-        if (!inDeepOcean) {
-            sounds.push('nature_general');
-        }
-        
-        // 🐝 Bee buzzing - proximity-based, only plays ONE loop even for multiple bees, not in deep ocean
-        const distanceToBee = getDistanceToNearestBee();
-        const beeDef = AMBIENT_SOUND_DEFINITIONS.bee_buzzing;
-        const beeMaxDist = 'maxProximityDistance' in beeDef ? beeDef.maxProximityDistance : 350;
-        if (distanceToBee < beeMaxDist && !isUnderwater && !inDeepOcean) {
-            sounds.push('bee_buzzing');
-        }
-        
-        return sounds;
-    }, [getCurrentWindIntensity, hasEntrainmentEffect, isUnderwater, distanceToShore, distanceToMapEdge, timeOfDay, currentSeason, getDistanceToNearestBee]);
-
-    // Calculate volume modifier for proximity-based sounds (ocean, bee buzzing)
-    const getProximityVolumeModifier = useCallback((soundType: AmbientSoundType): number => {
-        const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
-        
-        // 🐝 Bee buzzing uses distance to nearest bee (single loop for all bees)
-        if ('beeProximityBased' in definition && (definition as any).beeProximityBased) {
-            const distanceToBee = getDistanceToNearestBee();
-            const maxDist = 'maxProximityDistance' in definition ? (definition as any).maxProximityDistance : 350;
-            const minDist = 'minProximityDistance' in definition ? (definition as any).minProximityDistance : 50;
-            
-            if (distanceToBee <= minDist) {
-                return 1.0; // Full volume when very close to a bee
-            }
-            if (distanceToBee >= maxDist) {
-                return 0.0; // Silent when far from all bees
-            }
-            
-            // Linear fade between minDist and maxDist
-            const fadeRange = maxDist - minDist;
-            const fadeProgress = (distanceToBee - minDist) / fadeRange;
-            return 1.0 - fadeProgress;
-        }
-        
-        // Map-edge proximity (deep ocean - open water at map boundary)
-        if ('mapEdgeBased' in definition && (definition as any).mapEdgeBased) {
-            const maxDist = 'maxProximityDistance' in definition ? (definition as any).maxProximityDistance : 600;
-            const minDist = 'minProximityDistance' in definition ? (definition as any).minProximityDistance : 80;
-            if (distanceToMapEdge <= minDist) return 1.0; // Full volume at map edge
-            if (distanceToMapEdge >= maxDist) return 0.0; // Silent far from edge
-            const fadeRange = maxDist - minDist;
-            const fadeProgress = (distanceToMapEdge - minDist) / fadeRange;
-            return 1.0 - fadeProgress;
-        }
-        
-        // Shore-based proximity (ocean, seagulls)
-        if (!('proximityBased' in definition) || !definition.proximityBased) {
-            return 1.0; // Full volume for non-proximity sounds
-        }
-        
-        const maxDist = 'maxProximityDistance' in definition ? definition.maxProximityDistance : 800;
-        const minDist = 'minProximityDistance' in definition ? definition.minProximityDistance : 50;
-        
-        if (distanceToShore <= minDist) {
-            return 1.0; // Full volume at/near shore
-        }
-        if (distanceToShore >= maxDist) {
-            return 0.0; // Silent far from shore
-        }
-        
-        // Linear fade between minDist and maxDist
-        const fadeRange = maxDist - minDist;
-        const fadeProgress = (distanceToShore - minDist) / fadeRange;
-        return 1.0 - fadeProgress;
-    }, [distanceToShore, distanceToMapEdge, getDistanceToNearestBee]);
-
-    // Start a seamless continuous ambient sound
-    const startContinuousSound = useCallback(async (soundType: AmbientSoundType) => {
-        try {
-            const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
-            if (definition.type !== 'continuous') return;
-
-            // Check if already playing or loading
-            if (activeSeamlessLoopingSounds.has(soundType) || loadingSeamlessSounds.has(soundType)) {
-                // console.log(`🌊 ${soundType} already playing or loading, skipping start`);
-                return;
-            }
-
-            // console.log(`🌊 Starting continuous ambient sound: ${soundType} with environmentalVolume=${effectiveEnvironmentalVolume}`);
-            loadingSeamlessSounds.add(soundType);
-
-            // Apply proximity modifier for sounds like ocean
-            const proximityModifier = getProximityVolumeModifier(soundType);
-            const finalVolume = definition.baseVolume * effectiveEnvironmentalVolume * proximityModifier;
-            // console.log(`🌊 [VOLUME] ${soundType}: baseVolume=${definition.baseVolume} * env=${effectiveEnvironmentalVolume} * proximity=${proximityModifier.toFixed(2)} = ${finalVolume.toFixed(3)}`);
-            
-            const pitchVariation = 0.95 + Math.random() * 0.1; // Tighter pitch range for seamless sounds
-            
-            if (definition.useSeamlessLooping) {
-                const success = await createSeamlessLoopingSound(soundType, definition.filename, finalVolume, pitchVariation);
-                if (success) {
-                    // console.log(`🌊 ✅ Started seamless ambient sound: ${soundType} (${definition.description})`);
-                } else {
-                    console.warn(`🌊 ❌ Seamless looping failed for ${soundType}, using simple loop fallback`);
-                    // Fallback to simple looping
-                    await startSimpleLoopingSound(soundType, definition.filename, finalVolume, pitchVariation);
-                }
-            }
-            
-        } catch (error) {
-            console.warn(`🌊 ❌ Failed to start continuous ambient sound: ${soundType}`, error);
-        } finally {
-            loadingSeamlessSounds.delete(soundType);
-        }
-    }, [effectiveEnvironmentalVolume, getProximityVolumeModifier]);
-
-    // Stop a continuous ambient sound
-    const stopContinuousSound = useCallback(async (soundType: AmbientSoundType) => {
-        if (activeSeamlessLoopingSounds.has(soundType)) {
-            await cleanupSeamlessSound(soundType, "manually stopped");
-        }
-    }, []);
-
-    // Schedule a random ambient sound
-    const scheduleRandomSound = useCallback((soundType: AmbientSoundType) => {
-        const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
-        if (definition.type !== 'random') return;
-
-        // Check time of day restrictions (fix nightOnly check)
-        if ('nightOnly' in definition && definition.nightOnly) {
-            // Only play night sounds during actual night times
-            if (!timeOfDay || (timeOfDay.tag !== 'Night' && timeOfDay.tag !== 'Midnight')) {
-                return;
-            }
+        if (this.healthCheckIntervalId) {
+            window.clearInterval(this.healthCheckIntervalId);
+            this.healthCheckIntervalId = undefined;
         }
 
-        // Check day-only restrictions (seagulls, crows shouldn't play at night)
-        if ('dayOnly' in definition && definition.dayOnly) {
-            // Only play day sounds during day/dawn/dusk, not night
-            if (!timeOfDay || (timeOfDay.tag === 'Night' || timeOfDay.tag === 'Midnight')) {
-                return;
-            }
+        updateLoopRestartCallback = null;
+
+        if (globalUpdateIntervalId) {
+            window.clearInterval(globalUpdateIntervalId);
+            globalUpdateIntervalId = undefined;
         }
 
-        // Check storm-only restrictions (thunder should only play during heavy storms)
-        if ('stormOnly' in definition && definition.stormOnly) {
-            // Check if player is in a heavy storm chunk
-            if (!chunkWeather || !localPlayer) {
-                return; // No weather data, don't play storm sounds
-            }
-            
-            const playerChunkIndex = calculateChunkIndex(localPlayer.positionX, localPlayer.positionY);
-            const playerChunkData = chunkWeather.get(playerChunkIndex.toString());
-            const playerWeatherTag = playerChunkData?.currentWeather?.tag || 'Clear';
-            
-            // Only play during HeavyStorm or HeavyRain
-            if (playerWeatherTag !== 'HeavyStorm' && playerWeatherTag !== 'HeavyRain') {
-                return;
-            }
-        }
+        randomSoundTimers.forEach(timer => window.clearTimeout(timer));
+        randomSoundTimers.clear();
 
-        const playRandomSound = async () => {
-            try {
-                // Limit concurrent random sounds
-                if (activeRandomSounds.size >= AMBIENT_CONFIG.MAX_CONCURRENT_RANDOM) {
-                    return;
-                }
-
-                // 🌊 Don't play land-based sounds in deep ocean (open water, no land animals/vegetation)
-                const deepOceanMaxDist = AMBIENT_SOUND_DEFINITIONS.deep_ocean_ambience.maxProximityDistance ?? 600;
-                const inDeepOcean = lastDistanceToMapEdgeRef.current < deepOceanMaxDist;
-                const DEEP_OCEAN_EXCLUDED_SOUNDS: AmbientSoundType[] = [
-                    'raven_caw',       // Inland birds
-                    'owl_hoot',        // Land birds
-                    'wolf_howl',       // Land animals
-                    'structure_creak', // No structures in open ocean
-                    'grass_rustle',    // No vegetation in open ocean
-                    'seagull_cry',     // Seagulls are coastal, not far out to sea
-                ];
-                if (inDeepOcean && (DEEP_OCEAN_EXCLUDED_SOUNDS as string[]).includes(soundType)) {
-                    return;
-                }
-                
-                // 🌊 Proximity-based sounds: skip entirely if too far from shore
-                if ('proximityBased' in definition && definition.proximityBased) {
-                    const maxDist = definition.maxProximityDistance || 800;
-                    if (distanceToShore > maxDist) {
-                        return; // Too far inland - don't play this sound
-                    }
-                }
-
-                // Choose random variation
-                const variation = definition.variations ? Math.floor(Math.random() * definition.variations) : 0;
-                const filename = variation === 0 ? definition.filename : 
-                                definition.filename.replace('.mp3', `${variation + 1}.mp3`);
-
-                // Enhanced logging to verify variant selection
-                // console.log(`🌊 [VARIANT CHECK] ${soundType}:`);
-                //console.log(`   - Total variants: ${definition.variations || 1}`);
-                //console.log(`   - Selected variation index: ${variation}`);
-                //console.log(`   - Base filename: ${definition.filename}`);
-                //console.log(`   - Final filename: ${filename}`);
-                // console.log(`   - Expected variants: ${Array.from({length: definition.variations || 1}, (_, i) => 
-                //     i === 0 ? definition.filename : definition.filename.replace('.mp3', `${i + 1}.mp3`)
-                // ).join(', ')}`); 
-
-                let audio: HTMLAudioElement;
-                try {
-                    audio = await ambientAudioCache.loadAudio(filename);
-                    
-                    // Audio should already be validated in loadAudio, but double-check
-                    if (!audio.duration || isNaN(audio.duration) || !isFinite(audio.duration) || audio.duration <= 0) {
-                        console.warn(`🌊 ⚠️ [VARIANT ERROR] Invalid audio duration for variant: ${filename} (duration: ${audio.duration})`);
-                        return; // Skip playing this variant
-                    }
-                    
-                    // console.log(`🌊 ✅ [VARIANT SUCCESS] Successfully loaded: ${filename} (${audio.duration.toFixed(2)}s)`);
-                } catch (error) {
-                    console.warn(`🌊 ⚠️ [VARIANT ERROR] Failed to load variant: ${filename}`);
-                    console.warn(`   - Full path attempted: ${AMBIENT_CONFIG.SOUNDS_BASE_PATH}${filename}`);
-                    console.warn(`   - Error:`, error);
-                    return; // Skip playing this variant - loadAudio already logged the error
-                }
-                
-                // Calculate volume with proximity modifier for shore-based sounds
-                let proximityModifier = 1.0;
-                if ('proximityBased' in definition && definition.proximityBased) {
-                    const maxDist = definition.maxProximityDistance || 800;
-                    const minDist = definition.minProximityDistance || 50;
-                    if (distanceToShore <= minDist) {
-                        proximityModifier = 1.0; // Full volume when very close
-                    } else {
-                        // Linear falloff from minDist to maxDist
-                        proximityModifier = Math.max(0, 1 - (distanceToShore - minDist) / (maxDist - minDist));
-                    }
-                }
-                
-                const finalVolume = definition.baseVolume * effectiveEnvironmentalVolume * proximityModifier;
-
-                // Start at 0 volume for fade-in
-                audio.volume = 0;
-                audio.playbackRate = 1 + (Math.random() - 0.5) * AMBIENT_CONFIG.PITCH_VARIATION;
-                
-                // 🌊 Connect to underwater filter (random sounds always get muffled underwater)
-                connectToUnderwaterFilter(audio);
-                if (isCurrentlyUnderwater) {
-                    applyUnderwaterEffect(audio, true);
-                }
-
-                activeRandomSounds.add(audio);
-
-                // Cleanup when finished
-                const cleanup = () => {
-                    activeRandomSounds.delete(audio);
-                    audio.removeEventListener('ended', cleanup);
-                    audio.removeEventListener('error', cleanup);
-                };
-
-                audio.addEventListener('ended', cleanup, { once: true });
-                audio.addEventListener('error', cleanup, { once: true });
-
-                await audio.play();
-                
-                // Smooth fade-in for ambient random sounds (shorter duration than continuous)
-                fadeInAudio(audio, finalVolume * masterVolume, 800); // 800ms fade-in for random sounds
-                
-                // console.log(`🌊 Played random ambient: ${soundType} (${definition.description}) with fade-in`);
-            } catch (error) {
-                console.warn(`🌊 Failed to play random ambient sound: ${soundType}`, error);
-            }
-        };
-
-        // Schedule next occurrence
-        const scheduleNext = () => {
-            const interval = definition.minInterval + 
-                            Math.random() * (definition.maxInterval - definition.minInterval);
-            
-            const timer = window.setTimeout(() => {
-                playRandomSound();
-                scheduleNext(); // Reschedule
-            }, interval);
-            
-            randomSoundTimers.set(soundType, timer);
-        };
-
-        scheduleNext();
-    }, [masterVolume, effectiveEnvironmentalVolume, timeOfDay, chunkWeather, localPlayer, distanceToShore]);
-
-    // Initialize ambient sound system - ALWAYS ensure update loop is running
-    useEffect(() => {
-            // console.log('🌊 Initializing/Reinitializing Aleutian Island ambient sound system...');
-
-        // Clear any existing interval first (in case of hot reload)
-        if (updateIntervalRef.current) {
-            // console.log(`🌊 Clearing existing update interval ${updateIntervalRef.current}`);
-            window.clearInterval(updateIntervalRef.current);
-            updateIntervalRef.current = undefined;
-        }
-
-        // Only set up random sounds once globally to avoid duplicates
-        if (!isInitializedRef.current) {
-            isInitializedRef.current = true;
-            // console.log('🌊 Setting up random sound schedules (first time only)...');
-            // console.log(`🌊 Initial state: chunkWeather=${chunkWeather ? 'available' : 'null'}, localPlayer=${localPlayer ? 'available' : 'null'}`);
-            
-            // Start all random sound schedules
-            Object.keys(AMBIENT_SOUND_DEFINITIONS).forEach(soundType => {
-                const definition = AMBIENT_SOUND_DEFINITIONS[soundType as AmbientSoundType];
-                if (definition.type === 'random') {
-                    // console.log(`🌊 Scheduling random sound: ${soundType}`);
-                    scheduleRandomSound(soundType as AmbientSoundType);
-                }
-            });
-        }
-
-        // ALWAYS start/restart the seamless sound update loop (critical for hot reload)
-        const startUpdateLoop = () => {
-            // Clear any existing interval first
-            if (updateIntervalRef.current) {
-                window.clearInterval(updateIntervalRef.current);
-            }
-            
-            updateIntervalRef.current = window.setInterval(() => {
-                updateSeamlessLoopingSounds();
-            }, 50); // Update every 50ms
-            
-            // console.log(`🌊 ✅ Started seamless sound update loop with interval ID: ${updateIntervalRef.current}`);
-            
-            // Immediate verification that the interval is working
-            setTimeout(() => {
-                const isStillActive = updateIntervalRef.current !== undefined;
-                const mapSize = activeSeamlessLoopingSounds.size;
-                // console.log(`🌊 [VERIFICATION] Update loop active: ${isStillActive}, seamless sounds: ${mapSize}, interval ID: ${updateIntervalRef.current}`);
-                
-                if (mapSize > 0 && !isStillActive) {
-                    console.warn('🌊 ⚠️ CRITICAL: Have seamless sounds but no update loop! Restarting update loop...');
-                    // Restart the update loop immediately
-                    startUpdateLoop();
-                }
-            }, 2000); // Check after 2 seconds
-        };
-
-        // Register restart callback for safety net
-        updateLoopRestartCallback = startUpdateLoop;
-        
-        startUpdateLoop();
-        
-        // Activate global safety net to prevent update loop from ever dying permanently
-        ensureUpdateLoopIsRunning();
-        // console.log(`🌊 🛡️ Global safety net activated to monitor update loop health`);
-
-        return () => {
-            // Cleanup on unmount/hot reload
-            if (updateIntervalRef.current) {
-                // console.log(`🌊 Cleaning up update interval ${updateIntervalRef.current} on unmount/hot reload`);
-                window.clearInterval(updateIntervalRef.current);
-                updateIntervalRef.current = undefined;
-            }
-            
-            // Clear restart callback
-            updateLoopRestartCallback = null;
-            
-            // Clean up global safety net
-            if (globalUpdateIntervalId) {
-                // console.log(`🌊 Cleaning up global safety net interval ${globalUpdateIntervalId}`);
-                window.clearInterval(globalUpdateIntervalId);
-                globalUpdateIntervalId = undefined;
-            }
-            
-            // Clean up random sounds and reset initialization flags on hot reload
-            randomSoundTimers.forEach(timer => window.clearTimeout(timer));
-            randomSoundTimers.clear();
-            
-            // Reset initialization flag so sounds get rescheduled after hot reload
-            isInitializedRef.current = false;
-            
-            // Fire-and-forget cleanup of seamless sounds on unmount
-            activeSeamlessLoopingSounds.forEach((_, soundType) => {
-                cleanupSeamlessSound(soundType, "component unmount").catch((err: Error) => 
-                    console.warn(`🌊 Error during cleanup on unmount: ${err}`)
-                );
-            });
-            
-            // Cleanup simple looping sounds
-            const simpleLoopingSounds = (window as any).simpleLoopingSounds;
-            if (simpleLoopingSounds) {
-                simpleLoopingSounds.forEach((audio: HTMLAudioElement) => {
-                    audio.pause();
-                    audio.currentTime = 0;
-                });
-                simpleLoopingSounds.clear();
-            }
-            
-            activeRandomSounds.forEach(audio => {
-                audio.pause();
-                audio.currentTime = 0;
-            });
-            activeRandomSounds.clear();
-            
-            // console.log(`🌊 Ambient sound system cleanup completed`);
-        };
-    }, []); // No dependencies - always restart the update loop
-
-    // Fade out a seamless sound smoothly before stopping (for time-of-day transitions)
-    const fadeOutAndStopSound = useCallback(async (soundType: AmbientSoundType, fadeMs: number = 2000) => {
-        const seamlessSound = activeSeamlessLoopingSounds.get(soundType);
-        if (!seamlessSound) return;
-        
-        const { primary, secondary } = seamlessSound;
-        const activeAudio = seamlessSound.isPrimaryActive ? primary : secondary;
-        const initialVolume = activeAudio.volume;
-        
-        // Gradual fade out
-        const steps = 40;
-        const stepMs = fadeMs / steps;
-        
-        for (let i = 1; i <= steps; i++) {
-            await new Promise(resolve => setTimeout(resolve, stepMs));
-            const newVolume = initialVolume * (1 - i / steps);
-            primary.volume = Math.max(0, newVolume);
-            secondary.volume = Math.max(0, newVolume);
-        }
-        
-        // Now fully stop
-        await stopContinuousSound(soundType);
-    }, [stopContinuousSound]);
-
-    // Manage continuous sounds based on environment
-    useEffect(() => {
-        const updateContinuousSounds = async () => {
-            const targetSounds = getActiveContinuousSounds();
-            const currentSounds = Array.from(activeSeamlessLoopingSounds.keys());
-
-            // Determine which sounds need to start/stop
-            const soundsToStop = currentSounds.filter(soundType => !targetSounds.includes(soundType));
-            const soundsToStart = targetSounds.filter(soundType => !activeSeamlessLoopingSounds.has(soundType));
-            
-            // Identify different transition types for appropriate handling
-            const isWindTransition = soundsToStop.some(s => s.startsWith('wind_')) && 
-                                    soundsToStart.some(s => s.startsWith('wind_'));
-            
-            // Time-of-day sounds that need smooth fade out (dawn_chorus, night_crickets)
-            const timeOfDaySounds = ['dawn_chorus', 'night_crickets'];
-            const timeOfDaySoundsToStop = soundsToStop.filter(s => timeOfDaySounds.includes(s));
-            const otherSoundsToStop = soundsToStop.filter(s => !timeOfDaySounds.includes(s) && 
-                                                                !(isWindTransition && s.startsWith('wind_')));
-            
-            if (isWindTransition) {
-                // Start new wind sound immediately (with fade-in)
-                const startPromises = soundsToStart.map(soundType => startContinuousSound(soundType));
-                await Promise.all(startPromises);
-                
-                // Wait 1 second for crossfade, then stop old wind sound
-                setTimeout(() => {
-                    soundsToStop.forEach(soundType => {
-                        if (soundType.startsWith('wind_')) {
-                            stopContinuousSound(soundType);
-                        }
-                    });
-                }, 1000);
-            } else {
-                // Stop other sounds immediately (not time-of-day based)
-                const stopPromises = otherSoundsToStop.map(soundType => stopContinuousSound(soundType));
-                await Promise.all(stopPromises);
-
-                // Start new sounds
-                const startPromises = soundsToStart.map(soundType => startContinuousSound(soundType));
-                await Promise.all(startPromises);
-            }
-            
-            // 🌅 Smooth fade out for time-of-day sounds (dawn_chorus fading when dawn ends, etc.)
-            // Do this in background so it doesn't block other sound transitions
-            timeOfDaySoundsToStop.forEach(soundType => {
-                fadeOutAndStopSound(soundType, 3000); // 3 second fade for natural transition
-            });
-
-            // Update references
-            lastWeatherRef.current = weatherCondition;
-        };
-
-        // Call the async function
-        updateContinuousSounds().catch(error => {
-            console.warn("🌊 Error updating continuous ambient sounds:", error);
+        activeSeamlessLoopingSounds.forEach((_, soundType) => {
+            cleanupSeamlessSound(soundType, "runtime stop").catch((err: Error) =>
+                console.warn(`Ambient sound cleanup error during runtime stop: ${err}`)
+            );
         });
 
-    }, [weatherCondition, getActiveContinuousSounds, startContinuousSound, stopContinuousSound, fadeOutAndStopSound]);
-
-    // Add periodic health check for continuous sounds
-    useEffect(() => {
-        const healthCheckInterval = setInterval(() => {
-            const targetSounds = getActiveContinuousSounds();
-            
-            targetSounds.forEach(soundType => {
-                const seamlessSound = activeSeamlessLoopingSounds.get(soundType);
-                const simpleSound = (window as any).simpleLoopingSounds?.get(soundType);
-                
-                if (!seamlessSound && !simpleSound) {
-                    // Sound should be playing but isn't - restart it
-                    console.warn(`🌊 Health check: ${soundType} should be playing but isn't found, restarting...`);
-                    startContinuousSound(soundType).catch(error => {
-                        console.warn(`🌊 Health check restart failed for ${soundType}:`, error);
-                    });
-                } else if (simpleSound && (simpleSound.paused || simpleSound.ended)) {
-                    // Simple loop stopped, restart it
-                    console.warn(`🌊 Health check: Simple loop ${soundType} stopped, restarting...`);
-                    simpleSound.currentTime = 0;
-                    simpleSound.play().catch((error: Error) => {
-                        console.warn(`🌊 Simple loop restart failed for ${soundType}:`, error);
-                    });
-                }
-            });
-        }, 5000); // Check every 5 seconds
-
-        return () => clearInterval(healthCheckInterval);
-    }, [getActiveContinuousSounds, startContinuousSound]);
-
-    // Update volumes when master/environmental volume changes
-    useEffect(() => {
-        // console.log(`🌊 [VOLUME UPDATE] Volume effect triggered: effectiveEnvironmentalVolume=${effectiveEnvironmentalVolume}, masterVolume=${masterVolume}`);
-        
-        // If environmental volume is 0, stop all ambient sounds immediately
-        if (effectiveEnvironmentalVolume === 0) {
-            // console.log(`🌊 [VOLUME UPDATE] Environmental volume is 0 - stopping all ambient sounds`);
-            
-            // Stop all seamless looping sounds
-            activeSeamlessLoopingSounds.forEach((seamlessSound, soundType) => {
-                seamlessSound.primary.volume = 0;
-                seamlessSound.secondary.volume = 0;
-                seamlessSound.volume = 0;
-                // console.log(`🌊 [VOLUME UPDATE] Silenced seamless sound ${soundType}`);
-            });
-            
-            // Stop all random sounds
-            activeRandomSounds.forEach((audio) => {
-                audio.volume = 0;
-            });
-            // console.log(`🌊 [VOLUME UPDATE] Silenced ${activeRandomSounds.size} random sounds`);
-            
-            // Stop simple looping sounds
-            const simpleLoopingSounds = (window as any).simpleLoopingSounds;
-            if (simpleLoopingSounds instanceof Map) {
-                simpleLoopingSounds.forEach((audio: HTMLAudioElement, soundType: AmbientSoundType) => {
-                    audio.volume = 0;
-                    // console.log(`🌊 [VOLUME UPDATE] Silenced simple loop sound ${soundType}`);
-                });
-            }
-            
-            return; // Don't process volume updates when muted
-        }
-        
-        // Update seamless looping sounds (continuous)
-        activeSeamlessLoopingSounds.forEach((seamlessSound, soundType) => {
-            const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
-            const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume;
-            
-            // Update volume for both audio instances
-            const clampedVolume = Math.max(0, Math.min(1.0, targetVolume));
-            seamlessSound.primary.volume = clampedVolume;
-            seamlessSound.secondary.volume = clampedVolume;
-            seamlessSound.volume = clampedVolume;
-            
-            // console.log(`🌊 [VOLUME UPDATE] Updated seamless sound ${soundType}: ${targetVolume.toFixed(3)}`);
-        });
-        
-        // Update currently playing random sounds
-        activeRandomSounds.forEach((audio) => {
-            // Find the sound type based on the audio src
-            let soundType: AmbientSoundType | null = null;
-            for (const [type, definition] of Object.entries(AMBIENT_SOUND_DEFINITIONS)) {
-                if (definition.type === 'random' && audio.src.includes(definition.filename.replace('.mp3', ''))) {
-                    soundType = type as AmbientSoundType;
-                    break;
-                }
-            }
-            
-            if (soundType) {
-                const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
-                const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume;
-                audio.volume = Math.max(0, Math.min(1.0, targetVolume));
-                // console.log(`🌊 [VOLUME UPDATE] Updated random sound ${soundType}: ${targetVolume.toFixed(3)}`);
-            }
-        });
-        
-        // Update simple looping sounds (fallback system)
         const simpleLoopingSounds = (window as any).simpleLoopingSounds;
         if (simpleLoopingSounds instanceof Map) {
-            simpleLoopingSounds.forEach((audio: HTMLAudioElement, soundType: AmbientSoundType) => {
-                const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
-                const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume;
-                audio.volume = Math.max(0, Math.min(1.0, targetVolume));
-                // console.log(`🌊 [VOLUME UPDATE] Updated simple loop sound ${soundType}: ${targetVolume.toFixed(3)}`);
-            });
-        }
-    }, [masterVolume, effectiveEnvironmentalVolume]);
-
-    // 🌊 Handle underwater state changes - apply/remove muffled audio effect
-    useEffect(() => {
-        if (lastUnderwaterStateRef.current !== isUnderwater) {
-            lastUnderwaterStateRef.current = isUnderwater;
-            setGlobalUnderwaterState(isUnderwater);
-        }
-    }, [isUnderwater]);
-
-    // 🏠 Handle indoor state changes - apply/remove muffled audio effect
-    useEffect(() => {
-        if (lastIndoorStateRef.current !== isIndoors) {
-            lastIndoorStateRef.current = isIndoors;
-            // Only apply indoor effect if not underwater (underwater takes precedence)
-            if (!isUnderwater) {
-                setGlobalIndoorState(isIndoors);
-            }
-        }
-    }, [isIndoors, isUnderwater]);
-
-    // 🌊 Handle ocean/deep ocean proximity changes - update volume dynamically
-    useEffect(() => {
-        const shoreChanged = lastDistanceToShoreRef.current !== distanceToShore;
-        const edgeChanged = lastDistanceToMapEdgeRef.current !== distanceToMapEdge;
-        if (shoreChanged) lastDistanceToShoreRef.current = distanceToShore;
-        if (edgeChanged) lastDistanceToMapEdgeRef.current = distanceToMapEdge;
-        if (!shoreChanged && !edgeChanged) return;
-
-        // Update ocean_ambience volume based on shore proximity
-        const seamlessOcean = activeSeamlessLoopingSounds.get('ocean_ambience');
-        if (seamlessOcean) {
-            const definition = AMBIENT_SOUND_DEFINITIONS.ocean_ambience;
-            const proximityModifier = getProximityVolumeModifier('ocean_ambience');
-            const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume * proximityModifier;
-            const clampedVolume = Math.max(0, Math.min(1.0, targetVolume));
-            seamlessOcean.primary.volume = clampedVolume;
-            seamlessOcean.secondary.volume = clampedVolume;
-            seamlessOcean.volume = clampedVolume;
-        }
-
-        // Update deep_ocean_ambience volume based on map edge proximity
-        const seamlessDeepOcean = activeSeamlessLoopingSounds.get('deep_ocean_ambience');
-        if (seamlessDeepOcean) {
-            const definition = AMBIENT_SOUND_DEFINITIONS.deep_ocean_ambience;
-            const proximityModifier = getProximityVolumeModifier('deep_ocean_ambience');
-            const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume * proximityModifier;
-            const clampedVolume = Math.max(0, Math.min(1.0, targetVolume));
-            seamlessDeepOcean.primary.volume = clampedVolume;
-            seamlessDeepOcean.secondary.volume = clampedVolume;
-            seamlessDeepOcean.volume = clampedVolume;
-        }
-
-        // Also update simple looping sounds if fallback is in use
-        const simpleLoopingSounds = (window as any).simpleLoopingSounds;
-        if (simpleLoopingSounds instanceof Map) {
-            const simpleOcean = simpleLoopingSounds.get('ocean_ambience');
-            if (simpleOcean) {
-                const definition = AMBIENT_SOUND_DEFINITIONS.ocean_ambience;
-                const proximityModifier = getProximityVolumeModifier('ocean_ambience');
-                const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume * proximityModifier;
-                simpleOcean.volume = Math.max(0, Math.min(1.0, targetVolume));
-            }
-            const simpleDeepOcean = simpleLoopingSounds.get('deep_ocean_ambience');
-            if (simpleDeepOcean) {
-                const definition = AMBIENT_SOUND_DEFINITIONS.deep_ocean_ambience;
-                const proximityModifier = getProximityVolumeModifier('deep_ocean_ambience');
-                const targetVolume = definition.baseVolume * effectiveEnvironmentalVolume * masterVolume * proximityModifier;
-                simpleDeepOcean.volume = Math.max(0, Math.min(1.0, targetVolume));
-            }
-        }
-    }, [distanceToShore, distanceToMapEdge, effectiveEnvironmentalVolume, masterVolume, getProximityVolumeModifier]);
-
-    // 🐝 Handle bee proximity changes - update buzzing volume dynamically (single loop for all bees)
-    useEffect(() => {
-        const distanceToBee = getDistanceToNearestBee();
-        
-        if (lastDistanceToBeeRef.current !== distanceToBee) {
-            lastDistanceToBeeRef.current = distanceToBee;
-            
-            const beeDef = AMBIENT_SOUND_DEFINITIONS.bee_buzzing;
-            const maxDist = 'maxProximityDistance' in beeDef ? (beeDef as any).maxProximityDistance : 350;
-            
-            // Update bee_buzzing volume based on proximity to nearest bee
-            const seamlessSound = activeSeamlessLoopingSounds.get('bee_buzzing');
-            if (seamlessSound) {
-                if (distanceToBee >= maxDist) {
-                    // Too far from all bees - stop the sound
-                    seamlessSound.primary.volume = 0;
-                    seamlessSound.secondary.volume = 0;
-                    seamlessSound.volume = 0;
-                } else {
-                    const proximityModifier = getProximityVolumeModifier('bee_buzzing');
-                    const targetVolume = beeDef.baseVolume * effectiveEnvironmentalVolume * masterVolume * proximityModifier;
-                    const clampedVolume = Math.max(0, Math.min(1.0, targetVolume));
-                    
-                    seamlessSound.primary.volume = clampedVolume;
-                    seamlessSound.secondary.volume = clampedVolume;
-                    seamlessSound.volume = clampedVolume;
-                }
-            }
-            
-            // Also update simple looping sound if fallback is in use
-            const simpleLoopingSounds = (window as any).simpleLoopingSounds;
-            if (simpleLoopingSounds instanceof Map) {
-                const simpleBee = simpleLoopingSounds.get('bee_buzzing');
-                if (simpleBee) {
-                    if (distanceToBee >= maxDist) {
-                        simpleBee.volume = 0;
-                    } else {
-                        const proximityModifier = getProximityVolumeModifier('bee_buzzing');
-                        const targetVolume = beeDef.baseVolume * effectiveEnvironmentalVolume * masterVolume * proximityModifier;
-                        simpleBee.volume = Math.max(0, Math.min(1.0, targetVolume));
-                    }
-                }
-            }
-        }
-    }, [wildAnimals, localPlayer, effectiveEnvironmentalVolume, masterVolume, getProximityVolumeModifier, getDistanceToNearestBee]);
-
-    // Public API
-    const playManualAmbientSound = useCallback((soundType: AmbientSoundType) => {
-        const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
-        if (definition.type === 'random') {
-            scheduleRandomSound(soundType);
-        }
-    }, [scheduleRandomSound]);
-
-    // Debug function to test all ambient sound variants
-    const testAllVariants = useCallback(async () => {
-        // console.log('🌊 🧪 [VARIANT TEST] Testing all ambient sound variants...');
-        
-        // First, test direct file access
-        // console.log('\n🌊 [DIRECT ACCESS TEST] Testing file accessibility...');
-        const testFilenames = ['ambient_seagull_cry.mp3', 'ambient_seagull_cry2.mp3', 'ambient_wolf_howl.mp3'];
-        
-        for (const testFile of testFilenames) {
-            try {
-                const response = await fetch(`/sounds/ambient/${testFile}`);
-                if (response.ok) {
-                    console.log(`   ✅ Direct fetch: ${testFile} (${response.status})`);
-                } else {
-                    console.error(`   ❌ Direct fetch: ${testFile} (${response.status})`);
-                }
-            } catch (error) {
-                console.error(`   ❌ Direct fetch error: ${testFile}`, error);
-            }
-        }
-        
-        // console.log('\n🌊 [AUDIO ELEMENT TEST] Testing via audio elements...');
-        for (const [soundType, definition] of Object.entries(AMBIENT_SOUND_DEFINITIONS)) {
-            if (definition.type !== 'random') continue;
-            
-            // console.log(`\n🌊 Testing ${soundType} (${definition.variations || 1} variants):`);
-            
-            for (let i = 0; i < (definition.variations || 1); i++) {
-                const filename = i === 0 ? definition.filename : 
-                               definition.filename.replace('.mp3', `${i + 1}.mp3`);
-                
-                try {
-                    const audio = await ambientAudioCache.loadAudio(filename);
-                    
-                    // Wait longer for metadata to load
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    
-                    if (audio.duration && audio.duration > 0 && !isNaN(audio.duration) && isFinite(audio.duration)) {
-                        console.log(`   ✅ Variant ${i + 1}: ${filename} (${audio.duration.toFixed(2)}s)`);
-                    } else {
-                        console.error(`   ❌ Variant ${i + 1}: ${filename} - Invalid duration: ${audio.duration} (readyState: ${audio.readyState})`);
-                    }
-                } catch (error) {
-                    console.error(`   ❌ Variant ${i + 1}: ${filename} - Load error:`, error);
-                }
-            }
-        }
-        
-        // console.log('\n🌊 🧪 [VARIANT TEST] Complete! Check above for any missing variants.');
-    }, []);
-
-    const stopAllAmbientSounds = useCallback(async () => {
-        // Stop all seamless sounds with fade-out
-        const cleanupPromises = Array.from(activeSeamlessLoopingSounds.keys()).map(soundType => 
-            cleanupSeamlessSound(soundType, "stop all requested")
-        );
-        await Promise.all(cleanupPromises);
-
-        // Stop all simple looping sounds
-        const simpleLoopingSounds = (window as any).simpleLoopingSounds;
-        if (simpleLoopingSounds) {
             simpleLoopingSounds.forEach((audio: HTMLAudioElement) => {
                 audio.pause();
                 audio.currentTime = 0;
@@ -2212,24 +1343,736 @@ export const useAmbientSounds = ({
             simpleLoopingSounds.clear();
         }
 
-        // Clear all random sound timers
-        randomSoundTimers.forEach(timer => window.clearTimeout(timer));
-        randomSoundTimers.clear();
-
-        // Stop all random sounds (these can stop immediately since they're short)
         activeRandomSounds.forEach(audio => {
             audio.pause();
             audio.currentTime = 0;
         });
         activeRandomSounds.clear();
-    }, []);
 
-    return {
-        playManualAmbientSound,
-        stopAllAmbientSounds,
-        testAllVariants, // Expose for debugging
-        activeContinuousSoundsCount: activeSeamlessLoopingSounds.size,
-        activeRandomSoundsCount: activeRandomSounds.size,
-        ambientSoundDefinitions: AMBIENT_SOUND_DEFINITIONS,
+        delete (window as any).testAmbientVariants;
+
+        this.isStarted = false;
+        this.isInitialized = false;
+        this.continuousSoundsKey = '';
+        this.volumeKey = '';
+        this.proximityKey = '';
+        this.beeKey = '';
+    }
+
+    playManualAmbientSound = (soundType: AmbientSoundType): void => {
+        const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+        if (definition.type === 'random') {
+            this.scheduleRandomSound(soundType);
+        }
     };
-}; 
+
+    stopAllAmbientSounds = async (): Promise<void> => {
+        const cleanupPromises = Array.from(activeSeamlessLoopingSounds.keys()).map(soundType =>
+            cleanupSeamlessSound(soundType, "stop all requested")
+        );
+        await Promise.all(cleanupPromises);
+
+        const simpleLoopingSounds = (window as any).simpleLoopingSounds;
+        if (simpleLoopingSounds instanceof Map) {
+            simpleLoopingSounds.forEach((audio: HTMLAudioElement) => {
+                audio.pause();
+                audio.currentTime = 0;
+            });
+            simpleLoopingSounds.clear();
+        }
+
+        randomSoundTimers.forEach(timer => window.clearTimeout(timer));
+        randomSoundTimers.clear();
+
+        activeRandomSounds.forEach(audio => {
+            audio.pause();
+            audio.currentTime = 0;
+        });
+        activeRandomSounds.clear();
+    };
+
+    testAllVariants = async (): Promise<void> => {
+        const testFilenames = ['ambient_seagull_cry.mp3', 'ambient_seagull_cry2.mp3', 'ambient_wolf_howl.mp3'];
+
+        for (const testFile of testFilenames) {
+            try {
+                const response = await fetch(`/sounds/ambient/${testFile}`);
+                if (response.ok) {
+                    console.log(`   Direct fetch OK: ${testFile} (${response.status})`);
+                } else {
+                    console.error(`   Direct fetch failed: ${testFile} (${response.status})`);
+                }
+            } catch (error) {
+                console.error(`   Direct fetch error: ${testFile}`, error);
+            }
+        }
+
+        for (const [soundType, definition] of Object.entries(AMBIENT_SOUND_DEFINITIONS)) {
+            if (definition.type !== 'random') continue;
+
+            for (let i = 0; i < (definition.variations || 1); i++) {
+                const filename = i === 0 ? definition.filename :
+                               definition.filename.replace('.mp3', `${i + 1}.mp3`);
+
+                try {
+                    const audio = await ambientAudioCache.loadAudio(filename);
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    if (audio.duration && audio.duration > 0 && !isNaN(audio.duration) && isFinite(audio.duration)) {
+                        console.log(`   Variant OK ${soundType} ${i + 1}: ${filename} (${audio.duration.toFixed(2)}s)`);
+                    } else {
+                        console.error(`   Variant invalid ${soundType} ${i + 1}: ${filename} duration=${audio.duration}`);
+                    }
+                } catch (error) {
+                    console.error(`   Variant load error ${soundType} ${i + 1}: ${filename}`, error);
+                }
+            }
+        }
+    };
+
+    private start(): void {
+        this.isStarted = true;
+
+        if (!this.isInitialized) {
+            this.isInitialized = true;
+            Object.keys(AMBIENT_SOUND_DEFINITIONS).forEach(soundType => {
+                const definition = AMBIENT_SOUND_DEFINITIONS[soundType as AmbientSoundType];
+                if (definition.type === 'random') {
+                    this.scheduleRandomSound(soundType as AmbientSoundType);
+                }
+            });
+        }
+
+        updateLoopRestartCallback = this.startUpdateLoop;
+        this.startUpdateLoop();
+        ensureUpdateLoopIsRunning();
+
+        if (!this.healthCheckIntervalId) {
+            this.healthCheckIntervalId = window.setInterval(this.runHealthCheck, 5000);
+        }
+
+        (window as any).testAmbientVariants = this.testAllVariants;
+    }
+
+    private readonly startUpdateLoop = (): void => {
+        if (this.updateIntervalId) {
+            window.clearInterval(this.updateIntervalId);
+        }
+
+        this.updateIntervalId = window.setInterval(() => {
+            updateSeamlessLoopingSounds();
+        }, 50);
+
+        setTimeout(() => {
+            const isStillActive = this.updateIntervalId !== undefined;
+            const mapSize = activeSeamlessLoopingSounds.size;
+            if (mapSize > 0 && !isStillActive) {
+                this.startUpdateLoop();
+            }
+        }, 2000);
+    };
+
+    private get effectiveEnvironmentalVolume(): number {
+        return this.options.environmentalVolume !== undefined ? this.options.environmentalVolume : 0.7;
+    }
+
+    private get masterVolume(): number {
+        return this.options.masterVolume ?? 1.0;
+    }
+
+    private get distanceToShore(): number {
+        return this.options.distanceToShore ?? 0;
+    }
+
+    private get distanceToMapEdge(): number {
+        return this.options.distanceToMapEdge ?? Infinity;
+    }
+
+    private getDistanceToNearestBee(): number {
+        const { localPlayer, wildAnimals } = this.options;
+        if (!localPlayer || !wildAnimals || wildAnimals.size === 0) {
+            return Infinity;
+        }
+
+        const playerX = localPlayer.positionX ?? localPlayer.position_x ?? 0;
+        const playerY = localPlayer.positionY ?? localPlayer.position_y ?? 0;
+        let nearestDistance = Infinity;
+
+        wildAnimals.forEach((animal) => {
+            if (animal.species?.tag !== 'Bee') return;
+
+            const dx = (animal.posX ?? animal.pos_x ?? 0) - playerX;
+            const dy = (animal.posY ?? animal.pos_y ?? 0) - playerY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+            }
+        });
+
+        return nearestDistance;
+    }
+
+    private getCurrentWindIntensity(): 'light' | 'moderate' | 'strong' {
+        const { chunkWeather, localPlayer, weatherCondition } = this.options;
+        if (!chunkWeather || !localPlayer) {
+            console.log('[AmbientSounds] No chunk data, using global weather fallback:', weatherCondition?.tag);
+            if (weatherCondition?.tag === 'HeavyRain' || weatherCondition?.tag === 'HeavyStorm') {
+                return 'strong';
+            }
+            if (weatherCondition?.tag === 'LightRain' || weatherCondition?.tag === 'ModerateRain') {
+                return 'moderate';
+            }
+            return 'light';
+        }
+
+        const playerChunkIndex = calculateChunkIndex(localPlayer.positionX, localPlayer.positionY);
+        const playerChunkData = chunkWeather.get(playerChunkIndex.toString());
+        const playerWeatherTag = playerChunkData?.currentWeather?.tag || 'Clear';
+
+        if (playerWeatherTag === 'HeavyStorm' || playerWeatherTag === 'HeavyRain') {
+            return 'strong';
+        }
+        if (playerWeatherTag === 'ModerateRain' || playerWeatherTag === 'LightRain') {
+            return 'moderate';
+        }
+        return 'light';
+    }
+
+    private hasEntrainmentEffect(): boolean {
+        const { activeConsumableEffects, localPlayerId } = this.options;
+        if (!activeConsumableEffects || !localPlayerId) return false;
+
+        return Array.from(activeConsumableEffects.values()).some(
+            (effect: ActiveConsumableEffect) => effect.playerId.toHexString() === localPlayerId &&
+                      effect.effectType.tag === 'Entrainment'
+        );
+    }
+
+    private getActiveContinuousSounds(): AmbientSoundType[] {
+        const { isUnderwater = false, timeOfDay, currentSeason } = this.options;
+        const sounds: AmbientSoundType[] = [];
+
+        if (this.hasEntrainmentEffect()) {
+            sounds.push('entrainment_ambient');
+            return sounds;
+        }
+
+        if (isUnderwater) {
+            sounds.push('underwater_ambient');
+        }
+
+        const windIntensity = this.getCurrentWindIntensity();
+        if (windIntensity === 'strong') {
+            sounds.push('wind_strong');
+        } else if (windIntensity === 'moderate') {
+            sounds.push('wind_moderate');
+        } else {
+            sounds.push('wind_light');
+        }
+
+        const oceanDef = AMBIENT_SOUND_DEFINITIONS.ocean_ambience;
+        const oceanMaxDist = 'maxProximityDistance' in oceanDef ? oceanDef.maxProximityDistance : 800;
+        const deepOceanDef = AMBIENT_SOUND_DEFINITIONS.deep_ocean_ambience;
+        const deepOceanMaxDist = 'maxProximityDistance' in deepOceanDef ? deepOceanDef.maxProximityDistance : 600;
+        const inDeepOcean = this.distanceToMapEdge < deepOceanMaxDist;
+        if (inDeepOcean) {
+            sounds.push('deep_ocean_ambience');
+        } else if (this.distanceToShore < oceanMaxDist) {
+            sounds.push('ocean_ambience');
+        }
+
+        const isNightTime = timeOfDay?.tag === 'Night' || timeOfDay?.tag === 'Midnight';
+        const isWinter = currentSeason?.tag === 'Winter';
+        if (isNightTime && !isWinter && !inDeepOcean) {
+            sounds.push('night_crickets');
+        }
+
+        if (timeOfDay?.tag === 'Dawn' && !inDeepOcean) {
+            sounds.push('dawn_chorus');
+        }
+
+        if (!inDeepOcean) {
+            sounds.push('nature_general');
+        }
+
+        const distanceToBee = this.getDistanceToNearestBee();
+        const beeDef = AMBIENT_SOUND_DEFINITIONS.bee_buzzing;
+        const beeMaxDist = 'maxProximityDistance' in beeDef ? beeDef.maxProximityDistance : 350;
+        if (distanceToBee < beeMaxDist && !isUnderwater && !inDeepOcean) {
+            sounds.push('bee_buzzing');
+        }
+
+        return sounds;
+    }
+
+    private getProximityVolumeModifier(soundType: AmbientSoundType): number {
+        const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+
+        if ('beeProximityBased' in definition && (definition as any).beeProximityBased) {
+            const distanceToBee = this.getDistanceToNearestBee();
+            const maxDist = 'maxProximityDistance' in definition ? (definition as any).maxProximityDistance : 350;
+            const minDist = 'minProximityDistance' in definition ? (definition as any).minProximityDistance : 50;
+
+            if (distanceToBee <= minDist) return 1.0;
+            if (distanceToBee >= maxDist) return 0.0;
+
+            return 1.0 - ((distanceToBee - minDist) / (maxDist - minDist));
+        }
+
+        if ('mapEdgeBased' in definition && (definition as any).mapEdgeBased) {
+            const maxDist = 'maxProximityDistance' in definition ? (definition as any).maxProximityDistance : 600;
+            const minDist = 'minProximityDistance' in definition ? (definition as any).minProximityDistance : 80;
+            if (this.distanceToMapEdge <= minDist) return 1.0;
+            if (this.distanceToMapEdge >= maxDist) return 0.0;
+            return 1.0 - ((this.distanceToMapEdge - minDist) / (maxDist - minDist));
+        }
+
+        if (!('proximityBased' in definition) || !definition.proximityBased) {
+            return 1.0;
+        }
+
+        const maxDist = 'maxProximityDistance' in definition ? definition.maxProximityDistance : 800;
+        const minDist = 'minProximityDistance' in definition ? definition.minProximityDistance : 50;
+        if (this.distanceToShore <= minDist) return 1.0;
+        if (this.distanceToShore >= maxDist) return 0.0;
+
+        return 1.0 - ((this.distanceToShore - minDist) / (maxDist - minDist));
+    }
+
+    private async startContinuousSound(soundType: AmbientSoundType): Promise<void> {
+        try {
+            const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+            if (definition.type !== 'continuous') return;
+
+            if (activeSeamlessLoopingSounds.has(soundType) || loadingSeamlessSounds.has(soundType)) {
+                return;
+            }
+
+            loadingSeamlessSounds.add(soundType);
+            const proximityModifier = this.getProximityVolumeModifier(soundType);
+            const finalVolume = definition.baseVolume * this.effectiveEnvironmentalVolume * proximityModifier;
+            const pitchVariation = 0.95 + Math.random() * 0.1;
+
+            if (definition.useSeamlessLooping) {
+                const success = await createSeamlessLoopingSound(soundType, definition.filename, finalVolume, pitchVariation);
+                if (!success) {
+                    console.warn(`Seamless looping failed for ${soundType}, using simple loop fallback`);
+                    await startSimpleLoopingSound(soundType, definition.filename, finalVolume, pitchVariation);
+                }
+            }
+        } catch (error) {
+            console.warn(`Failed to start continuous ambient sound: ${soundType}`, error);
+        } finally {
+            loadingSeamlessSounds.delete(soundType);
+        }
+    }
+
+    private async stopContinuousSound(soundType: AmbientSoundType): Promise<void> {
+        if (activeSeamlessLoopingSounds.has(soundType)) {
+            await cleanupSeamlessSound(soundType, "manually stopped");
+        }
+    }
+
+    private scheduleRandomSound(soundType: AmbientSoundType): void {
+        const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+        if (definition.type !== 'random') return;
+
+        const scheduleNext = () => {
+            const interval = definition.minInterval +
+                            Math.random() * (definition.maxInterval - definition.minInterval);
+
+            const timer = window.setTimeout(() => {
+                this.playRandomSound(soundType);
+                scheduleNext();
+            }, interval);
+
+            randomSoundTimers.set(soundType, timer);
+        };
+
+        scheduleNext();
+    }
+
+    private async playRandomSound(soundType: AmbientSoundType): Promise<void> {
+        const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+        if (definition.type !== 'random') return;
+
+        const { timeOfDay, chunkWeather, localPlayer } = this.options;
+
+        if ('nightOnly' in definition && definition.nightOnly) {
+            if (!timeOfDay || (timeOfDay.tag !== 'Night' && timeOfDay.tag !== 'Midnight')) {
+                return;
+            }
+        }
+
+        if ('dayOnly' in definition && definition.dayOnly) {
+            if (!timeOfDay || (timeOfDay.tag === 'Night' || timeOfDay.tag === 'Midnight')) {
+                return;
+            }
+        }
+
+        if ('stormOnly' in definition && definition.stormOnly) {
+            if (!chunkWeather || !localPlayer) {
+                return;
+            }
+
+            const playerChunkIndex = calculateChunkIndex(localPlayer.positionX, localPlayer.positionY);
+            const playerChunkData = chunkWeather.get(playerChunkIndex.toString());
+            const playerWeatherTag = playerChunkData?.currentWeather?.tag || 'Clear';
+            if (playerWeatherTag !== 'HeavyStorm' && playerWeatherTag !== 'HeavyRain') {
+                return;
+            }
+        }
+
+        try {
+            if (activeRandomSounds.size >= AMBIENT_CONFIG.MAX_CONCURRENT_RANDOM) {
+                return;
+            }
+
+            const deepOceanMaxDist = AMBIENT_SOUND_DEFINITIONS.deep_ocean_ambience.maxProximityDistance ?? 600;
+            const inDeepOcean = this.lastDistanceToMapEdge < deepOceanMaxDist;
+            const deepOceanExcludedSounds: AmbientSoundType[] = [
+                'raven_caw',
+                'owl_hoot',
+                'wolf_howl',
+                'structure_creak',
+                'grass_rustle',
+                'seagull_cry',
+            ];
+            if (inDeepOcean && (deepOceanExcludedSounds as string[]).includes(soundType)) {
+                return;
+            }
+
+            if ('proximityBased' in definition && definition.proximityBased) {
+                const maxDist = definition.maxProximityDistance || 800;
+                if (this.distanceToShore > maxDist) {
+                    return;
+                }
+            }
+
+            const variation = definition.variations ? Math.floor(Math.random() * definition.variations) : 0;
+            const filename = variation === 0 ? definition.filename :
+                            definition.filename.replace('.mp3', `${variation + 1}.mp3`);
+
+            let audio: HTMLAudioElement;
+            try {
+                audio = await ambientAudioCache.loadAudio(filename);
+                if (!audio.duration || isNaN(audio.duration) || !isFinite(audio.duration) || audio.duration <= 0) {
+                    console.warn(`Invalid audio duration for variant: ${filename} (duration: ${audio.duration})`);
+                    return;
+                }
+            } catch (error) {
+                console.warn(`Failed to load ambient variant: ${filename}`, error);
+                return;
+            }
+
+            let proximityModifier = 1.0;
+            if ('proximityBased' in definition && definition.proximityBased) {
+                const maxDist = definition.maxProximityDistance || 800;
+                const minDist = definition.minProximityDistance || 50;
+                if (this.distanceToShore <= minDist) {
+                    proximityModifier = 1.0;
+                } else {
+                    proximityModifier = Math.max(0, 1 - (this.distanceToShore - minDist) / (maxDist - minDist));
+                }
+            }
+
+            const finalVolume = definition.baseVolume * this.effectiveEnvironmentalVolume * proximityModifier;
+
+            audio.volume = 0;
+            audio.playbackRate = 1 + (Math.random() - 0.5) * AMBIENT_CONFIG.PITCH_VARIATION;
+            connectToUnderwaterFilter(audio);
+            if (isCurrentlyUnderwater) {
+                applyUnderwaterEffect(audio, true);
+            }
+
+            activeRandomSounds.add(audio);
+
+            const cleanup = () => {
+                activeRandomSounds.delete(audio);
+                audio.removeEventListener('ended', cleanup);
+                audio.removeEventListener('error', cleanup);
+            };
+
+            audio.addEventListener('ended', cleanup, { once: true });
+            audio.addEventListener('error', cleanup, { once: true });
+
+            await audio.play();
+            fadeInAudio(audio, finalVolume * this.masterVolume, 800);
+        } catch (error) {
+            console.warn(`Failed to play random ambient sound: ${soundType}`, error);
+        }
+    }
+
+    private async fadeOutAndStopSound(soundType: AmbientSoundType, fadeMs = 2000): Promise<void> {
+        const seamlessSound = activeSeamlessLoopingSounds.get(soundType);
+        if (!seamlessSound) return;
+
+        const { primary, secondary } = seamlessSound;
+        const activeAudio = seamlessSound.isPrimaryActive ? primary : secondary;
+        const initialVolume = activeAudio.volume;
+        const steps = 40;
+        const stepMs = fadeMs / steps;
+
+        for (let i = 1; i <= steps; i++) {
+            await new Promise(resolve => setTimeout(resolve, stepMs));
+            const newVolume = initialVolume * (1 - i / steps);
+            primary.volume = Math.max(0, newVolume);
+            secondary.volume = Math.max(0, newVolume);
+        }
+
+        await this.stopContinuousSound(soundType);
+    }
+
+    private syncContinuousSounds(): void {
+        const targetSounds = this.getActiveContinuousSounds();
+        const nextKey = targetSounds.join('|');
+        if (nextKey === this.continuousSoundsKey) {
+            return;
+        }
+
+        this.continuousSoundsKey = nextKey;
+        if (this.continuousUpdateInFlight) {
+            return;
+        }
+
+        this.continuousUpdateInFlight = true;
+        this.updateContinuousSounds(targetSounds)
+            .catch(error => {
+                console.warn("Error updating continuous ambient sounds:", error);
+            })
+            .finally(() => {
+                this.continuousUpdateInFlight = false;
+            });
+    }
+
+    private async updateContinuousSounds(targetSounds: AmbientSoundType[]): Promise<void> {
+        const currentSounds = Array.from(activeSeamlessLoopingSounds.keys());
+        const soundsToStop = currentSounds.filter(soundType => !targetSounds.includes(soundType));
+        const soundsToStart = targetSounds.filter(soundType => !activeSeamlessLoopingSounds.has(soundType));
+
+        const isWindTransition = soundsToStop.some(s => s.startsWith('wind_')) &&
+                                soundsToStart.some(s => s.startsWith('wind_'));
+        const timeOfDaySounds = ['dawn_chorus', 'night_crickets'];
+        const timeOfDaySoundsToStop = soundsToStop.filter(s => timeOfDaySounds.includes(s));
+        const otherSoundsToStop = soundsToStop.filter(s => !timeOfDaySounds.includes(s) &&
+                                                            !(isWindTransition && s.startsWith('wind_')));
+
+        if (isWindTransition) {
+            await Promise.all(soundsToStart.map(soundType => this.startContinuousSound(soundType)));
+            setTimeout(() => {
+                soundsToStop.forEach(soundType => {
+                    if (soundType.startsWith('wind_')) {
+                        this.stopContinuousSound(soundType);
+                    }
+                });
+            }, 1000);
+        } else {
+            await Promise.all(otherSoundsToStop.map(soundType => this.stopContinuousSound(soundType)));
+            await Promise.all(soundsToStart.map(soundType => this.startContinuousSound(soundType)));
+        }
+
+        timeOfDaySoundsToStop.forEach(soundType => {
+            this.fadeOutAndStopSound(soundType, 3000);
+        });
+
+        this.lastWeather = this.options.weatherCondition;
+    }
+
+    private readonly runHealthCheck = (): void => {
+        const targetSounds = this.getActiveContinuousSounds();
+
+        targetSounds.forEach(soundType => {
+            const seamlessSound = activeSeamlessLoopingSounds.get(soundType);
+            const simpleSound = (window as any).simpleLoopingSounds?.get(soundType);
+
+            if (!seamlessSound && !simpleSound) {
+                console.warn(`Ambient health check: ${soundType} should be playing but isn't found, restarting...`);
+                this.startContinuousSound(soundType).catch(error => {
+                    console.warn(`Ambient health check restart failed for ${soundType}:`, error);
+                });
+            } else if (simpleSound && (simpleSound.paused || simpleSound.ended)) {
+                console.warn(`Ambient health check: simple loop ${soundType} stopped, restarting...`);
+                simpleSound.currentTime = 0;
+                simpleSound.play().catch((error: Error) => {
+                    console.warn(`Simple loop restart failed for ${soundType}:`, error);
+                });
+            }
+        });
+    };
+
+    private updateVolumesIfNeeded(): void {
+        const nextVolumeKey = `${this.masterVolume}|${this.effectiveEnvironmentalVolume}`;
+        if (nextVolumeKey === this.volumeKey) {
+            return;
+        }
+        this.volumeKey = nextVolumeKey;
+
+        if (this.effectiveEnvironmentalVolume === 0) {
+            activeSeamlessLoopingSounds.forEach((seamlessSound) => {
+                seamlessSound.primary.volume = 0;
+                seamlessSound.secondary.volume = 0;
+                seamlessSound.volume = 0;
+            });
+            activeRandomSounds.forEach((audio) => {
+                audio.volume = 0;
+            });
+            const simpleLoopingSounds = (window as any).simpleLoopingSounds;
+            if (simpleLoopingSounds instanceof Map) {
+                simpleLoopingSounds.forEach((audio: HTMLAudioElement) => {
+                    audio.volume = 0;
+                });
+            }
+            return;
+        }
+
+        activeSeamlessLoopingSounds.forEach((seamlessSound, soundType) => {
+            const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+            const targetVolume = definition.baseVolume * this.effectiveEnvironmentalVolume * this.masterVolume;
+            const clampedVolume = Math.max(0, Math.min(1.0, targetVolume));
+            seamlessSound.primary.volume = clampedVolume;
+            seamlessSound.secondary.volume = clampedVolume;
+            seamlessSound.volume = clampedVolume;
+        });
+
+        activeRandomSounds.forEach((audio) => {
+            let soundType: AmbientSoundType | null = null;
+            for (const [type, definition] of Object.entries(AMBIENT_SOUND_DEFINITIONS)) {
+                if (definition.type === 'random' && audio.src.includes(definition.filename.replace('.mp3', ''))) {
+                    soundType = type as AmbientSoundType;
+                    break;
+                }
+            }
+
+            if (soundType) {
+                const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+                const targetVolume = definition.baseVolume * this.effectiveEnvironmentalVolume * this.masterVolume;
+                audio.volume = Math.max(0, Math.min(1.0, targetVolume));
+            }
+        });
+
+        const simpleLoopingSounds = (window as any).simpleLoopingSounds;
+        if (simpleLoopingSounds instanceof Map) {
+            simpleLoopingSounds.forEach((audio: HTMLAudioElement, soundType: AmbientSoundType) => {
+                const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
+                const targetVolume = definition.baseVolume * this.effectiveEnvironmentalVolume * this.masterVolume;
+                audio.volume = Math.max(0, Math.min(1.0, targetVolume));
+            });
+        }
+    }
+
+    private updateUnderwaterState(): void {
+        const isUnderwater = this.options.isUnderwater ?? false;
+        if (this.lastUnderwaterState !== isUnderwater) {
+            this.lastUnderwaterState = isUnderwater;
+            setGlobalUnderwaterState(isUnderwater);
+        }
+    }
+
+    private updateIndoorState(): void {
+        const isIndoors = this.options.isIndoors ?? false;
+        const isUnderwater = this.options.isUnderwater ?? false;
+        if (this.lastIndoorState !== isIndoors) {
+            this.lastIndoorState = isIndoors;
+            if (!isUnderwater) {
+                setGlobalIndoorState(isIndoors);
+            }
+        }
+    }
+
+    private updateProximityVolumesIfNeeded(): void {
+        const nextProximityKey = `${this.distanceToShore}|${this.distanceToMapEdge}|${this.effectiveEnvironmentalVolume}|${this.masterVolume}`;
+        const shoreChanged = this.lastDistanceToShore !== this.distanceToShore;
+        const edgeChanged = this.lastDistanceToMapEdge !== this.distanceToMapEdge;
+        if (!shoreChanged && !edgeChanged && nextProximityKey === this.proximityKey) {
+            return;
+        }
+
+        this.proximityKey = nextProximityKey;
+        this.lastDistanceToShore = this.distanceToShore;
+        this.lastDistanceToMapEdge = this.distanceToMapEdge;
+
+        const seamlessOcean = activeSeamlessLoopingSounds.get('ocean_ambience');
+        if (seamlessOcean) {
+            const definition = AMBIENT_SOUND_DEFINITIONS.ocean_ambience;
+            const proximityModifier = this.getProximityVolumeModifier('ocean_ambience');
+            const targetVolume = definition.baseVolume * this.effectiveEnvironmentalVolume * this.masterVolume * proximityModifier;
+            const clampedVolume = Math.max(0, Math.min(1.0, targetVolume));
+            seamlessOcean.primary.volume = clampedVolume;
+            seamlessOcean.secondary.volume = clampedVolume;
+            seamlessOcean.volume = clampedVolume;
+        }
+
+        const seamlessDeepOcean = activeSeamlessLoopingSounds.get('deep_ocean_ambience');
+        if (seamlessDeepOcean) {
+            const definition = AMBIENT_SOUND_DEFINITIONS.deep_ocean_ambience;
+            const proximityModifier = this.getProximityVolumeModifier('deep_ocean_ambience');
+            const targetVolume = definition.baseVolume * this.effectiveEnvironmentalVolume * this.masterVolume * proximityModifier;
+            const clampedVolume = Math.max(0, Math.min(1.0, targetVolume));
+            seamlessDeepOcean.primary.volume = clampedVolume;
+            seamlessDeepOcean.secondary.volume = clampedVolume;
+            seamlessDeepOcean.volume = clampedVolume;
+        }
+
+        const simpleLoopingSounds = (window as any).simpleLoopingSounds;
+        if (simpleLoopingSounds instanceof Map) {
+            const simpleOcean = simpleLoopingSounds.get('ocean_ambience');
+            if (simpleOcean) {
+                const definition = AMBIENT_SOUND_DEFINITIONS.ocean_ambience;
+                const proximityModifier = this.getProximityVolumeModifier('ocean_ambience');
+                const targetVolume = definition.baseVolume * this.effectiveEnvironmentalVolume * this.masterVolume * proximityModifier;
+                simpleOcean.volume = Math.max(0, Math.min(1.0, targetVolume));
+            }
+            const simpleDeepOcean = simpleLoopingSounds.get('deep_ocean_ambience');
+            if (simpleDeepOcean) {
+                const definition = AMBIENT_SOUND_DEFINITIONS.deep_ocean_ambience;
+                const proximityModifier = this.getProximityVolumeModifier('deep_ocean_ambience');
+                const targetVolume = definition.baseVolume * this.effectiveEnvironmentalVolume * this.masterVolume * proximityModifier;
+                simpleDeepOcean.volume = Math.max(0, Math.min(1.0, targetVolume));
+            }
+        }
+    }
+
+    private updateBeeVolumeIfNeeded(): void {
+        const distanceToBee = this.getDistanceToNearestBee();
+        const nextBeeKey = `${distanceToBee}|${this.effectiveEnvironmentalVolume}|${this.masterVolume}`;
+        if (this.lastDistanceToBee === distanceToBee && this.beeKey === nextBeeKey) {
+            return;
+        }
+
+        this.lastDistanceToBee = distanceToBee;
+        this.beeKey = nextBeeKey;
+
+        const beeDef = AMBIENT_SOUND_DEFINITIONS.bee_buzzing;
+        const maxDist = 'maxProximityDistance' in beeDef ? (beeDef as any).maxProximityDistance : 350;
+
+        const seamlessSound = activeSeamlessLoopingSounds.get('bee_buzzing');
+        if (seamlessSound) {
+            if (distanceToBee >= maxDist) {
+                seamlessSound.primary.volume = 0;
+                seamlessSound.secondary.volume = 0;
+                seamlessSound.volume = 0;
+            } else {
+                const proximityModifier = this.getProximityVolumeModifier('bee_buzzing');
+                const targetVolume = beeDef.baseVolume * this.effectiveEnvironmentalVolume * this.masterVolume * proximityModifier;
+                const clampedVolume = Math.max(0, Math.min(1.0, targetVolume));
+                seamlessSound.primary.volume = clampedVolume;
+                seamlessSound.secondary.volume = clampedVolume;
+                seamlessSound.volume = clampedVolume;
+            }
+        }
+
+        const simpleLoopingSounds = (window as any).simpleLoopingSounds;
+        if (simpleLoopingSounds instanceof Map) {
+            const simpleBee = simpleLoopingSounds.get('bee_buzzing');
+            if (simpleBee) {
+                if (distanceToBee >= maxDist) {
+                    simpleBee.volume = 0;
+                } else {
+                    const proximityModifier = this.getProximityVolumeModifier('bee_buzzing');
+                    const targetVolume = beeDef.baseVolume * this.effectiveEnvironmentalVolume * this.masterVolume * proximityModifier;
+                    simpleBee.volume = Math.max(0, Math.min(1.0, targetVolume));
+                }
+            }
+        }
+    }
+}

@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { BuildingTier } from '../hooks/useBuildingManager';
+import { BuildingTier } from '../engine/runtime/buildingPlacementRuntime';
 import { DbConnection } from '../generated';
 import { InventoryItem, ItemDefinition, ActiveConsumableEffect } from '../generated/types';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';

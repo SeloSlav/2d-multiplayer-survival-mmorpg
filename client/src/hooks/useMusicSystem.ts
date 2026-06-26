@@ -106,7 +106,7 @@ const HOT_SPRINGS_TRACKS: MusicTrack[] = [
     { filename: 'Steam_Over_Birchwood.mp3', displayName: 'Steam Over Birchwood', path: 'hs/Steam_Over_Birchwood.mp3' },
 ];
 
-// Deep Sea: intentionally empty playlist - eerie silence, ambient from useAmbientSounds only
+// Deep Sea: intentionally empty playlist - eerie silence, ambient from AmbientSoundRuntime only
 const DEEP_SEA_TRACKS: MusicTrack[] = [];
 
 // Zone-based track mapping (alpine village shares hunting village soundtrack)

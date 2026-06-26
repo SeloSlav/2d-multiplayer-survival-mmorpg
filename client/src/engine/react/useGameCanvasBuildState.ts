@@ -1,27 +1,24 @@
-import { useEffect, useMemo, type RefObject } from 'react';
-import { useMousePosition } from '../../hooks/useMousePosition';
-import {
-  useBuildingManager,
-  type BuildingPlacementActions,
-  type BuildingPlacementState,
-} from '../../hooks/useBuildingManager';
-import { useFoundationTargeting } from '../../hooks/useFoundationTargeting';
-import { useWallTargeting } from '../../hooks/useWallTargeting';
-import { useFenceTargeting } from '../../hooks/useFenceTargeting';
+import { useSyncExternalStore, type MutableRefObject } from 'react';
+import type {
+  BuildingPlacementActions,
+  BuildingPlacementState,
+} from '../runtime/buildingPlacementRuntime';
+import type { GameCanvasRuntimeHost } from '../runtime/GameCanvasRuntimeHost';
+import type { GameCanvasPointerSnapshot } from '../runtime/gameCanvasPointerRuntime';
+import type { GameCanvasBuildTargetingSnapshot } from '../runtime/gameCanvasBuildTargetingRuntime';
 
 interface UseGameCanvasBuildStateOptions {
-  canvasRef: RefObject<HTMLCanvasElement | null>;
-  cameraOffsetX: number;
-  cameraOffsetY: number;
-  canvasSize: { width: number; height: number };
+  host: GameCanvasRuntimeHost;
   connection: any | null;
   predictedPosition: { x: number; y: number } | null;
   localPlayer: any;
   activeEquipments: Map<string, any>;
   itemDefinitions: Map<string, any>;
   localPlayerId?: string;
-  isMobile?: boolean;
-  onMobileTap?: (worldX: number, worldY: number) => void;
+  foundationCells?: Map<string, any>;
+  fences?: Map<string, any>;
+  pointerSnapshot: GameCanvasPointerSnapshot;
+  buildTargetingRef: MutableRefObject<GameCanvasBuildTargetingSnapshot>;
 }
 
 interface UseGameCanvasBuildStateResult {
@@ -41,128 +38,57 @@ interface UseGameCanvasBuildStateResult {
 }
 
 export function useGameCanvasBuildState({
-  canvasRef,
-  cameraOffsetX,
-  cameraOffsetY,
-  canvasSize,
+  host,
   connection,
   predictedPosition,
   localPlayer,
   activeEquipments,
   itemDefinitions,
   localPlayerId,
-  isMobile,
-  onMobileTap,
+  foundationCells,
+  fences,
+  pointerSnapshot,
+  buildTargetingRef,
 }: UseGameCanvasBuildStateOptions): UseGameCanvasBuildStateResult {
-  const { worldMousePos, canvasMousePos } = useMousePosition({
-    canvasRef,
-    cameraOffsetX,
-    cameraOffsetY,
-    canvasSize,
-  });
+  useSyncExternalStore(
+    host.subscribeToBuildingPlacementRuntime,
+    host.getBuildingPlacementRuntimeVersion,
+    host.getBuildingPlacementRuntimeVersion,
+  );
+
+  const worldMousePos = pointerSnapshot.worldMousePos;
+  const canvasMousePos = pointerSnapshot.canvasMousePos;
 
   const localPlayerX = predictedPosition?.x ?? localPlayer?.positionX ?? 0;
   const localPlayerY = predictedPosition?.y ?? localPlayer?.positionY ?? 0;
 
-  const [buildingState, buildingActions] = useBuildingManager(
+  const placementRuntime = host.configureBuildingPlacementRuntime({
     connection,
     localPlayerX,
     localPlayerY,
     activeEquipments,
     itemDefinitions,
     localPlayerId,
-    worldMousePos.x,
-    worldMousePos.y,
-  );
+    worldMousePos,
+    foundationCells,
+    fences,
+  });
 
-  const hasRepairHammer = useMemo(() => {
-    if (!localPlayerId || !activeEquipments || !itemDefinitions) return false;
-    const equipment = activeEquipments.get(localPlayerId);
-    if (!equipment?.equippedItemDefId) return false;
-    const itemDef = itemDefinitions.get(String(equipment.equippedItemDefId));
-    return itemDef?.name === 'Repair Hammer';
-  }, [localPlayerId, activeEquipments, itemDefinitions]);
-
-  const hasStoneTiller = useMemo(() => {
-    if (!localPlayerId || !activeEquipments || !itemDefinitions) return false;
-    const equipment = activeEquipments.get(localPlayerId);
-    if (!equipment?.equippedItemDefId) return false;
-    const itemDef = itemDefinitions.get(String(equipment.equippedItemDefId));
-    return itemDef?.name === 'Stone Tiller';
-  }, [localPlayerId, activeEquipments, itemDefinitions]);
-
-  const { targetedFoundation, targetTileX, targetTileY } = useFoundationTargeting(
-    connection,
-    localPlayerX,
-    localPlayerY,
-    worldMousePos.x,
-    worldMousePos.y,
-    hasRepairHammer,
-  );
-
-  const {
-    targetedWall,
-    targetTileX: targetWallTileX,
-    targetTileY: targetWallTileY,
-  } = useWallTargeting(
-    connection,
-    localPlayerX,
-    localPlayerY,
-    worldMousePos.x,
-    worldMousePos.y,
-    hasRepairHammer,
-  );
-
-  const { targetedFence } = useFenceTargeting(
-    connection,
-    localPlayerX,
-    localPlayerY,
-    worldMousePos.x,
-    worldMousePos.y,
-    hasRepairHammer,
-  );
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !isMobile) return;
-
-    const handleTouchStart = (event: TouchEvent) => {
-      if (!onMobileTap || event.touches.length !== 1) return;
-
-      const touch = event.touches[0];
-      const rect = canvas.getBoundingClientRect();
-      const screenX = touch.clientX - rect.left;
-      const screenY = touch.clientY - rect.top;
-      onMobileTap(screenX - cameraOffsetX, screenY - cameraOffsetY);
-      event.preventDefault();
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      event.preventDefault();
-    };
-
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-
-    return () => {
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-    };
-  }, [canvasRef, isMobile, onMobileTap, cameraOffsetX, cameraOffsetY]);
+  const buildTargeting = buildTargetingRef.current;
 
   return {
     worldMousePos,
     canvasMousePos,
-    buildingState,
-    buildingActions,
-    hasRepairHammer,
-    hasStoneTiller,
-    targetedFoundation,
-    targetTileX,
-    targetTileY,
-    targetedWall,
-    targetWallTileX,
-    targetWallTileY,
-    targetedFence,
+    buildingState: placementRuntime.buildingState,
+    buildingActions: placementRuntime.buildingActions,
+    hasRepairHammer: placementRuntime.hasRepairHammer,
+    hasStoneTiller: placementRuntime.hasStoneTiller,
+    targetedFoundation: buildTargeting.targetedFoundation,
+    targetTileX: buildTargeting.targetTileX,
+    targetTileY: buildTargeting.targetTileY,
+    targetedWall: buildTargeting.targetedWall,
+    targetWallTileX: buildTargeting.targetWallTileX,
+    targetWallTileY: buildTargeting.targetWallTileY,
+    targetedFence: buildTargeting.targetedFence,
   };
 }

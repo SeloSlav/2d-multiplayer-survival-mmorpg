@@ -1,46 +1,43 @@
 import { useEngineSnapshot } from './useEngineSnapshot';
 import { useUITable } from './selectors';
 import { useGameScreenWorldTables } from './selectors/useGameScreenWorldTables';
-import { useGameCanvasWorldLookups } from '../../hooks/useGameCanvasWorldLookups';
 import { useFrameAssembly } from './useFrameAssembly';
-import { useCloudInterpolation } from '../../hooks/useCloudInterpolation';
-import { useGrassInterpolation } from '../../hooks/useGrassInterpolation';
-import { useFallingTreeAnimations } from '../../hooks/useFallingTreeAnimations';
-import { useMousePosition } from '../../hooks/useMousePosition';
 import { assembleGameCanvasSceneSnapshot } from '../runtime/assembleGameCanvasSceneSnapshot';
-import type { GameCanvasRuntimeSceneSnapshot } from '../runtime/GameCanvasRuntimeHost';
+import type { GameCanvasRuntimeHost, GameCanvasRuntimeSceneSnapshot } from '../runtime/GameCanvasRuntimeHost';
+import type { GameCanvasPointerSnapshot } from '../runtime/gameCanvasPointerRuntime';
 
 /**
  * Temporary React adapter for canvas scene state.
  *
- * This still owns hook-bound subscription and interpolation reads, but it now
- * feeds a non-React `GameCanvasRuntimeHost`. The next extraction step is to
- * split this into a React data adapter plus a pure scene snapshot assembler.
+ * This still owns hook-bound table subscriptions, world lookups, and frame
+ * assembly, but host-owned services now produce cloud/grass/tree animation.
+ * The next extraction step is to split this into a React data adapter plus a
+ * pure scene snapshot assembler.
  */
 const EMPTY_MAP = new Map();
 
 interface UseGameCanvasSceneRuntimeOptions {
+  host: GameCanvasRuntimeHost;
   connection: any | null;
   localPlayerId?: string;
   localPlayer: any;
-  gameCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   predictedPosition: { x: number; y: number } | null;
   cameraOffsetX: number;
   cameraOffsetY: number;
   canvasSize: { width: number; height: number };
-  deltaTime: number;
+  pointerSnapshot: GameCanvasPointerSnapshot;
 }
 
 export function useGameCanvasSceneRuntime({
+  host,
   connection,
   localPlayerId,
   localPlayer,
-  gameCanvasRef,
   predictedPosition,
   cameraOffsetX,
   cameraOffsetY,
   canvasSize,
-  deltaTime,
+  pointerSnapshot,
 }: UseGameCanvasSceneRuntimeOptions): GameCanvasRuntimeSceneSnapshot {
   const tables = useGameScreenWorldTables();
   const messages = useUITable<Map<string, any>>('messages');
@@ -55,30 +52,19 @@ export function useGameCanvasSceneRuntime({
     (snapshot) => snapshot.world.chunkDataMap as Map<string, any> | null,
   ) ?? undefined;
 
-  const interpolatedClouds = useCloudInterpolation({
-    serverClouds: tables.clouds,
-    deltaTime,
-  });
-
-  const interpolatedGrass = useGrassInterpolation({
-    serverGrass: tables.grass,
-    serverGrassState: tables.grassState,
-    deltaTime,
-  });
-  const { worldMousePos } = useMousePosition({
-    canvasRef: gameCanvasRef,
-    cameraOffsetX,
-    cameraOffsetY,
-    canvasSize,
+  const { interpolatedClouds, interpolatedGrass } = host.configureSceneInterpolationRuntime({
+    clouds: tables.clouds,
+    grass: tables.grass,
+    grassState: tables.grassState,
   });
 
   const {
     isTreeFalling,
     getFallProgress,
     TREE_FALL_DURATION_MS,
-  } = useFallingTreeAnimations(tables.trees);
+  } = host.configureFallingTreeAnimationRuntime(tables.trees);
 
-  const worldLookups = useGameCanvasWorldLookups({
+  const worldLookups = host.configureWorldLookupRuntime({
     worldChunkDataMap,
     cameraOffsetX,
     cameraOffsetY,
@@ -88,6 +74,7 @@ export function useGameCanvasSceneRuntime({
   });
 
   const frameAssembly = useFrameAssembly({
+    host,
     connection,
     players: tables.players,
     trees: tables.trees,
@@ -142,8 +129,8 @@ export function useGameCanvasSceneRuntime({
     firePatches: tables.firePatches,
     activeEquipments: tables.activeEquipments,
     itemDefinitions: tables.itemDefinitions,
-    worldMouseX: worldMousePos.x ?? 0,
-    worldMouseY: worldMousePos.y ?? 0,
+    worldMouseX: pointerSnapshot.worldMousePos.x ?? 0,
+    worldMouseY: pointerSnapshot.worldMousePos.y ?? 0,
     roadLamppostsAll: tables.roadLampposts ?? EMPTY_MAP,
     barrelsAll: tables.barrels ?? EMPTY_MAP,
   });

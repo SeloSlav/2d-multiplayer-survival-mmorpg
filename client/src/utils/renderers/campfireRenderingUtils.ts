@@ -3,7 +3,7 @@
  *
  * Renders campfire entities (on/off states) with shadow and shake. Exports
  * CAMPFIRE_WIDTH, CAMPFIRE_HEIGHT, CAMPFIRE_RENDER_Y_OFFSET and
- * PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED for useInteractionFinder.
+ * PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED for interactionTargetRuntime.
  *
  * Responsibilities:
  * 1. SPRITE RENDERING: renderCampfire uses genericGroundRenderer. isDestroyed

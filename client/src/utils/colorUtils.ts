@@ -1,4 +1,4 @@
-import { ColorPoint, baseKeyframes, defaultPeakMidnightColor, defaultTransitionNightColor, fullMoonPeakMidnightColor, fullMoonTransitionNightColor } from '../hooks/useDayNightCycle';
+import { ColorPoint, baseKeyframes, defaultPeakMidnightColor, defaultTransitionNightColor, fullMoonPeakMidnightColor, fullMoonTransitionNightColor } from '../engine/runtime/dayNightCycleRuntime';
 
 // Re-export ColorPoint if needed elsewhere, otherwise keep it internal
 export type { ColorPoint };

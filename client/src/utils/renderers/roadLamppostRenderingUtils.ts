@@ -1,7 +1,7 @@
 /**
  * Road Lamppost Rendering - Aleutian whale oil lampposts along dirt roads
  * Renders the carved wooden lamppost sprite with dynamic ground shadow.
- * Light emission at night is handled in lightRenderingUtils and useDayNightCycle.
+ * Light emission at night is handled in lightRenderingUtils and DayNightCycleRuntime.
  * Uses genericGroundRenderer pattern (like cairn, basalt column) for reliable loading and shadows.
  */
 

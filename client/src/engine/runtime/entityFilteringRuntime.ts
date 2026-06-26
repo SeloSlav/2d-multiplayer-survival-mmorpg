@@ -1,7 +1,7 @@
 /**
- * useEntityFiltering - Viewport culling and Y-sorted entity arrays for rendering.
+ * EntityFilteringRuntime - Viewport culling and Y-sorted entity arrays for rendering.
  *
- * This hook filters all game entities by viewport bounds and produces Y-sorted arrays
+ * This runtime filters all game entities by viewport bounds and produces Y-sorted arrays
  * for correct draw order (entities lower on screen draw on top). Used by GameCanvas and
  * renderingUtils to render only visible entities in proper depth order.
  *
@@ -20,9 +20,8 @@
  *    arrays for efficient render loops. No direct SpacetimeDB subscriptions.
  */
 
-import { useMemo, useCallback, useRef } from 'react';
 import { Timestamp } from 'spacetimedb';
-import { gameConfig, FOUNDATION_TILE_SIZE, foundationCellToWorldCenter } from '../config/gameConfig';
+import { gameConfig, FOUNDATION_TILE_SIZE, foundationCellToWorldCenter } from '../../config/gameConfig';
 
 /**
  * Helper to check if a respawnAt timestamp indicates the entity is NOT respawning.
@@ -72,7 +71,7 @@ import {
   // StormPile removed - storms now spawn HarvestableResources and DroppedItems directly
   LivingCoral as SpacetimeDBLivingCoral, // Living coral for underwater harvesting (uses combat system)
   // Grass as SpacetimeDBGrass // Will use InterpolatedGrassData instead
-} from '../generated/types';
+} from '../../generated/types';
 import {
   isPlayer, isTree, isStone, isCampfire, isHarvestableResource, isDroppedItem, isWoodenStorageBox,
   isSleepingBag,
@@ -86,21 +85,21 @@ import {
   isBarrel, // ADDED Barrel type guard import
   isLantern, // ADDED Lantern type guard import
   isSeaStack // ADDED SeaStack type guard import
-} from '../utils/typeGuards';
-import { InterpolatedGrassData } from './useGrassInterpolation'; // Import InterpolatedGrassData
-import { COMPOUND_BUILDINGS, getBuildingWorldPosition, getMonumentBuildings } from '../config/compoundBuildings'; // Import compound buildings config
-import { hasActiveStoneDestruction, checkStoneDestructionVisibility } from '../utils/renderers/stoneRenderingUtils'; // Import stone destruction tracking
-import { hasActiveCoralDestruction, checkCoralDestructionVisibility } from '../utils/renderers/livingCoralRenderingUtils'; // Import coral destruction tracking
-import { checkBarrelDestructionVisibility } from '../utils/renderers/barrelRenderingUtils'; // Barrel destruction chunks
-import { BOX_TYPE_LARGE, BOX_TYPE_COMPOST, BOX_TYPE_TANNING_RACK, BOX_TYPE_REPAIR_BENCH, BOX_TYPE_COOKING_STATION, BOX_TYPE_SCARECROW, BOX_TYPE_PLAYER_BEEHIVE, BOX_TYPE_WILD_BEEHIVE } from '../utils/renderers/woodenStorageBoxRenderingUtils'; // Import box type constants for y-sorting
-import { getProjectileVisualDedupKey } from '../utils/renderers/projectileRenderingUtils';
+} from '../../utils/typeGuards';
+import { InterpolatedGrassData } from './grassInterpolationRuntime';
+import { COMPOUND_BUILDINGS, getBuildingWorldPosition, getMonumentBuildings } from '../../config/compoundBuildings'; // Import compound buildings config
+import { hasActiveStoneDestruction, checkStoneDestructionVisibility } from '../../utils/renderers/stoneRenderingUtils'; // Import stone destruction tracking
+import { hasActiveCoralDestruction, checkCoralDestructionVisibility } from '../../utils/renderers/livingCoralRenderingUtils'; // Import coral destruction tracking
+import { checkBarrelDestructionVisibility } from '../../utils/renderers/barrelRenderingUtils'; // Barrel destruction chunks
+import { BOX_TYPE_LARGE, BOX_TYPE_COMPOST, BOX_TYPE_TANNING_RACK, BOX_TYPE_REPAIR_BENCH, BOX_TYPE_COOKING_STATION, BOX_TYPE_SCARECROW, BOX_TYPE_PLAYER_BEEHIVE, BOX_TYPE_WILD_BEEHIVE } from '../../utils/renderers/woodenStorageBoxRenderingUtils'; // Import box type constants for y-sorting
+import { getProjectileVisualDedupKey } from '../../utils/renderers/projectileRenderingUtils';
 // Ward radius constants for expanded viewport filtering (to render ward circles even when ward is off-screen)
 import { 
   LANTERN_TYPE_LANTERN,
   ANCESTRAL_WARD_RADIUS_PX, 
   SIGNAL_DISRUPTOR_RADIUS_PX, 
   MEMORY_BEACON_RADIUS_PX 
-} from '../utils/renderers/lanternRenderingUtils';
+} from '../../utils/renderers/lanternRenderingUtils';
 
 export interface ViewportBounds {
   viewMinX: number;
@@ -120,9 +119,9 @@ export function isInView(x: number, y: number, width: number, height: number, bo
 }
 
 // Import building visibility utilities
-import { getBuildingClusters, getPlayerBuildingClusterId, shouldMaskFoundation, detectEntranceWayFoundations, detectNorthWallFoundations, detectSouthWallFoundations, type BuildingCluster } from '../utils/buildingVisibilityUtils';
+import { getBuildingClusters, getPlayerBuildingClusterId, shouldMaskFoundation, detectEntranceWayFoundations, detectNorthWallFoundations, detectSouthWallFoundations, type BuildingCluster } from '../../utils/buildingVisibilityUtils';
 
-interface EntityFilteringResult {
+export interface EntityFilteringResult {
   visibleHarvestableResources: SpacetimeDBHarvestableResource[];
   visibleDroppedItems: SpacetimeDBDroppedItem[];
   visibleCampfires: SpacetimeDBCampfire[];
@@ -245,7 +244,7 @@ export type YSortedEntityType =
   | { type: 'monument_doodad'; entity: CompoundBuildingEntity } // ADDED: Monument parts - player in front when in bottom 25% of sprite
   // StormPile removed - storms now spawn HarvestableResources and DroppedItems directly
   | { type: 'living_coral'; entity: SpacetimeDBLivingCoral } // Living coral reefs (uses combat system)
-  | { type: 'swimmingPlayerTopHalf'; entity: SpacetimeDBPlayer; yPosition: number; playerId: string }; // Phase 3c: swimming player top half (pre-merged in useEntityFiltering)
+  | { type: 'swimmingPlayerTopHalf'; entity: SpacetimeDBPlayer; yPosition: number; playerId: string }; // Phase 3c: swimming player top half (pre-merged in EntityFilteringRuntime)
 
 // Type for compound buildings in Y-sorted system
 export interface CompoundBuildingEntity {
@@ -871,7 +870,30 @@ function getCachedFilteredEntities<T extends { posX: number; posY: number }>(
   return filteredEntities;
 }
 
-export function useEntityFiltering(
+export class EntityFilteringRuntime {
+  private readonly memoSlots = new Map<number, { deps: readonly unknown[]; value: unknown }>();
+  private readonly viewBoundsRef: { current: ViewportBounds | null } = { current: null };
+  private readonly corpseHitCheckCache: { current: { timestamp: number; result: boolean } } = {
+    current: { timestamp: 0, result: false },
+  };
+  private frameCounter = 0;
+
+  private memo<T>(slot: number, factory: () => T, deps: readonly unknown[]): T {
+    const cached = this.memoSlots.get(slot);
+    if (
+      cached &&
+      cached.deps.length === deps.length &&
+      deps.every((dep, index) => Object.is(dep, cached.deps[index]))
+    ) {
+      return cached.value as T;
+    }
+
+    const value = factory();
+    this.memoSlots.set(slot, { deps: [...deps], value });
+    return value;
+  }
+
+  update(
   players: Map<string, SpacetimeDBPlayer>,
   trees: Map<string, SpacetimeDBTree>,
   stones: Map<string, SpacetimeDBStone>,
@@ -924,7 +946,8 @@ export function useEntityFiltering(
   waterTileLookup?: Map<string, boolean> // Fast local tile water detection for immediate land/sea sprite transitions
 ): EntityFilteringResult {
   // Increment frame counter for throttling
-  frameCounter++;
+  this.frameCounter++;
+  frameCounter = this.frameCounter;
   
   // Get player position for distance calculations
   const playerPos = getPlayerPosition(players, localPlayerId);  
@@ -935,14 +958,14 @@ export function useEntityFiltering(
   const currentTime = Date.now();
 
   // Only update timestamp every second to prevent constant re-renders
-  const stableTimestamp = useMemo(() => {
+  const stableTimestamp = this.memo(0, () => {
     const now = Date.now();
     return Math.floor(now / 1000) * 1000; // Round to nearest second
   }, [Math.floor(Date.now() / 1000)]);
   // Removed debug log that was causing excessive console output
 
   // Calculate viewport bounds
-  const getViewportBounds = useCallback((): ViewportBounds => {
+  const getViewportBounds = this.memo(82, () => (): ViewportBounds => {
     const buffer = gameConfig.tileSize * 3; // Increased from 2 to 3 for better coverage
     const viewMinX = -cameraOffsetX - buffer;
     const viewMaxX = -cameraOffsetX + canvasWidth + buffer;
@@ -952,7 +975,7 @@ export function useEntityFiltering(
   }, [cameraOffsetX, cameraOffsetY, canvasWidth, canvasHeight]);
 
   // Entity visibility check
-  const isEntityInView = useCallback((entity: any, bounds: ViewportBounds, timestamp: number): boolean => {
+  const isEntityInView = this.memo(83, () => (entity: any, bounds: ViewportBounds, timestamp: number): boolean => {
     let x: number | undefined;
     let y: number | undefined;
     let width: number = gameConfig.tileSize;
@@ -1125,8 +1148,8 @@ export function useEntityFiltering(
   // PERFORMANCE: Stabilize viewBounds - skip entity filtering on small camera moves.
   // 32px = ~half tile; reduces lag when walking through dense entity areas.
   const VIEW_BOUNDS_THRESHOLD = 32;
-  const viewBoundsRef = useRef<ViewportBounds | null>(null);
-  const viewBounds = useMemo(() => {
+  const viewBoundsRef = this.viewBoundsRef;
+  const viewBounds = this.memo(1, () => {
     const fresh = getViewportBounds();
     const prev = viewBoundsRef.current;
     if (prev &&
@@ -1139,7 +1162,7 @@ export function useEntityFiltering(
   }, [getViewportBounds]);
 
   // PERFORMANCE: Use cached filtering for expensive entity types
-  let cachedVisibleTrees = useMemo(() => {
+  let cachedVisibleTrees = this.memo(2, () => {
     if (!playerPos) return [];
     
     return getCachedFilteredEntities(
@@ -1168,7 +1191,7 @@ export function useEntityFiltering(
     );
   }, [trees, playerPos, viewBounds, stableTimestamp, frameCounter, isTreeFalling]);
 
-  let cachedVisibleStones = useMemo(() => {
+  let cachedVisibleStones = this.memo(3, () => {
     if (!playerPos) return [];
 
     return getCachedFilteredEntities(
@@ -1184,7 +1207,7 @@ export function useEntityFiltering(
     );
   }, [stones, playerPos, viewBounds, stableTimestamp, frameCounter]);
 
-  let cachedVisibleResources = useMemo(() => {
+  let cachedVisibleResources = this.memo(4, () => {
     if (!playerPos) return [];
     
     return getCachedFilteredEntities(
@@ -1202,38 +1225,38 @@ export function useEntityFiltering(
   // Use cached results instead of original filtering
   let visibleTrees = cachedVisibleTrees;
   const visibleStones = cachedVisibleStones;
-  const visibleRuneStones = useMemo(() =>
+  const visibleRuneStones = this.memo(5, () =>
     filterMapToArray(runeStones, e => isInView(e.posX, e.posY, 150, 150, viewBounds)),
     [runeStones, viewBounds]
   );
-  const visibleCairns = useMemo(() =>
+  const visibleCairns = this.memo(6, () =>
     filterMapToArray(cairns, e => isInView(e.posX, e.posY, 256, 256, viewBounds)),
     [cairns, viewBounds]
   );
   let visibleHarvestableResources = cachedVisibleResources;
 
   // Keep original filtering for less expensive entity types
-  const visibleDroppedItems = useMemo(() =>
+  const visibleDroppedItems = this.memo(7, () =>
     filterMapToArray(droppedItems, e => isInView(e.posX, e.posY, 32, 32, viewBounds)),
     [droppedItems, viewBounds]
   );
 
-  const visibleCampfires = useMemo(() =>
+  const visibleCampfires = this.memo(8, () =>
     filterMapToArray(campfires, e => !e.isDestroyed && isInView(e.posX, e.posY, 64, 64, viewBounds)),
     [campfires, viewBounds]
   );
 
-  const visibleFurnaces = useMemo(() =>
+  const visibleFurnaces = this.memo(9, () =>
     filterMapToArray(furnaces, e => !e.isDestroyed && isInView(e.posX, e.posY, 144, 144, viewBounds)),
     [furnaces, viewBounds]
   );
 
-  const visibleBarbecues = useMemo(() =>
+  const visibleBarbecues = this.memo(10, () =>
     filterMapToArray(barbecues, e => !e.isDestroyed && isInView(e.posX, e.posY, 64, 64, viewBounds)),
     [barbecues, viewBounds]
   );
 
-  const visibleLanterns = useMemo(() => {
+  const visibleLanterns = this.memo(11, () => {
     if (!lanterns) return [];
     const visibleFiltered: SpacetimeDBLantern[] = [];
 
@@ -1272,7 +1295,7 @@ export function useEntityFiltering(
     return visibleFiltered;
   }, [lanterns, isEntityInView, viewBounds, stableTimestamp]);
 
-  const visibleTurrets = useMemo(() => {
+  const visibleTurrets = this.memo(12, () => {
     if (!turrets) return [];
     const result: SpacetimeDBTurret[] = [];
 
@@ -1286,12 +1309,12 @@ export function useEntityFiltering(
     return result;
   }, [turrets, isEntityInView, viewBounds, stableTimestamp]);
 
-  const visibleHomesteadHearths = useMemo(() => 
+  const visibleHomesteadHearths = this.memo(13, () => 
     filterMapToArray(homesteadHearths, e => !e.isDestroyed && isInView(e.posX, e.posY, 96, 96, viewBounds)),
     [homesteadHearths, viewBounds]
   );
 
-  const visiblePlayers = useMemo(() => {
+  const visiblePlayers = this.memo(14, () => {
     if (!players) return [];
     const result: SpacetimeDBPlayer[] = [];
     for (const e of players.values()) {
@@ -1313,27 +1336,27 @@ export function useEntityFiltering(
     return result;
   }, [players, viewBounds, localPlayerId]);
 
-  const visibleWoodenStorageBoxes = useMemo(() =>
+  const visibleWoodenStorageBoxes = this.memo(15, () =>
     filterMapToArray(woodenStorageBoxes, e => isInView(e.posX, e.posY, 64, 64, viewBounds)),
     [woodenStorageBoxes, viewBounds]
   );
   
-  const visibleSleepingBags = useMemo(() =>
+  const visibleSleepingBags = this.memo(16, () =>
     filterMapToArray(sleepingBags, e => isInView(e.posX, e.posY, 64, 32, viewBounds)),
     [sleepingBags, viewBounds]
   );
 
-  const visiblePlayerCorpses = useMemo(() =>
+  const visiblePlayerCorpses = this.memo(17, () =>
     filterMapToArray(playerCorpses, e => isInView(e.posX, e.posY, 64, 64, viewBounds)),
     [playerCorpses, viewBounds]
   );
 
-  const visibleStashes = useMemo(() =>
+  const visibleStashes = this.memo(18, () =>
     filterMapToArray(stashes, e => isInView(e.posX, e.posY, 32, 32, viewBounds)),
     [stashes, viewBounds]
   );
 
-  const visibleProjectiles = useMemo(() => {
+  const visibleProjectiles = this.memo(19, () => {
     // Projectiles are short-lived and relatively low-count compared to static entities.
     // Avoid trajectory-based culling here to prevent directional pop-in regressions.
     return Array.from(projectiles.values());
@@ -1341,7 +1364,7 @@ export function useEntityFiltering(
 
   // PERFORMANCE: More aggressive grass culling
   // ALSO: Filter out grass on water tiles (Sea, HotSpringWater)
-  let visibleGrass = useMemo(() => {
+  let visibleGrass = this.memo(20, () => {
     if (!grass || !playerPos) {
       return [];
     }
@@ -1385,17 +1408,17 @@ export function useEntityFiltering(
   }, [grass, playerPos, viewBounds, stableTimestamp, frameCounter, worldChunkData]);
 
   // ADDED: Filter visible shelters
-  const visibleShelters = useMemo(() =>
+  const visibleShelters = this.memo(21, () =>
     filterMapToArray(shelters, e => !e.isDestroyed && isInView(e.posX, e.posY, 384, 384, viewBounds)),
     [shelters, viewBounds]
   );
 
-  const visibleClouds = useMemo(() =>
+  const visibleClouds = this.memo(22, () =>
     filterMapToArray(clouds, e => isInView(e.posX, e.posY, 96, 96, viewBounds)),
     [clouds, viewBounds]
   );
 
-  const visiblePlantedSeeds = useMemo(() => {
+  const visiblePlantedSeeds = this.memo(23, () => {
     if (!plantedSeeds) return [];
     const filtered: SpacetimeDBPlantedSeed[] = [];
     for (const e of plantedSeeds.values()) {
@@ -1406,17 +1429,17 @@ export function useEntityFiltering(
     return filtered;
   }, [plantedSeeds, plantedSeeds?.size, isEntityInView, viewBounds, stableTimestamp]);
 
-  const visibleRainCollectors = useMemo(() =>
+  const visibleRainCollectors = this.memo(24, () =>
     filterMapToArray(rainCollectors, e => !e.isDestroyed && isInView(e.posX, e.posY, 256, 256, viewBounds)),
     [rainCollectors, viewBounds]
   );
 
-  const visibleBrothPots = useMemo(() =>
+  const visibleBrothPots = this.memo(25, () =>
     filterMapToArray(brothPots, e => !e.isDestroyed && isInView(e.posX, e.posY, 64, 64, viewBounds)),
     [brothPots, viewBounds]
   );
 
-  const visibleWildAnimals = useMemo(() => {
+  const visibleWildAnimals = this.memo(26, () => {
     if (!wildAnimals) return [];
     
     // CRITICAL FIX: Add generous padding for animals to prevent disappearing during chunk transitions
@@ -1439,7 +1462,7 @@ export function useEntityFiltering(
     return result;
   }, [wildAnimals, viewBounds]);
 
-  const visibleAnimalCorpses = useMemo(() => {
+  const visibleAnimalCorpses = this.memo(27, () => {
     if (!animalCorpses) return [];
     const result: SpacetimeDBAnimalCorpse[] = [];
     for (const e of animalCorpses.values()) {
@@ -1450,7 +1473,7 @@ export function useEntityFiltering(
     return result;
   }, [animalCorpses, viewBounds, stableTimestamp]);
 
-  const visibleBarrels = useMemo(() =>
+  const visibleBarrels = this.memo(28, () =>
     filterMapToArray(barrels, e => {
       const isBuoy = (e.variant ?? 0) === 6;
       if (isBuoy) return isInView(e.posX, e.posY, 48, 48, viewBounds); // Buoy never respawns
@@ -1459,23 +1482,23 @@ export function useEntityFiltering(
     [barrels, viewBounds]
   );
 
-  const visibleRoadLampposts = useMemo(() =>
+  const visibleRoadLampposts = this.memo(29, () =>
     filterMapToArray(roadLampposts, e => isInView(e.posX, e.posY, 128, 192, viewBounds)),
     [roadLampposts, viewBounds]
   );
 
-  const visibleFumaroles = useMemo(() =>
+  const visibleFumaroles = this.memo(30, () =>
     filterMapToArray(fumaroles, e => isInView(e.posX, e.posY, 96, 96, viewBounds)),
     [fumaroles, viewBounds]
   );
 
-  const visibleBasaltColumns = useMemo(() =>
+  const visibleBasaltColumns = this.memo(31, () =>
     filterMapToArray(basaltColumns, e => isInView(e.posX, e.posY, 200, 300, viewBounds)),
     [basaltColumns, viewBounds]
   );
 
   // ALK delivery stations filtering - use worldPosX/worldPosY instead of posX/posY
-  const visibleAlkStations = useMemo(() => {
+  const visibleAlkStations = this.memo(32, () => {
     if (!alkStations) return [];
     const result: SpacetimeDBAlkStation[] = [];
     for (const station of alkStations.values()) {
@@ -1495,7 +1518,7 @@ export function useEntityFiltering(
   }, [alkStations, viewBounds]);
 
   // Static ALK compound buildings (barracks, garage, shed, etc.) - 87.5% Y-sort threshold
-  const visibleStaticCompoundBuildings = useMemo(() => {
+  const visibleStaticCompoundBuildings = this.memo(33, () => {
     return COMPOUND_BUILDINGS.map(building => {
       const worldPos = getBuildingWorldPosition(building);
       return {
@@ -1522,7 +1545,7 @@ export function useEntityFiltering(
   }, [viewBounds]);
 
   // Monument doodads (shipwreck, fishing village, hunting village, etc.) - 50/50 Y-sort (sprite center)
-  const visibleMonumentDoodads = useMemo(() => {
+  const visibleMonumentDoodads = this.memo(34, () => {
     const allMonumentParts: any[] = [];
     if (monumentParts) {
       for (const part of monumentParts.values()) {
@@ -1569,7 +1592,7 @@ export function useEntityFiltering(
     });
   }, [viewBounds, monumentParts]);
 
-  const visibleSeaStacks = useMemo(() =>
+  const visibleSeaStacks = this.memo(35, () =>
     filterMapToArray(seaStacks, e => isInView(e.posX, e.posY, 400, 600, viewBounds)),
     [seaStacks, viewBounds]
   );
@@ -1578,7 +1601,7 @@ export function useEntityFiltering(
 
   // Living corals filtering - underwater coral reefs (uses combat system)
   // Include corals that are not respawning OR have active destruction effects
-  const visibleLivingCorals = useMemo(() =>
+  const visibleLivingCorals = this.memo(36, () =>
     filterMapToArray(livingCorals, e =>
       (isNotRespawning(e.respawnAt) || hasActiveCoralDestruction(e.id.toString())) && isInView(e.posX, e.posY, 64, 64, viewBounds)
     ),
@@ -1587,7 +1610,7 @@ export function useEntityFiltering(
 
   // ADDED: Filter visible foundation cells
   // CRITICAL FIX: Depend on foundationCells.size to ensure recalculation when subscription data loads
-  const visibleFoundationCells = useMemo(() => {
+  const visibleFoundationCells = this.memo(37, () => {
     if (!foundationCells || typeof foundationCells.values !== 'function') return [];
     
     // Foundation cells use cell coordinates - need custom viewport check
@@ -1613,7 +1636,7 @@ export function useEntityFiltering(
   
   // ADDED: Filter visible wall cells
   // CRITICAL FIX: Depend on wallMapSize to ensure recalculation when subscription data loads
-  const visibleWallCells = useMemo(() => {
+  const visibleWallCells = this.memo(38, () => {
     if (!wallCells || typeof wallCells.values !== 'function') return [];
     
     // Wall cells use foundation cell coordinates - need custom viewport check
@@ -1672,7 +1695,7 @@ export function useEntityFiltering(
   const doorMapSize = doors?.size || 0;
 
   // ADDED: Filter visible doors
-  const visibleDoors = useMemo(() => {
+  const visibleDoors = this.memo(39, () => {
     if (!doors || typeof doors.values !== 'function') return [];
     
     const padding = 50; // Extra padding to catch doors on edges
@@ -1695,178 +1718,178 @@ export function useEntityFiltering(
   const foundationMapSize = foundationCells?.size || 0;
 
   // ADDED: Calculate building clusters for fog of war
-  const buildingClusters = useMemo(() => {
+  const buildingClusters = this.memo(40, () => {
     if (!foundationCells || !wallCells) return new Map();
     return getBuildingClusters(foundationCells, wallCells);
   }, [foundationCells, foundationMapSize, wallCells, wallMapSize]);
 
   // ADDED: Determine which building cluster the local player is in
-  const playerBuildingClusterId = useMemo(() => {
+  const playerBuildingClusterId = this.memo(41, () => {
     const localPlayer = localPlayerId ? players.get(localPlayerId) : undefined;
     return getPlayerBuildingClusterId(localPlayer, buildingClusters);
   }, [localPlayerId, players, buildingClusters]);
 
-  const visibleHarvestableResourcesMap = useMemo(() =>
+  const visibleHarvestableResourcesMap = this.memo(42, () =>
     arrayToIdMap(visibleHarvestableResources, hr => hr.id),
     [visibleHarvestableResources]
   );
 
-  const visibleCampfiresMap = useMemo(() =>
+  const visibleCampfiresMap = this.memo(43, () =>
     arrayToIdMap(visibleCampfires, c => c.id),
     [visibleCampfires]
   );
 
-  const visibleFurnacesMap = useMemo(() =>
+  const visibleFurnacesMap = this.memo(44, () =>
     arrayToIdMap(visibleFurnaces, f => f.id),
     [visibleFurnaces]
   );
 
-  const visibleBarbecuesMap = useMemo(() =>
+  const visibleBarbecuesMap = this.memo(45, () =>
     arrayToIdMap(visibleBarbecues, b => b.id),
     [visibleBarbecues]
   );
 
-  const visibleLanternsMap = useMemo(() =>
+  const visibleLanternsMap = this.memo(46, () =>
     arrayToIdMap(visibleLanterns, l => l.id),
     [visibleLanterns]
   );
 
-  const visibleTurretsMap = useMemo(() =>
+  const visibleTurretsMap = this.memo(47, () =>
     arrayToIdMap(visibleTurrets, t => t.id),
     [visibleTurrets]
   );
 
-  const visibleHomesteadHearthsMap = useMemo(() =>
+  const visibleHomesteadHearthsMap = this.memo(48, () =>
     arrayToIdMap(visibleHomesteadHearths, h => h.id),
     [visibleHomesteadHearths]
   ); 
 
-  const visibleDroppedItemsMap = useMemo(() =>
+  const visibleDroppedItemsMap = this.memo(49, () =>
     arrayToIdMap(visibleDroppedItems, i => i.id),
     [visibleDroppedItems]
   );
   
-  const visibleBoxesMap = useMemo(() =>
+  const visibleBoxesMap = this.memo(50, () =>
     arrayToIdMap(visibleWoodenStorageBoxes, b => b.id),
     [visibleWoodenStorageBoxes]
   );
 
-  const visiblePlantedSeedsMap = useMemo(() =>
+  const visiblePlantedSeedsMap = this.memo(51, () =>
     arrayToIdMap(visiblePlantedSeeds, p => p.id),
     [visiblePlantedSeeds]
   );
 
-  const visibleRainCollectorsMap = useMemo(() =>
+  const visibleRainCollectorsMap = this.memo(52, () =>
     arrayToIdMap(visibleRainCollectors, r => r.id),
     [visibleRainCollectors]
   );
 
-  const visibleBrothPotsMap = useMemo(() =>
+  const visibleBrothPotsMap = this.memo(53, () =>
     arrayToIdMap(visibleBrothPots, b => b.id),
     [visibleBrothPots]
   );
 
-  const visibleWildAnimalsMap = useMemo(() =>
+  const visibleWildAnimalsMap = this.memo(54, () =>
     arrayToIdMap(visibleWildAnimals, w => w.id),
     [visibleWildAnimals]
   );
 
-  const visibleProjectilesMap = useMemo(() =>
+  const visibleProjectilesMap = this.memo(55, () =>
     arrayToIdMap(visibleProjectiles, p => p.id),
     [visibleProjectiles]
   );
 
-  const visiblePlayerCorpsesMap = useMemo(() => {
+  const visiblePlayerCorpsesMap = this.memo(56, () => {
     const map = new Map<string, SpacetimeDBPlayerCorpse>();
     visiblePlayerCorpses.forEach(c => map.set(c.id.toString(), c));
     return map;
   }, [visiblePlayerCorpses]);
 
-  const visibleStashesMap = useMemo(() => arrayToIdMap(visibleStashes, st => st.id), [visibleStashes]);
+  const visibleStashesMap = this.memo(57, () => arrayToIdMap(visibleStashes, st => st.id), [visibleStashes]);
 
-  const visibleSleepingBagsMap = useMemo(() =>
+  const visibleSleepingBagsMap = this.memo(58, () =>
     arrayToIdMap(visibleSleepingBags, sl => sl.id),
     [visibleSleepingBags]
   );
 
-  const visibleTreesMap = useMemo(() => {
+  const visibleTreesMap = this.memo(59, () => {
     const map = new Map<string, SpacetimeDBTree>();
     visibleTrees.forEach(e => map.set(e.id.toString(), e));
     return map;
   }, [visibleTrees]);
 
-  const visibleStonesMap = useMemo(() => {
+  const visibleStonesMap = this.memo(60, () => {
     const map = new Map<string, SpacetimeDBStone>();
     visibleStones.forEach(e => map.set(e.id.toString(), e));
     return map;
   }, [visibleStones]);
 
-  const visibleRuneStonesMap = useMemo(() => {
+  const visibleRuneStonesMap = this.memo(61, () => {
     const map = new Map<string, SpacetimeDBRuneStone>();
     visibleRuneStones.forEach(e => map.set(e.id.toString(), e));
     return map;
   }, [visibleRuneStones]);
 
-  const visibleCairnsMap = useMemo(() => {
+  const visibleCairnsMap = this.memo(62, () => {
     const map = new Map<string, SpacetimeDBCairn>();
     visibleCairns.forEach(e => map.set(e.id.toString(), e));
     return map;
   }, [visibleCairns]);
 
-  const visibleWoodenStorageBoxesMap = useMemo(() => {
+  const visibleWoodenStorageBoxesMap = this.memo(63, () => {
     const map = new Map<string, SpacetimeDBWoodenStorageBox>();
     visibleWoodenStorageBoxes.forEach(e => map.set(e.id.toString(), e));
     return map;
   }, [visibleWoodenStorageBoxes]);
 
-  const groundItems = useMemo(() => visibleSleepingBags, [visibleSleepingBags]);
+  const groundItems = this.memo(64, () => visibleSleepingBags, [visibleSleepingBags]);
 
-  const visibleGrassMap = useMemo(() =>
+  const visibleGrassMap = this.memo(65, () =>
     arrayToIdMap(visibleGrass, g => g.id),
     [visibleGrass]
   ); // visibleGrass is now InterpolatedGrassData[]
 
   // ADDED: Map for visible shelters
-  const visibleSheltersMap = useMemo(() =>
+  const visibleSheltersMap = this.memo(66, () =>
     arrayToIdMap(visibleShelters, s => s.id),
     [visibleShelters]
   );
 
   // ADDED: Map for visible animal corpses
-  const visibleAnimalCorpsesMap = useMemo(() =>
+  const visibleAnimalCorpsesMap = this.memo(67, () =>
     arrayToIdMap(visibleAnimalCorpses, a => a.id),
     [visibleAnimalCorpses]
   );
 
   // ADDED: Map for visible barrels
-  const visibleBarrelsMap = useMemo(() =>
+  const visibleBarrelsMap = this.memo(68, () =>
     arrayToIdMap(visibleBarrels, b => b.id),
     [visibleBarrels]
   );
 
   // ADDED: Map for visible road lampposts
-  const visibleRoadLamppostsMap = useMemo(() =>
+  const visibleRoadLamppostsMap = this.memo(69, () =>
     arrayToIdMap(visibleRoadLampposts, l => l.id),
     [visibleRoadLampposts]
   );
 
-  const visibleFumarolesMap = useMemo(() =>
+  const visibleFumarolesMap = this.memo(70, () =>
     arrayToIdMap(visibleFumaroles, f => f.id),
     [visibleFumaroles]
   );
 
-  const visibleBasaltColumnsMap = useMemo(() =>
+  const visibleBasaltColumnsMap = this.memo(71, () =>
     arrayToIdMap(visibleBasaltColumns, b => b.id),
     [visibleBasaltColumns]
   );
 
-  const visibleAlkStationsMap = useMemo(() =>
+  const visibleAlkStationsMap = this.memo(72, () =>
     arrayToIdMap(visibleAlkStations, s => s.stationId),
     [visibleAlkStations]
   );
 
   // ADDED: Map for visible sea stacks
-  const visibleSeaStacksMap = useMemo(() =>
+  const visibleSeaStacksMap = this.memo(73, () =>
     arrayToIdMap(visibleSeaStacks, s => s.id),
     [visibleSeaStacks]
   );
@@ -1874,25 +1897,25 @@ export function useEntityFiltering(
   // StormPile removed - storms now spawn HarvestableResources and DroppedItems directly
 
   // ADDED: Map for visible living corals
-  const visibleLivingCoralsMap = useMemo(() =>
+  const visibleLivingCoralsMap = this.memo(74, () =>
     arrayToIdMap(visibleLivingCorals, c => c.id),
     [visibleLivingCorals]
   );
 
   // ADDED: Map for visible foundation cells
-  const visibleFoundationCellsMap = useMemo(() =>
+  const visibleFoundationCellsMap = this.memo(75, () =>
     arrayToIdMap(visibleFoundationCells, f => f.id),
     [visibleFoundationCells]
   );
 
   // ADDED: Map for visible wall cells
-  const visibleWallCellsMap = useMemo(() =>
+  const visibleWallCellsMap = this.memo(76, () =>
     arrayToIdMap(visibleWallCells, w => w.id),
     [visibleWallCells]
   );
 
   // ADDED: Map for visible doors
-  const visibleDoorsMap = useMemo(() =>
+  const visibleDoorsMap = this.memo(77, () =>
     arrayToIdMap(visibleDoors, d => d.id),
     [visibleDoors]
   );
@@ -1901,7 +1924,7 @@ export function useEntityFiltering(
   const fenceMapSize = fences?.size || 0;
 
   // ADDED: Filter visible fences
-  const visibleFences = useMemo(() => {
+  const visibleFences = this.memo(78, () => {
     if (!fences || typeof fences.values !== 'function') return [];
     
     const padding = 50; // Extra padding to catch fences on edges
@@ -1923,7 +1946,7 @@ export function useEntityFiltering(
   }, [fences, fenceMapSize, viewBounds, stableTimestamp]);
 
   // ADDED: Map for visible fences
-  const visibleFencesMap = useMemo(() =>
+  const visibleFencesMap = this.memo(79, () =>
     arrayToIdMap(visibleFences, f => f.id),
     [visibleFences]
   );
@@ -1934,7 +1957,7 @@ export function useEntityFiltering(
   type YSortedEntityWithKey = YSortedEntityType & { _ySortKey: number; _priority: number };
   
   // Cache for Y-sorted entities to avoid recalculating every frame
-  const ySortedCache = useMemo(() => ({
+  const ySortedCache = this.memo(80, () => ({
     entities: [] as YSortedEntityWithKey[],
     swimmingPlayersForBottomHalf: [] as SpacetimeDBPlayer[],
     lastLocalPlayerTileKey: '' as string,
@@ -1949,10 +1972,10 @@ export function useEntityFiltering(
   }), []);
 
   // PERFORMANCE: Cache corpse hit check - only recompute every 150ms instead of every frame
-  const corpseHitCheckCache = useRef<{ timestamp: number; result: boolean }>({ timestamp: 0, result: false });
+  const corpseHitCheckCache = this.corpseHitCheckCache;
   
   // Helper to check if entity counts changed significantly
-  const hasEntityCountChanged = useCallback((newCounts: Record<string, number>) => {
+  const hasEntityCountChanged = this.memo(84, () => (newCounts: Record<string, number>) => {
     const oldCounts = ySortedCache.lastEntityCounts;
     for (const [key, count] of Object.entries(newCounts)) {
       if (Math.abs((oldCounts[key] || 0) - count) > 5) { // Only resort if count changed by more than 5
@@ -1967,7 +1990,7 @@ export function useEntityFiltering(
   // Note: wallMapSize and foundationMapSize are already extracted above
   const playerMapSize = players?.size || 0;
   
-  const ySortedMemoResult = useMemo(() => {
+  const ySortedMemoResult = this.memo(81, () => {
     // Detect dropped-item content changes (not just count deltas).
     // Important for rapid create/delete/replace flows where count may stay stable.
     const droppedItemsSignature = visibleDroppedItems
@@ -3236,3 +3259,5 @@ export function useEntityFiltering(
     swimmingPlayersForBottomHalf, // Single source of truth for swimming bottom-half render (must match Y-sort)
   };
 } 
+
+}

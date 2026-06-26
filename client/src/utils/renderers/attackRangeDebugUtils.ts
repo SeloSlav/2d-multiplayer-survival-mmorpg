@@ -10,7 +10,7 @@
  */
 
 import { Player, WoodenStorageBox, Barbecue, Furnace, Tree, Stone, WildAnimal, Barrel, Grass, Campfire, SleepingBag, Stash, ItemDefinition as SpacetimeDBItemDefinition } from '../../generated/types';
-import { InterpolatedGrassData } from '../../hooks/useGrassInterpolation'; // Merged grass+grassState data
+import { InterpolatedGrassData } from '../../engine/runtime/grassInterpolationRuntime'; // Merged grass+grassState data
 import {
   DEFAULT_MELEE_ARC_DEGREES as DEFAULT_ATTACK_ARC_DEGREES,
   DEFAULT_MELEE_ATTACK_RANGE as DEFAULT_ATTACK_RANGE,

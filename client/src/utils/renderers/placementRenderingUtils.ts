@@ -1,5 +1,5 @@
 import { PlacementItemInfo } from '../../hooks/usePlacementManager';
-import { BuildingPlacementState, BuildingMode } from '../../hooks/useBuildingManager';
+import { BuildingPlacementState, BuildingMode } from '../../engine/runtime/buildingPlacementRuntime';
 // Import dimensions directly from their respective rendering utility files
 import { CAMPFIRE_WIDTH_PREVIEW, CAMPFIRE_HEIGHT_PREVIEW } from './campfireRenderingUtils';
 import { FURNACE_WIDTH_PREVIEW, FURNACE_HEIGHT_PREVIEW, LARGE_FURNACE_WIDTH, LARGE_FURNACE_HEIGHT } from './furnaceRenderingUtils'; // ADDED: Furnace dimensions
@@ -25,7 +25,7 @@ import { renderFoundationPreview, renderWallPreview, renderFencePreview } from '
 import { isWaterTileTag } from '../tileTypeGuards';
 
 // Import interaction distance constants
-const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0; // From useInteractionFinder.ts
+const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0; // Mirrors interaction target runtime.
 const SHELTER_PLACEMENT_MAX_DISTANCE = 256.0;
 
 // Minimum distance between planted seeds (in pixels) - should match usePlacementManager.ts

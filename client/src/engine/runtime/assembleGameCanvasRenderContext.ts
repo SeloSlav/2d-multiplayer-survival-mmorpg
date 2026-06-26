@@ -1,36 +1,21 @@
-import { useEffect, useMemo } from 'react';
 import { gameConfig } from '../../config/gameConfig';
-import {
-  idleAnimationFrameRef,
-  sprintAnimationFrameRef,
-  useIdleAnimationCycle,
-  useSprintAnimationCycle,
-  useWalkingAnimationCycle,
-  walkingAnimationFrameRef,
-} from '../../hooks/useAnimationCycle';
-import { shakeOffsetXRef, shakeOffsetYRef, vignetteOpacityRef } from '../../hooks/useDamageEffects';
-import { useGameCanvasLagDiagnostics } from '../../hooks/useGameCanvasLagDiagnostics';
-import { renderWardParticles } from '../../hooks/useWardParticles';
-import { renderLateFramePasses } from '../frame/renderLateFramePasses';
-import { renderWorldPreparationPasses } from '../frame/renderWorldPreparationPasses';
-import { renderEntityWorldPasses } from '../frame/renderEntityWorldPasses';
-import { renderScreenSpaceWorldEffects } from '../frame/renderScreenSpaceWorldEffects';
 import type {
   GameCanvasRuntimeControllerSnapshot,
-  GameCanvasRuntimeHost,
   GameCanvasRuntimeParticleSnapshot,
+  GameCanvasRuntimeRenderContext,
   GameCanvasRuntimeSceneSnapshot,
-} from '../runtime/GameCanvasRuntimeHost';
+} from './GameCanvasRuntimeHost';
+import type { MutableRef } from '../types';
+import type { GameCanvasBuildTargetingSnapshot } from './gameCanvasBuildTargetingRuntime';
 
 const EMPTY_MAP = new Map();
 
-interface UseGameCanvasRenderRuntimeOptions {
-  host: GameCanvasRuntimeHost;
+export interface GameCanvasRenderRuntimeConfig {
   localPlayerId?: string;
   localPlayer: any;
   predictedPosition: { x: number; y: number } | null;
   connection: any | null;
-  gameCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+  gameCanvasRef: any;
   canvasSize: { width: number; height: number };
   placementInfo: any;
   placementError: string | null;
@@ -80,18 +65,51 @@ interface UseGameCanvasRenderRuntimeOptions {
     foundationTileImagesRef: any;
   };
   renderRefs: {
-    deltaTimeRef: React.MutableRefObject<number>;
-    lastPositionsRef: React.MutableRefObject<Map<string, { x: number; y: number }>>;
-    localSwimTransitionRef: React.MutableRefObject<{ wasSwimming: boolean; enteredWaterAtMs: number }>;
-    swimmingPlayerScratchRef: React.MutableRefObject<any>;
-    swimmingPlayerTopHalfScratchRef: React.MutableRefObject<any>;
-    localPlayerScratchRef: React.MutableRefObject<Record<string, unknown>>;
-    lastPlacementWarningRef: React.MutableRefObject<string | null>;
+    deltaTimeRef: any;
+    lastPositionsRef: any;
+    localSwimTransitionRef: any;
+    swimmingPlayerScratchRef: any;
+    swimmingPlayerTopHalfScratchRef: any;
+    localPlayerScratchRef: any;
+    lastPlacementWarningRef: any;
+  };
+  diagnostics: {
+    ySortDebugRef: any;
+    perfProfilingRef: any;
+    fpsProfilerRef: any;
+    checkPerformance: (frameStartTime: number) => void;
+  };
+  animationRefs: {
+    walkingAnimationFrameRef: any;
+    sprintAnimationFrameRef: any;
+    idleAnimationFrameRef: any;
+  };
+  damageRefs: {
+    shakeOffsetXRef: any;
+    shakeOffsetYRef: any;
+    vignetteOpacityRef: any;
+  };
+  renderFunctions: {
+    renderWorldPreparationPasses: any;
+    renderEntityWorldPasses: any;
+    renderScreenSpaceWorldEffects: any;
+    renderLateFramePasses: any;
+    renderWardParticles: any;
   };
 }
 
-export function useGameCanvasRenderRuntime({
-  host,
+export interface AssembleGameCanvasRenderContextOptions extends GameCanvasRenderRuntimeConfig {
+  sceneRuntime: GameCanvasRuntimeSceneSnapshot | null;
+  controllerRuntime: GameCanvasRuntimeControllerSnapshot | null;
+  effectsRuntime: GameCanvasRuntimeParticleSnapshot | null;
+  buildTargetingRef: MutableRef<GameCanvasBuildTargetingSnapshot>;
+}
+
+export function assembleGameCanvasRenderContext({
+  sceneRuntime,
+  controllerRuntime,
+  effectsRuntime,
+  buildTargetingRef,
   localPlayerId,
   localPlayer,
   predictedPosition,
@@ -121,8 +139,6 @@ export function useGameCanvasRenderRuntime({
   showPrecipitation,
   stormAtmosphereEnabled,
   showStatusOverlays,
-  isSearchingCraftRecipes,
-  showInventory,
   isMobile,
   tapAnimation,
   localPlayerIsCrouching,
@@ -133,56 +149,33 @@ export function useGameCanvasRenderRuntime({
   getCurrentDodgeRollVisualNow,
   assets,
   renderRefs,
-}: UseGameCanvasRenderRuntimeOptions) {
-  // These hooks advance the shared animation refs consumed by the frame renderer.
-  useWalkingAnimationCycle();
-  useSprintAnimationCycle();
-  useIdleAnimationCycle();
+  diagnostics,
+  animationRefs,
+  damageRefs,
+  renderFunctions,
+}: AssembleGameCanvasRenderContextOptions): GameCanvasRuntimeRenderContext | null {
+  if (!sceneRuntime || !controllerRuntime || !effectsRuntime) {
+    return null;
+  }
 
-  const ENABLE_LAG_DIAGNOSTICS = false;
-  const LAG_DIAGNOSTIC_INTERVAL_MS = 5000;
-  const PLAYER_SORT_FEET_OFFSET_PX = gameConfig.tileSize;
-  const ENABLE_YSORT_DEBUG = false;
-  const YSORT_DEBUG_INTERVAL_MS = 400;
-
-  const {
-    ySortDebugRef,
-    perfProfilingRef,
-    fpsProfilerRef,
-    checkPerformance,
-  } = useGameCanvasLagDiagnostics({
-    localPlayer,
-    enabled: ENABLE_LAG_DIAGNOSTICS,
-  });
-
-  const sceneRuntime = host.getSceneSnapshot() as GameCanvasRuntimeSceneSnapshot | null;
-  const controllerRuntime = host.getControllerSnapshot() as GameCanvasRuntimeControllerSnapshot | null;
-  const effectsRuntime = host.getParticleSnapshot() as GameCanvasRuntimeParticleSnapshot | null;
-
-  const shelterClippingData = useMemo(() => {
-    if (!sceneRuntime?.shelters) return [];
-    return Array.from(sceneRuntime.shelters.values()).map((shelter: any) => ({
-      posX: shelter.posX,
-      posY: shelter.posY,
-      isDestroyed: shelter.isDestroyed,
-    }));
-  }, [sceneRuntime?.shelters]);
+  const shelterClippingData = sceneRuntime.shelters
+    ? Array.from(sceneRuntime.shelters.values()).map((shelter: any) => ({
+        posX: shelter.posX,
+        posY: shelter.posY,
+        isDestroyed: shelter.isDestroyed,
+      }))
+    : [];
 
   const localPlayerX = predictedPosition?.x ?? localPlayer?.positionX ?? 0;
   const localPlayerY = predictedPosition?.y ?? localPlayer?.positionY ?? 0;
 
-  const renderContext = useMemo(() => {
-    if (!sceneRuntime || !controllerRuntime || !effectsRuntime) {
-      return null;
-    }
-
-    return {
-    ENABLE_LAG_DIAGNOSTICS,
-    ENABLE_YSORT_DEBUG,
-    YSORT_DEBUG_INTERVAL_MS,
-    PLAYER_SORT_FEET_OFFSET_PX,
-    LAG_DIAGNOSTIC_INTERVAL_MS,
-    perfProfilingRef,
+  return {
+    ENABLE_LAG_DIAGNOSTICS: false,
+    ENABLE_YSORT_DEBUG: false,
+    YSORT_DEBUG_INTERVAL_MS: 400,
+    PLAYER_SORT_FEET_OFFSET_PX: gameConfig.tileSize,
+    LAG_DIAGNOSTIC_INTERVAL_MS: 5000,
+    perfProfilingRef: diagnostics.perfProfilingRef,
     gameCanvasRef,
     resolvedMaskCanvas: sceneRuntime.resolvedMaskCanvas,
     worldMousePosRef: controllerRuntime.worldMousePosRef,
@@ -195,7 +188,7 @@ export function useGameCanvasRenderRuntime({
     ySortedEntitiesRef: controllerRuntime.ySortedEntitiesRef,
     swimmingPlayersForBottomHalfRef: controllerRuntime.swimmingPlayersForBottomHalfRef,
     localSwimTransitionRef: renderRefs.localSwimTransitionRef,
-    ySortDebugRef,
+    ySortDebugRef: diagnostics.ySortDebugRef,
     localPlayerId,
     localPlayer,
     canvasSize,
@@ -239,10 +232,10 @@ export function useGameCanvasRenderRuntime({
     waterSurfaceEffectsEnabled,
     footprintsEnabled,
     grassAnimationEnabled,
-    renderWorldPreparationPasses,
-    renderEntityWorldPasses,
-    renderScreenSpaceWorldEffects,
-    renderLateFramePasses,
+    renderWorldPreparationPasses: renderFunctions.renderWorldPreparationPasses,
+    renderEntityWorldPasses: renderFunctions.renderEntityWorldPasses,
+    renderScreenSpaceWorldEffects: renderFunctions.renderScreenSpaceWorldEffects,
+    renderLateFramePasses: renderFunctions.renderLateFramePasses,
     hoveredPlayerIds,
     handlePlayerHover,
     localOptimisticDodgeRollStartMsRef: controllerRuntime.localOptimisticDodgeRollStartMsRef,
@@ -269,16 +262,17 @@ export function useGameCanvasRenderRuntime({
     targetedFoundation: controllerRuntime.targetedFoundation,
     targetedWall: controllerRuntime.targetedWall,
     targetedFence: controllerRuntime.targetedFence,
+    buildTargetingRef,
     hasRepairHammer: controllerRuntime.hasRepairHammer,
     worldParticlesQuality,
     renderParticles: effectsRuntime.renderParticles,
-    renderWardParticles,
-    walkingAnimationFrameRef,
-    sprintAnimationFrameRef,
-    idleAnimationFrameRef,
-    shakeOffsetXRef,
-    shakeOffsetYRef,
-    vignetteOpacityRef,
+    renderWardParticles: renderFunctions.renderWardParticles,
+    walkingAnimationFrameRef: animationRefs.walkingAnimationFrameRef,
+    sprintAnimationFrameRef: animationRefs.sprintAnimationFrameRef,
+    idleAnimationFrameRef: animationRefs.idleAnimationFrameRef,
+    shakeOffsetXRef: damageRefs.shakeOffsetXRef,
+    shakeOffsetYRef: damageRefs.shakeOffsetYRef,
+    vignetteOpacityRef: damageRefs.vignetteOpacityRef,
     computeCampfireFireOverlayEmitters: effectsRuntime.computeCampfireFireOverlayEmitters,
     campfireParticles: effectsRuntime.campfireParticles,
     fireArrowParticles: effectsRuntime.fireArrowParticles,
@@ -359,7 +353,7 @@ export function useGameCanvasRenderRuntime({
     showShipwreckDebug,
     isMobile,
     tapAnimation,
-    fpsProfilerRef,
+    fpsProfilerRef: diagnostics.fpsProfilerRef,
     isProfilerRecording,
     visibleGrassMap: sceneRuntime.visibleGrassMap,
     visibleSeaStacksMap: sceneRuntime.visibleSeaStacksMap,
@@ -375,67 +369,6 @@ export function useGameCanvasRenderRuntime({
     isAutoAttacking,
     isAutoWalking,
     swimmingPlayerTopHalfScratchRef: renderRefs.swimmingPlayerTopHalfScratchRef,
-      checkPerformance,
-    };
-  }, [
-    ENABLE_LAG_DIAGNOSTICS,
-    ENABLE_YSORT_DEBUG,
-    YSORT_DEBUG_INTERVAL_MS,
-    PLAYER_SORT_FEET_OFFSET_PX,
-    LAG_DIAGNOSTIC_INTERVAL_MS,
-    perfProfilingRef,
-    gameCanvasRef,
-    sceneRuntime,
-    controllerRuntime,
-    localPlayerId,
-    localPlayer,
-    canvasSize,
-    showFpsProfiler,
-    allShadowsEnabled,
-    shelterClippingData,
-    showAutotileDebug,
-    renderRefs,
-    assets,
-    connection,
-    alwaysShowPlayerNames,
-    localPlayerIsCrouching,
-    waterSurfaceEffectsEnabled,
-    footprintsEnabled,
-    grassAnimationEnabled,
-    hoveredPlayerIds,
-    handlePlayerHover,
-    worldParticlesQuality,
-    effectsRuntime,
-    placementInfo,
-    placementError,
-    placementActions,
-    localPlayerX,
-    localPlayerY,
-    setPlacementWarning,
-    cloudsEnabled,
-    showChunkBoundaries,
-    showInteriorDebug,
-    showCollisionDebug,
-    showYSortDebug,
-    showAttackRangeDebug,
-    showPrecipitation,
-    stormAtmosphereEnabled,
-    showStatusOverlays,
-    showShipwreckDebug,
-    isMobile,
-    tapAnimation,
-    isProfilerRecording,
-    isAutoAttacking,
-    isAutoWalking,
-    checkPerformance,
-    fpsProfilerRef,
-    getCurrentDodgeRollVisualNow,
-  ]);
-
-  useEffect(() => {
-    if (!renderContext) {
-      return;
-    }
-    host.configureRenderContext(renderContext);
-  }, [host, renderContext]);
+    checkPerformance: diagnostics.checkPerformance,
+  };
 }

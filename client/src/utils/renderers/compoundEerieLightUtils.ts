@@ -7,7 +7,7 @@
  * an otherworldly, technology-infused atmosphere at night.
  * 
  * These are purely visual overlays (no collision, no physical structure).
- * The day/night mask cutouts are handled separately in useDayNightCycle.ts.
+ * The day/night mask cutouts are handled separately in dayNightCycleRuntime.ts.
  */
 
 import { getCompoundEerieLightsWithPositions, CompoundEerieLight } from '../../config/compoundBuildings';

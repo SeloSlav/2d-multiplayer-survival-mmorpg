@@ -1,6 +1,6 @@
 import { GrassAppearanceType } from '../../generated/types';
 import { imageManager } from './imageManager';
-import { InterpolatedGrassData } from '../../hooks/useGrassInterpolation';
+import { InterpolatedGrassData } from '../../engine/runtime/grassInterpolationRuntime';
 import { renderCyberpunkAssetPlaceholder } from './cyberpunkAssetPlaceholder';
 
 // Import grass assets directly

@@ -4,22 +4,19 @@ interface AssembleGameCanvasControllerSnapshotOptions {
   host: GameCanvasRuntimeHost;
   buildState: Record<string, any>;
   interactionRuntime: Record<string, any>;
-  upgradeMenuState: Record<string, any>;
-  hostState: Record<string, any>;
+  controllerAdjunctState: Record<string, any>;
 }
 
 export function assembleGameCanvasControllerSnapshot({
   host,
   buildState,
   interactionRuntime,
-  upgradeMenuState,
-  hostState,
+  controllerAdjunctState,
 }: AssembleGameCanvasControllerSnapshotOptions): GameCanvasRuntimeControllerSnapshot {
   return {
     ...buildState,
     ...interactionRuntime,
-    ...upgradeMenuState,
-    ...hostState,
+    ...controllerAdjunctState,
     ...host.getControllerRefs(),
   } as GameCanvasRuntimeControllerSnapshot;
 }

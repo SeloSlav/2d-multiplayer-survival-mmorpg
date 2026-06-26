@@ -37,13 +37,9 @@ import type { PlacementItemInfo, PlacementActions } from '../hooks/usePlacementM
 import { useGameCanvasAssetPreload } from '../hooks/useGameCanvasAssetPreload';
 import { useGameCanvasFramePipeline } from '../engine/react/useGameCanvasFramePipeline';
 import { useGameCanvasSceneRuntime } from '../engine/react/useGameCanvasSceneRuntime';
-import { useGameCanvasEffectsRuntime } from '../engine/react/useGameCanvasEffectsRuntime';
-import { useGameCanvasParticleRuntime } from '../engine/react/useGameCanvasParticleRuntime';
 import { useGameCanvasControllerRuntime } from '../engine/react/useGameCanvasControllerRuntime';
-import { useGameCanvasControllerBridgeRuntime } from '../engine/react/useGameCanvasControllerBridgeRuntime';
-import { useGameCanvasHostSyncRuntime } from '../engine/react/useGameCanvasHostSyncRuntime';
 import { useGameCanvasOverlayRuntime } from '../engine/react/useGameCanvasOverlayRuntime';
-import { useGameCanvasRenderRuntime } from '../engine/react/useGameCanvasRenderRuntime';
+import { configureGameCanvasRenderRuntime } from '../engine/runtime/configureGameCanvasRenderRuntime';
 import { GameCanvasRuntimeHost } from '../engine/runtime/GameCanvasRuntimeHost';
 
 // --- Prop Interface ---
@@ -236,6 +232,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const cameraOffsetX = baseCameraOffsetX;
   const cameraOffsetY = baseCameraOffsetY;
 
+  const pointerSnapshot = runtimeHost.configurePointerRuntime({
+    canvasRef: gameCanvasRef,
+    cameraOffsetX,
+    cameraOffsetY,
+    canvasSize,
+    isMobile,
+    onMobileTap,
+  });
+
   const { heroImageRef, heroSprintImageRef, heroIdleImageRef, heroWaterImageRef, heroCrouchImageRef, heroDodgeImageRef, itemImagesRef, cloudImagesRef, droneImageRef, shelterImageRef } = useAssetLoader();
   const doodadImagesRef = useDoodadImages(); // Extracted to dedicated hook
   const {
@@ -249,15 +254,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   });
 
   const sceneRuntime = useGameCanvasSceneRuntime({
+    host: runtimeHost,
     connection,
     localPlayerId,
     localPlayer,
-    gameCanvasRef,
     predictedPosition,
     cameraOffsetX,
     cameraOffsetY,
     canvasSize,
-    deltaTime: deltaTimeRef.current,
+    pointerSnapshot,
   });
 
   const {
@@ -398,31 +403,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     placementInfo,
     placementActions,
     isMobile,
-    onMobileTap,
     onMobileInteractInfoChange,
     mobileInteractTrigger,
     showError,
   });
 
-  const {
-    frameBindings,
-    cursorStyle,
-    localPlayerIsCrouching,
-    isAutoAttacking,
-  } = useGameCanvasControllerBridgeRuntime({
-    controllerRuntime,
-    stepPredictedMovement,
-    fixedSimulationEnabled,
-    getCurrentPositionNow,
-    getReconciliationProfilerSnapshot,
-    getCurrentFacingDirectionNow,
-    localPlayer,
-    isAutoWalking,
-    canvasSize,
-    gameLoopMetricsRef,
-    deltaTimeRef,
-    interactionScanFrameSkipRef,
-  });
+  const cursorStyle = controllerRuntime.cursorStyle;
+  const localPlayerIsCrouching = controllerRuntime.isCrouching;
+  const isAutoAttacking = controllerRuntime.isAutoAttacking;
 
   const { hoveredPlayerIds, handlePlayerHover, overlayProps } = useGameCanvasOverlayRuntime({
     connection,
@@ -434,42 +422,49 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     torchOnImg,
     canvasSize,
     controllerRuntime,
+    pointerSnapshot,
     plantedSeeds,
     wildAnimals,
   });
 
-  const particleRuntime = useGameCanvasParticleRuntime({
+  runtimeHost.configureParticleRuntime({
     localPlayer,
     sceneRuntime,
     localPlayerId,
     localFacingDirectionRef: controllerRuntime.localFacingDirectionRef,
   });
 
-  useGameCanvasHostSyncRuntime({
-    host: runtimeHost,
-    sceneSnapshot: sceneRuntime,
+  runtimeHost.configureAmbientEffectsSnapshot({
+    connection,
+    localPlayer,
+    localPlayerId,
+    predictedPosition,
+    cameraOffsetX,
+    cameraOffsetY,
+    canvasSize,
+    environmentalVolume,
+    onAutoActionStatesChange,
+    showError,
+  });
+  runtimeHost.configureSceneSnapshot(sceneRuntime);
+  runtimeHost.configureControllerSnapshot(controllerRuntime);
+  runtimeHost.configureFrameBindingsFromController({
     controllerSnapshot: controllerRuntime,
-    particleSnapshot: particleRuntime,
-    ambientEffectsSnapshot: {
-      connection,
-      localPlayer,
-      localPlayerId,
-      predictedPosition,
-      cameraOffsetX,
-      cameraOffsetY,
-      canvasSize,
-      environmentalVolume,
-      onAutoActionStatesChange,
-      showError,
-    },
-    frameBindings,
+    stepPredictedMovement,
+    fixedSimulationEnabled,
+    connection,
+    getCurrentPositionNow,
+    getReconciliationProfilerSnapshot,
+    getCurrentFacingDirectionNow,
+    localPlayer,
+    isAutoWalking,
+    canvasSize,
+    gameLoopMetricsRef,
+    deltaTimeRef,
+    interactionScanFrameSkipRef,
   });
 
-  useGameCanvasEffectsRuntime({
-    host: runtimeHost,
-  });
-
-  useGameCanvasRenderRuntime({
+  configureGameCanvasRenderRuntime({
     host: runtimeHost,
     localPlayerId,
     localPlayer,

@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
     DroppedItem as SpacetimeDBDroppedItem,
     Campfire as SpacetimeDBCampfire,
@@ -14,11 +13,11 @@ import {
     Barbecue as SpacetimeDBBarbecue, // ADDED: Barbecue
     RoadLamppost as SpacetimeDBRoadLamppost, // ADDED: Aleutian whale oil lampposts
     Barrel as SpacetimeDBBarrel, // ADDED: Barrels (buoys for night light cutouts)
-} from '../generated/types';
-import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_FLICKER_AMOUNT, LANTERN_LIGHT_RADIUS_BASE, LANTERN_FLICKER_AMOUNT, FURNACE_LIGHT_RADIUS_BASE, FURNACE_FLICKER_AMOUNT, BARBECUE_LIGHT_RADIUS_BASE, BARBECUE_FLICKER_AMOUNT, SOVA_AURA_RADIUS_BASE, FLARE_LIGHT_RADIUS_BASE, sampleStableLightFlicker } from '../utils/renderers/lightRenderingUtils';
-import { ROAD_LAMP_LIGHT_RADIUS_BASE, ROAD_LAMP_LIGHT_Y_OFFSET } from '../utils/renderers/roadLamppostRenderingUtils';
-import { BUOY_HEIGHT } from '../utils/renderers/barrelRenderingUtils';
-import { BUOY_LIGHT_RADIUS_BASE } from '../utils/renderers/lightRenderingUtils';
+} from '../../generated/types';
+import { CAMPFIRE_LIGHT_RADIUS_BASE, CAMPFIRE_FLICKER_AMOUNT, LANTERN_LIGHT_RADIUS_BASE, LANTERN_FLICKER_AMOUNT, FURNACE_LIGHT_RADIUS_BASE, BARBECUE_LIGHT_RADIUS_BASE, SOVA_AURA_RADIUS_BASE, FLARE_LIGHT_RADIUS_BASE, sampleStableLightFlicker } from '../../utils/renderers/lightRenderingUtils';
+import { ROAD_LAMP_LIGHT_RADIUS_BASE, ROAD_LAMP_LIGHT_Y_OFFSET } from '../../utils/renderers/roadLamppostRenderingUtils';
+import { BUOY_HEIGHT } from '../../utils/renderers/barrelRenderingUtils';
+import { BUOY_LIGHT_RADIUS_BASE } from '../../utils/renderers/lightRenderingUtils';
 import {
     FULL_MOON_CYCLE_INTERVAL,
     isNightTime,
@@ -27,20 +26,30 @@ import {
     TWILIGHT_MORNING_FADE_START,
     TWILIGHT_MORNING_END,
     mapLegacyCycleProgress,
-} from '../config/dayNightConstants';
-import { dayNightConfig } from '../config/sharedGameConfig';
-import { CAMPFIRE_HEIGHT } from '../utils/renderers/campfireRenderingUtils';
-import { getPlacedCampfireLightIntensity01 } from '../utils/renderers/campfireGpuFireSmoothing';
-import { LANTERN_HEIGHT, LANTERN_RENDER_Y_OFFSET, LANTERN_TYPE_LANTERN } from '../utils/renderers/lanternRenderingUtils';
-import { FURNACE_HEIGHT, FURNACE_RENDER_Y_OFFSET, getFurnaceDimensions, FURNACE_TYPE_LARGE } from '../utils/renderers/furnaceRenderingUtils';
-import { BARBECUE_HEIGHT, BARBECUE_RENDER_Y_OFFSET } from '../utils/renderers/barbecueRenderingUtils';
-import { FIRE_PATCH_VISUAL_RADIUS } from '../utils/renderers/firePatchRenderingUtils';
-import { BuildingCluster } from '../utils/buildingVisibilityUtils';
-import { FOUNDATION_TILE_SIZE } from '../config/gameConfig';
-import { getWorldCenter, isCompoundMonument } from '../config/compoundBuildings';
+} from '../../config/dayNightConstants';
+import { dayNightConfig } from '../../config/sharedGameConfig';
+import { CAMPFIRE_HEIGHT } from '../../utils/renderers/campfireRenderingUtils';
+import { getPlacedCampfireLightIntensity01 } from '../../utils/renderers/campfireGpuFireSmoothing';
+import { LANTERN_HEIGHT, LANTERN_RENDER_Y_OFFSET, LANTERN_TYPE_LANTERN } from '../../utils/renderers/lanternRenderingUtils';
+import { getFurnaceDimensions, FURNACE_TYPE_LARGE } from '../../utils/renderers/furnaceRenderingUtils';
+import { FIRE_PATCH_VISUAL_RADIUS } from '../../utils/renderers/firePatchRenderingUtils';
+import { BuildingCluster } from '../../utils/buildingVisibilityUtils';
+import { FOUNDATION_TILE_SIZE } from '../../config/gameConfig';
+import { getWorldCenter, isCompoundMonument } from '../../config/compoundBuildings';
 
 export interface ColorPoint {
   r: number; g: number; b: number; a: number;
+}
+
+interface MonumentLightPart {
+    monumentType?: { tag?: string };
+    partType?: string;
+    worldX: number;
+    worldY: number;
+}
+
+interface RemotePlayerInterpolationRuntime {
+    updateAndGetSmoothedPosition(player: SpacetimeDBPlayer, localPlayerId?: string): { x: number; y: number };
 }
 
 // ============================================================================
@@ -450,7 +459,7 @@ function calculateOverlayRgbaString(
     return `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
 }
 
-interface UseDayNightCycleProps {
+export interface DayNightCycleRuntimeOptions {
     worldState: SpacetimeDBWorldState | null;
     droppedItems: Map<string, SpacetimeDBDroppedItem>;
     campfires: Map<string, SpacetimeDBCampfire>;
@@ -462,7 +471,7 @@ interface UseDayNightCycleProps {
     runeStones: Map<string, SpacetimeDBRuneStone>; // ADDED: RuneStones for night light cutouts
     firePatches: Map<string, SpacetimeDBFirePatch>; // ADDED: Fire patches for night light cutouts
     fumaroles: Map<string, SpacetimeDBFumarole>; // ADDED: Fumaroles for heat glow at night
-    monumentParts: Map<string, any>; // ADDED: Unified monument parts (will filter for fishing village)
+    monumentParts: Map<string, MonumentLightPart>; // ADDED: Unified monument parts (will filter for fishing village)
     players: Map<string, SpacetimeDBPlayer>;
     activeEquipments: Map<string, SpacetimeDBActiveEquipment>;
     itemDefinitions: Map<string, SpacetimeDBItemDefinition>;
@@ -472,7 +481,7 @@ interface UseDayNightCycleProps {
     // Add interpolated positions for smooth torch light cutouts
     localPlayerId?: string;
     predictedPosition: { x: number; y: number } | null;
-    remotePlayerInterpolation?: any; // Type matches GameCanvas
+    remotePlayerInterpolation?: RemotePlayerInterpolationRuntime;
     // Indoor light containment - prevents light from spilling outside enclosed buildings
     buildingClusters?: Map<string, BuildingCluster>;
     // Mouse position for local player's flashlight aiming (smooth 360° tracking)
@@ -480,13 +489,17 @@ interface UseDayNightCycleProps {
     worldMouseY?: number | null;
 }
 
-interface UseDayNightCycleResult {
+interface DayNightMaskCanvasRef {
+    current: HTMLCanvasElement | null;
+}
+
+export interface DayNightCycleRuntimeSnapshot {
     overlayRgba: string;
-    maskCanvasRef: React.RefObject<HTMLCanvasElement | null>;
+    maskCanvasRef: DayNightMaskCanvasRef;
     redrawMask: (frameOverrides?: DayNightMaskFrameOverrides) => void;
 }
 
-interface DayNightMaskFrameOverrides {
+export interface DayNightMaskFrameOverrides {
     cameraOffsetX?: number;
     cameraOffsetY?: number;
     predictedPosition?: { x: number; y: number } | null;
@@ -494,88 +507,80 @@ interface DayNightMaskFrameOverrides {
     worldMouseY?: number | null;
 }
 
-export function useDayNightCycle({
-    worldState,
-    droppedItems,
-    campfires,
-    lanterns,
-    furnaces,
-    barbecues, // ADDED: Barbecues
-    roadLampposts, // ADDED: Aleutian whale oil lampposts
-    barrels, // ADDED: Barrels (buoys for night light cutouts)
-    runeStones, // ADDED: RuneStones
-    firePatches, // ADDED: Fire patches
-    fumaroles, // ADDED: Fumaroles
-    monumentParts, // ADDED: Unified monument parts (will filter for fishing village)
-    players,
-    activeEquipments,
-    itemDefinitions,
-    cameraOffsetX: initialCameraOffsetX,
-    cameraOffsetY: initialCameraOffsetY,
-    canvasSize,
-    localPlayerId,
-    predictedPosition: initialPredictedPosition,
-    remotePlayerInterpolation,
-    buildingClusters, // Indoor light containment
-    worldMouseX: initialWorldMouseX, // Mouse position for local player's flashlight
-    worldMouseY: initialWorldMouseY,
-}: UseDayNightCycleProps): UseDayNightCycleResult {
-    const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
-    const [overlayRgba, setOverlayRgba] = useState<string>('transparent');
-    // OPTIMIZED: Track previous overlay value to avoid unnecessary re-renders
-    const prevOverlayRef = useRef<string>('transparent');
+export class DayNightCycleRuntime {
+    private readonly maskCanvasRef: DayNightMaskCanvasRef = { current: null };
+    private options: DayNightCycleRuntimeOptions | null = null;
+    private overlayRgba = 'transparent';
+    private prevOverlay = 'transparent';
 
-    // --- Create a derived state string that changes when any torch's lit status changes ---
-    const torchLitStatesKey = useMemo(() => {
-        let key = "torch_light_states:";
-        players.forEach((player, playerId) => {
-            const equipment = activeEquipments.get(playerId);
-            if (equipment && equipment.equippedItemDefId) {
-                const itemDef = itemDefinitions.get(equipment.equippedItemDefId.toString());
-                if (itemDef && itemDef.name === "Torch") {
-                    key += `${playerId}:${player.isTorchLit};`;
-                }
-            }
-        });
-        return key;
-    }, [players, activeEquipments, itemDefinitions]);
-    // --- End derived state ---
+    update(options: DayNightCycleRuntimeOptions): DayNightCycleRuntimeSnapshot {
+        this.options = options;
+        this.redrawMask();
+        return this.getSnapshot();
+    }
 
-    // --- Create a derived state string that changes when any headlamp's lit status changes ---
-    const headlampLitStatesKey = useMemo(() => {
-        let key = "headlamp_light_states:";
-        players.forEach((player, playerId) => {
-            key += `${playerId}:${player.isHeadlampLit};`;
-        });
-        return key;
-    }, [players]);
-    // --- End derived state ---
+    getSnapshot(): DayNightCycleRuntimeSnapshot {
+        return {
+            overlayRgba: this.overlayRgba,
+            maskCanvasRef: this.maskCanvasRef,
+            redrawMask: this.redrawMask,
+        };
+    }
 
-    // --- Create a derived state string that changes when any lantern's burning status changes ---
-    const lanternBurningStatesKey = useMemo(() => {
-        let key = "lantern_burning_states:";
-        lanterns.forEach((lantern, lanternId) => {
-            key += `${lanternId}:${lantern.isBurning};`;
-        });
-        return key;
-    }, [lanterns]);
-    // --- End lantern derived state ---
+    stop(): void {
+        this.options = null;
+        this.maskCanvasRef.current = null;
+        this.overlayRgba = 'transparent';
+        this.prevOverlay = 'transparent';
+    }
 
-    const redrawMask = useCallback((frameOverrides: DayNightMaskFrameOverrides = {}) => {
+    private readonly redrawMask = (frameOverrides: DayNightMaskFrameOverrides = {}) => {
+        const options = this.options;
+        if (!options) {
+            this.overlayRgba = 'transparent';
+            return;
+        }
+
+        const {
+            worldState,
+            droppedItems,
+            campfires,
+            lanterns,
+            furnaces,
+            barbecues,
+            roadLampposts,
+            barrels,
+            runeStones,
+            firePatches,
+            fumaroles,
+            monumentParts,
+            players,
+            activeEquipments,
+            itemDefinitions,
+            cameraOffsetX: initialCameraOffsetX,
+            cameraOffsetY: initialCameraOffsetY,
+            canvasSize,
+            localPlayerId,
+            predictedPosition: initialPredictedPosition,
+            remotePlayerInterpolation,
+            buildingClusters,
+            worldMouseX: initialWorldMouseX,
+            worldMouseY: initialWorldMouseY,
+        } = options;
         const cameraOffsetX = frameOverrides.cameraOffsetX ?? initialCameraOffsetX;
         const cameraOffsetY = frameOverrides.cameraOffsetY ?? initialCameraOffsetY;
         const predictedPosition = frameOverrides.predictedPosition ?? initialPredictedPosition;
         const worldMouseX = frameOverrides.worldMouseX ?? initialWorldMouseX;
         const worldMouseY = frameOverrides.worldMouseY ?? initialWorldMouseY;
 
-        if (!maskCanvasRef.current) {
-            maskCanvasRef.current = document.createElement('canvas');
+        if (!this.maskCanvasRef.current) {
+            this.maskCanvasRef.current = document.createElement('canvas');
         }
-        const maskCanvas = maskCanvasRef.current;
+        const maskCanvas = this.maskCanvasRef.current;
         const maskCtx = maskCanvas.getContext('2d');
 
         if (!maskCtx || canvasSize.width === 0 || canvasSize.height === 0) {
-            setOverlayRgba('transparent');
+            this.overlayRgba = 'transparent';
             return;
         }
 
@@ -601,41 +606,19 @@ export function useDayNightCycle({
                 currentCycleProgress,
                 worldState // Pass the whole worldState object
             );
-            
-            // Enhanced debug logging - show time of day and overlay
-            const timeOfDayTag = worldState?.timeOfDay?.tag || 'Unknown';
-            const isDusk = timeOfDayTag === 'Dusk' || (currentCycleProgress >= 0.72 && currentCycleProgress <= 0.76);
-            
-            // if (isDusk) {
-            //     console.log(`[DayNightCycle] DUSK DEBUG - TimeOfDay: ${timeOfDayTag}, Progress: ${currentCycleProgress.toFixed(3)}, Overlay: ${calculatedOverlayString}, FullMoon: ${worldState?.isFullMoon ?? false}`);
-            // }
-            
-            // Log whenever overlay changes significantly (has alpha > 0.1)
-            const overlayMatch = calculatedOverlayString.match(/rgba\((\d+),(\d+),(\d+),([\d.]+)\)/);
-            if (overlayMatch && parseFloat(overlayMatch[4]) > 0.1) {
-                // console.log(`[DayNightCycle] VISIBLE OVERLAY - TimeOfDay: ${timeOfDayTag}, Progress: ${currentCycleProgress.toFixed(3)}, Overlay: ${calculatedOverlayString}`);
-            }
         } else {
             calculatedOverlayString = 'rgba(0,0,0,0)'; // Default to fully transparent day
             console.warn('[DayNightCycle] No cycleProgress available, using transparent overlay');
         }
         
         // OPTIMIZED: Only update state if the overlay value actually changed
-        if (calculatedOverlayString !== prevOverlayRef.current) {
-            prevOverlayRef.current = calculatedOverlayString;
-            setOverlayRgba(calculatedOverlayString);
+        if (calculatedOverlayString !== this.prevOverlay) {
+            this.prevOverlay = calculatedOverlayString;
+            this.overlayRgba = calculatedOverlayString;
         } 
 
         maskCtx.fillStyle = calculatedOverlayString; 
         maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-
-        // Debug: Log when mask canvas is drawn with visible overlay
-        const overlayMatch = calculatedOverlayString.match(/rgba\((\d+),(\d+),(\d+),([\d.]+)\)/);
-        if (overlayMatch && parseFloat(overlayMatch[4]) > 0.1) {
-            const timeOfDayTag = worldState?.timeOfDay?.tag || 'Unknown';
-            // console.log(`[DayNightCycle] MASK CANVAS DRAWN - TimeOfDay: ${timeOfDayTag}, Canvas size: ${maskCanvas.width}x${maskCanvas.height}, Overlay: ${calculatedOverlayString}`);
-        }
-
         maskCtx.globalCompositeOperation = 'destination-out';
 
         // Render flare light cutouts (ground flares - timer is ground-only)
@@ -1594,11 +1577,5 @@ export function useDayNightCycle({
         }
         
         maskCtx.globalCompositeOperation = 'source-over';
-    }, [worldState, droppedItems, campfires, lanterns, furnaces, barbecues, roadLampposts, barrels, runeStones, firePatches, fumaroles, monumentParts, players, activeEquipments, itemDefinitions, canvasSize.width, canvasSize.height, torchLitStatesKey, headlampLitStatesKey, lanternBurningStatesKey, localPlayerId, buildingClusters, initialCameraOffsetX, initialCameraOffsetY, initialPredictedPosition, remotePlayerInterpolation, initialWorldMouseX, initialWorldMouseY]);
-
-    useEffect(() => {
-        redrawMask();
-    }, [redrawMask]);
-
-    return { overlayRgba, maskCanvasRef, redrawMask };
-} 
+    };
+}

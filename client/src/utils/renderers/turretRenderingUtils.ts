@@ -170,7 +170,7 @@ export function renderTurret(
         // the player is ABOVE (lower Y) than the turret's Y-sort point.
         // Use a small threshold so transparency kicks in as soon as the player
         // is anywhere behind the turret structure.
-        const ySortOffset = 40; // Must match the Y-sort offset in useEntityFiltering
+        const ySortOffset = 40; // Must match the Y-sort offset in EntityFilteringRuntime
         const turretSortY = turret.posY + ySortOffset;
         
         if (overlapsH && overlapsV && turretSortY > localPlayerPosition.y) {

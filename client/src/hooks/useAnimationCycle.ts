@@ -71,20 +71,25 @@ function stopUnifiedLoop() {
   unifiedLoopRunning = false;
 }
 
+export function retainAnimationCycleLoop(): void {
+  loopRefCount++;
+  startUnifiedLoop();
+}
+
+export function releaseAnimationCycleLoop(): void {
+  loopRefCount--;
+  if (loopRefCount <= 0) {
+    stopUnifiedLoop();
+    loopRefCount = 0;
+  }
+}
+
 // Hook to ensure animation loop is running
 // Returns the current frame value for backwards compatibility, but prefer reading ref directly
 export function useWalkingAnimationCycle(): number {
   useEffect(() => {
-    loopRefCount++;
-    startUnifiedLoop();
-    
-    return () => {
-      loopRefCount--;
-      if (loopRefCount <= 0) {
-        stopUnifiedLoop();
-        loopRefCount = 0;
-      }
-    };
+    retainAnimationCycleLoop();
+    return releaseAnimationCycleLoop;
   }, []);
 
   // Return current value for backwards compatibility
@@ -95,16 +100,8 @@ export function useWalkingAnimationCycle(): number {
 // Sprint animation hook - same pattern
 export function useSprintAnimationCycle(): number {
   useEffect(() => {
-    loopRefCount++;
-    startUnifiedLoop();
-    
-    return () => {
-      loopRefCount--;
-      if (loopRefCount <= 0) {
-        stopUnifiedLoop();
-        loopRefCount = 0;
-      }
-    };
+    retainAnimationCycleLoop();
+    return releaseAnimationCycleLoop;
   }, []);
 
   return sprintAnimationFrameRef.current;
@@ -113,16 +110,8 @@ export function useSprintAnimationCycle(): number {
 // Idle animation hook - same pattern
 export function useIdleAnimationCycle(): number {
   useEffect(() => {
-    loopRefCount++;
-    startUnifiedLoop();
-    
-    return () => {
-      loopRefCount--;
-      if (loopRefCount <= 0) {
-        stopUnifiedLoop();
-        loopRefCount = 0;
-      }
-    };
+    retainAnimationCycleLoop();
+    return releaseAnimationCycleLoop;
   }, []);
 
   return idleAnimationFrameRef.current;
@@ -136,16 +125,8 @@ export function useAnimationCycle(frameDuration: number, numFrames: number): num
   // and read directly from the exported refs
   
   useEffect(() => {
-    loopRefCount++;
-    startUnifiedLoop();
-    
-    return () => {
-      loopRefCount--;
-      if (loopRefCount <= 0) {
-        stopUnifiedLoop();
-        loopRefCount = 0;
-      }
-    };
+    retainAnimationCycleLoop();
+    return releaseAnimationCycleLoop;
   }, []);
 
   // Return walking frame as default - legacy compatibility

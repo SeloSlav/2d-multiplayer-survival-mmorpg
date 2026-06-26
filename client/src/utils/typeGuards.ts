@@ -36,7 +36,7 @@ import {
   Barrel,
   HomesteadHearth
 } from '../generated/types'; // Import necessary types
-import { InterpolatedGrassData } from '../hooks/useGrassInterpolation';
+import { InterpolatedGrassData } from '../engine/runtime/grassInterpolationRuntime';
 import { isHarvestableResource } from '../types/resourceTypes';
 
 // Type guard for Player

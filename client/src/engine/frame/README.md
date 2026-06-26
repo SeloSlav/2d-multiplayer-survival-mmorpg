@@ -8,17 +8,17 @@ Frame assembly produces the render-ready data consumed by GameCanvas each frame:
 
 ## Current State
 
-- `useEntityFiltering` adapter (engine/react/): viewport culling + Y-sort
-- `useRemotePlayerInterpolation` adapter (engine/react/): remote player positions
-- `useDayNightCycle` adapter (engine/react/): overlay RGBA, mask canvas
+- `EntityFilteringRuntime` (engine/runtime/): viewport culling + Y-sort
+- `remotePlayerInterpolationRuntime` (engine/runtime/): remote player positions
+- `DayNightCycleRuntime` (engine/runtime/): overlay RGBA, mask canvas
 - `useRuntimeFrameBridge` (engine/react/): pushes frame data to runtime store
 - `useFrameAssembly` (engine/react/): composes filtering + interpolation + lighting + runtime publication
 
 ## Extraction Strategy
 
 1. **Stage 1 (done)**: Establish frame module boundary; GameCanvas remains consumer
-2. **Stage 2 (done)**: Move useEntityFiltering behind an engine/react adapter
-3. **Stage 3 (done)**: Compose useEntityFiltering + useRemotePlayerInterpolation + useDayNightCycle into single useFrameAssembly hook in engine/react
+2. **Stage 2 (done)**: Move entity filtering behind a runtime service
+3. **Stage 3 (done)**: Compose EntityFilteringRuntime + remotePlayerInterpolationRuntime + DayNightCycleRuntime into single useFrameAssembly hook in engine/react
 4. **Stage 4**: Produce frame snapshot in engine; GameCanvas becomes thin host over engine-prepared data
 
 ## Contract

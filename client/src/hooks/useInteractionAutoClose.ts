@@ -5,7 +5,7 @@
  * the player moves too far from the entity they're interacting with.
  * Each container type has its own distance threshold and position calculation.
  * 
- * IMPORTANT: The distance logic here must stay in sync with useInteractionFinder.
+ * IMPORTANT: The distance logic here must stay in sync with the interaction target runtime.
  * If the interaction finder says "you're in range" (blue box shows), this hook
  * must NOT close the UI. Uses matching asymmetric logic + generous buffer.
  */
@@ -15,7 +15,7 @@ import { Identity } from 'spacetimedb';
 import { Player, Campfire, Furnace, Fumarole, WoodenStorageBox, Stash, PlayerCorpse, RainCollector } from '../generated/types';
 import { InteractionTarget } from './useInteractionManager';
 import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED, PLAYER_TALL_BOX_INTERACTION_DISTANCE_SQUARED, PLAYER_BEEHIVE_INTERACTION_DISTANCE_SQUARED, getBoxDimensions, BOX_TYPE_COMPOST, BOX_TYPE_TANNING_RACK, BOX_TYPE_COOKING_STATION, BOX_TYPE_REPAIR_BENCH, BOX_TYPE_PLAYER_BEEHIVE, BOX_TYPE_WILD_BEEHIVE, MONUMENT_COMPOST_HEIGHT, MONUMENT_COOKING_STATION_HEIGHT, MONUMENT_REPAIR_BENCH_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils';
-import { PLAYER_MONUMENT_BOX_INTERACTION_DISTANCE_SQUARED } from './useInteractionFinder';
+import { PLAYER_MONUMENT_BOX_INTERACTION_DISTANCE_SQUARED } from '../engine/runtime/interactionTargetRuntime';
 import { PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED, CAMPFIRE_HEIGHT, CAMPFIRE_RENDER_Y_OFFSET } from '../utils/renderers/campfireRenderingUtils';
 import {
     PLAYER_FURNACE_INTERACTION_DISTANCE_SQUARED,
@@ -66,7 +66,7 @@ const BEEHIVE_AUTO_CLOSE_BUFFER = 1.4;
  * Check if the player is within auto-close range of the entity they're interacting with.
  * Returns true if the player is OUT of range (should close), false if in range (stay open).
  * 
- * Uses the same asymmetric logic as useInteractionFinder for furnaces to ensure
+ * Uses the same asymmetric logic as the interaction target runtime for furnaces to ensure
  * consistency: if the blue box is visible, the UI must stay open.
  */
 function isPlayerOutOfRange(
@@ -130,7 +130,7 @@ function isPlayerOutOfRange(
             const isLargeFurnace = furnace.furnaceType === FURNACE_TYPE_LARGE;
             const isCompoundFurnace = isCompoundMonument(furnace.isMonument, furnace.posX, furnace.posY);
 
-            // Determine furnace dimensions (same as useInteractionFinder)
+            // Determine furnace dimensions (same as interaction target runtime)
             const furnaceHeight = isLargeFurnace
                 ? (isCompoundFurnace ? MONUMENT_LARGE_FURNACE_HEIGHT : LARGE_FURNACE_HEIGHT)
                 : FURNACE_HEIGHT;
@@ -138,7 +138,7 @@ function isPlayerOutOfRange(
                 ? (isCompoundFurnace ? MONUMENT_LARGE_FURNACE_RENDER_Y_OFFSET : LARGE_FURNACE_RENDER_Y_OFFSET)
                 : FURNACE_RENDER_Y_OFFSET;
 
-            // Asymmetric interaction center — MUST match useInteractionFinder
+            // Asymmetric interaction center — MUST match interaction target runtime
             let interactionCenterY: number;
             if (playerY > furnace.posY) {
                 // Player below furnace: use lower interaction point
@@ -149,7 +149,7 @@ function isPlayerOutOfRange(
                 interactionCenterY = furnace.posY - (furnaceHeight / 2) - furnaceYOffset;
             }
 
-            // Select threshold (same as useInteractionFinder)
+            // Select threshold (same as interaction target runtime)
             let maxDistSq: number;
             if (isCompoundFurnace && isLargeFurnace) {
                 maxDistSq = PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED;

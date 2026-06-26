@@ -6,20 +6,20 @@ Runtime modules own subscriptions, table bindings, and side effects. React hooks
 
 `GameCanvasRuntimeHost` is the first non-React ownership boundary for the canvas game loop.
 
-- React still gathers hook-bound scene/controller/effects data in `GameCanvas`.
+- React still gathers hook-bound scene/controller data in `GameCanvas`.
 - The host now owns the imperative render context, frame bindings, and `RuntimeFramePipeline`.
 - The host also owns typed scene/controller/particle/ambient-effects snapshots plus the mutable controller frame-state ref bag that render + frame code read from.
-- `useGameCanvasHostSyncRuntime()` is the single React adapter that synchronizes those host-owned surfaces from `GameCanvas`.
+- `GameCanvas` now synchronizes those host-owned surfaces directly through host configuration methods.
 - `useGameCanvasOverlayRuntime()` now owns hover and overlay prop shaping so `GameCanvas` stays closer to shell/view composition.
-- `useGameCanvasControllerBridgeRuntime()` narrows controller output down to frame bindings and a tiny view-facing surface for the canvas host.
-- `useGameCanvasRenderRuntime` and `useGameCanvasFramePipeline` have moved to `engine/react/`; they configure/mount the host from the React boundary.
+- The host assembles frame bindings directly from the controller snapshot, while `GameCanvas` reads the tiny view-facing controller fields it still needs.
+- `configureGameCanvasRenderRuntime` configures render context in `engine/runtime/`; `useGameCanvasFramePipeline` remains the React lifecycle mount for the host frame pipeline.
 
 ### Current Migration Status
 
 1. **render/frame ownership**: moved behind `GameCanvasRuntimeHost`
 2. **scene assembly**: split into `useGameCanvasSceneRuntime()` data reads + pure `assembleGameCanvasSceneSnapshot()`, with a typed host scene snapshot
 3. **controller state**: host owns the mutable frame-state refs, typed controller snapshot, and frame bindings, while build/interaction logic is still temporarily hook-bound
-4. **effects runtime**: particle production and ambient-effects inputs are both synced into typed host snapshots, while the remaining side-effect hooks are now host-backed React bridges
+4. **effects runtime**: particle production, non-audio ambient effects, and ambient audio are host-owned services fed by typed host snapshots
 
 ## Current Architecture
 

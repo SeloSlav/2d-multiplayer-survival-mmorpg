@@ -2,9 +2,6 @@ import type { MutableRefObject } from 'react';
 import type { GameLoopMetrics } from '../types';
 import { useGameCanvasBuildState } from './useGameCanvasBuildState';
 import { useGameCanvasInteractionRuntime } from './useGameCanvasInteractionRuntime';
-import { useGameCanvasFrameRuntimeState } from './useGameCanvasFrameRuntimeState';
-import { useGameCanvasUpgradeMenuState } from '../../hooks/useGameCanvasUpgradeMenuState';
-import { useGameCanvasHostState } from '../../hooks/useGameCanvasHostState';
 import type { GameCanvasRuntimeControllerSnapshot, GameCanvasRuntimeHost } from '../runtime/GameCanvasRuntimeHost';
 import { assembleGameCanvasControllerSnapshot } from '../runtime/assembleGameCanvasControllerSnapshot';
 
@@ -55,7 +52,6 @@ interface UseGameCanvasControllerRuntimeOptions {
   placementInfo: any;
   placementActions: any;
   isMobile?: boolean;
-  onMobileTap?: (worldX: number, worldY: number) => void;
   onMobileInteractInfoChange?: (info: { hasTarget: boolean; label?: string } | null) => void;
   mobileInteractTrigger?: number;
   showError: (message: string) => void;
@@ -100,7 +96,6 @@ export function useGameCanvasControllerRuntime({
   placementInfo,
   placementActions,
   isMobile,
-  onMobileTap,
   onMobileInteractInfoChange,
   mobileInteractTrigger,
   showError,
@@ -117,20 +112,21 @@ export function useGameCanvasControllerRuntime({
     ySortedEntitiesRef,
     swimmingPlayersForBottomHalfRef,
   } = host.getControllerRefs();
+  const buildTargetingRef = host.getBuildTargetingRef();
+  const interactionTargetRef = host.getInteractionTargetRef();
 
   const buildState = useGameCanvasBuildState({
-    canvasRef: gameCanvasRef,
-    cameraOffsetX,
-    cameraOffsetY,
-    canvasSize,
+    host,
     connection,
     predictedPosition,
     localPlayer,
     activeEquipments: sceneRuntime.activeEquipments,
     itemDefinitions: sceneRuntime.itemDefinitions,
     localPlayerId,
-    isMobile,
-    onMobileTap,
+    foundationCells: sceneRuntime.foundationCells,
+    fences: sceneRuntime.fences,
+    pointerSnapshot: host.getPointerSnapshot(),
+    buildTargetingRef,
   });
 
   const interactionRuntime = useGameCanvasInteractionRuntime({
@@ -182,6 +178,8 @@ export function useGameCanvasControllerRuntime({
     buildingState: buildState.buildingState,
     buildingActions: buildState.buildingActions,
     worldMousePos: buildState.worldMousePos,
+    worldMousePosRef,
+    interactionTargetRef,
     visibleTreesMap: sceneRuntime.visibleTreesMap,
     visibleStonesMap: sceneRuntime.visibleStonesMap,
     visibleLivingCoralsMap: sceneRuntime.visibleLivingCoralsMap,
@@ -203,9 +201,10 @@ export function useGameCanvasControllerRuntime({
     setMusicPanelVisible,
     movementDirection,
     isAutoWalking,
-    targetedFoundation: buildState.targetedFoundation,
-    targetedWall: buildState.targetedWall,
-    targetedFence: buildState.targetedFence,
+    targetedFoundation: buildTargetingRef.current.targetedFoundation ?? buildState.targetedFoundation,
+    targetedWall: buildTargetingRef.current.targetedWall ?? buildState.targetedWall,
+    targetedFence: buildTargetingRef.current.targetedFence ?? buildState.targetedFence,
+    buildTargetingRef,
     rangedWeaponStats: sceneRuntime.rangedWeaponStats,
     projectiles: sceneRuntime.projectiles,
     isMobile,
@@ -214,8 +213,7 @@ export function useGameCanvasControllerRuntime({
     showError,
   });
 
-  const { renderGameDepsRef } = useGameCanvasFrameRuntimeState({
-    host,
+  const { renderGameDepsRef } = host.configureControllerFrameRuntimeState({
     worldMousePos: buildState.worldMousePos,
     cameraOffsetX,
     cameraOffsetY,
@@ -247,14 +245,11 @@ export function useGameCanvasControllerRuntime({
     closestInteractableMilkableAnimalId: interactionRuntime.closestInteractableMilkableAnimalId,
   });
 
-  const upgradeMenuState = useGameCanvasUpgradeMenuState({
+  const controllerAdjunctState = host.configureControllerAdjunctState({
     showUpgradeRadialMenu: interactionRuntime.showUpgradeRadialMenu,
-    targetedFoundation: buildState.targetedFoundation,
-    targetedWall: buildState.targetedWall,
-    targetedFence: buildState.targetedFence,
-  });
-
-  const hostState = useGameCanvasHostState({
+    targetedFoundation: buildTargetingRef.current.targetedFoundation ?? buildState.targetedFoundation,
+    targetedWall: buildTargetingRef.current.targetedWall ?? buildState.targetedWall,
+    targetedFence: buildTargetingRef.current.targetedFence ?? buildState.targetedFence,
     localPlayer,
     connection,
     isGameMenuOpen,
@@ -267,8 +262,7 @@ export function useGameCanvasControllerRuntime({
     host,
     buildState,
     interactionRuntime,
-    upgradeMenuState,
-    hostState,
+    controllerAdjunctState,
   });
 
   return controllerSnapshot;

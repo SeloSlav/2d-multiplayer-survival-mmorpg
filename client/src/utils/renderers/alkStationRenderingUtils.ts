@@ -211,7 +211,7 @@ export function renderAlkStation(
         // Station should be transparent if:
         // 1. Player overlaps with station visually
         // 2. Station renders AFTER player (player.y < station.worldPosY means player is behind)
-        // This matches the explicit comparison in useEntityFiltering.ts
+        // This matches the explicit comparison in EntityFilteringRuntime.
         const playerIsBehindStation = localPlayerPosition.y < station.worldPosY;
         
         if (overlapsHorizontally && overlapsVertically && playerIsBehindStation) {

@@ -49,7 +49,7 @@ import {
   DEBUG_SHELTER_AABB_CENTER_Y_FROM_BASE,
 } from './shelterRenderingUtils';
 import { DOOR_RENDER_WIDTH, DOOR_RENDER_HEIGHT } from './doorRenderingUtils';
-import type { YSortedEntityType } from '../../hooks/useEntityFiltering';
+import type { YSortedEntityType } from '../../engine/runtime/entityFilteringRuntime';
 
 export interface HealthBarOverlayParams {
   ctx: CanvasRenderingContext2D;

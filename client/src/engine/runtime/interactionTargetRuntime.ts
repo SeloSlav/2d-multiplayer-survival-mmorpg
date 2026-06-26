@@ -1,9 +1,9 @@
 /**
- * useInteractionFinder - Finds the closest interactable entity for E-key and targeting.
+ * interactionTargetRuntime - Finds the closest interactable entity for E-key and targeting.
  *
  * Scans all interactable entities (campfires, furnaces, doors, animals, cairns, etc.)
  * within range of the local player and returns the highest-priority target. Used by
- * GameCanvas to highlight the interactable target and by useInputHandler for E-key.
+ * GameCanvasRuntimeHost to highlight the interactable target and by useInputHandler for E-key.
  *
  * Responsibilities:
  * 1. DISTANCE SCANNING: Computes squared distance from player to each interactable.
@@ -19,8 +19,7 @@
  *    animal, cairn, etc.) with type-specific distance and validity checks.
  */
 
-import { useMemo, useState, useCallback, useRef } from 'react';
-import { DbConnection } from '../generated';
+import { DbConnection } from '../../generated';
 import {
     Player as SpacetimeDBPlayer,
     Campfire as SpacetimeDBCampfire,
@@ -49,14 +48,14 @@ import {
     InventoryItem as SpacetimeDBInventoryItem,
     ItemDefinition as SpacetimeDBItemDefinition,
     PlayerDrinkingCooldown as SpacetimeDBPlayerDrinkingCooldown,
-} from '../generated/types';
-import { InteractableTarget, InteractionTargetType } from '../types/interactions';
-import { selectHighestPriorityTarget } from '../types/interactions'; // ADDED: Import priority selection helper
+} from '../../generated/types';
+import { InteractableTarget, InteractionTargetType } from '../../types/interactions';
+import { selectHighestPriorityTarget } from '../../types/interactions'; // ADDED: Import priority selection helper
 import {
     PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED,
     CAMPFIRE_HEIGHT,
     CAMPFIRE_RENDER_Y_OFFSET
-} from '../utils/renderers/campfireRenderingUtils';
+} from '../../utils/renderers/campfireRenderingUtils';
 import {
     PLAYER_FURNACE_INTERACTION_DISTANCE_SQUARED,
     PLAYER_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED,
@@ -68,36 +67,36 @@ import {
     MONUMENT_LARGE_FURNACE_HEIGHT,
     MONUMENT_LARGE_FURNACE_RENDER_Y_OFFSET,
     FURNACE_TYPE_LARGE
-} from '../utils/renderers/furnaceRenderingUtils'; // ADDED: Furnace rendering constants
+} from '../../utils/renderers/furnaceRenderingUtils'; // ADDED: Furnace rendering constants
 import {
     PLAYER_BARBECUE_INTERACTION_DISTANCE_SQUARED,
     BARBECUE_HEIGHT,
     BARBECUE_RENDER_Y_OFFSET
-} from '../utils/renderers/barbecueRenderingUtils'; // ADDED: Barbecue rendering constants
+} from '../../utils/renderers/barbecueRenderingUtils'; // ADDED: Barbecue rendering constants
 import {
     PLAYER_FUMAROLE_INTERACTION_DISTANCE_SQUARED,
     FUMAROLE_WIDTH,
     FUMAROLE_HEIGHT
-} from '../utils/renderers/fumaroleRenderingUtils'; // ADDED: Fumarole interaction constants
+} from '../../utils/renderers/fumaroleRenderingUtils'; // ADDED: Fumarole interaction constants
 import {
     PLAYER_LANTERN_INTERACTION_DISTANCE_SQUARED,
     LANTERN_HEIGHT,
     LANTERN_RENDER_Y_OFFSET
-} from '../utils/renderers/lanternRenderingUtils';
+} from '../../utils/renderers/lanternRenderingUtils';
 import {
     PLAYER_HEARTH_INTERACTION_DISTANCE_SQUARED,
     HEARTH_HEIGHT,
     HEARTH_RENDER_Y_OFFSET
-} from '../utils/renderers/hearthRenderingUtils'; // ADDED: Hearth interaction constants
-import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from '../utils/renderers/playerCorpseRenderingUtils';
-import { PLAYER_TURRET_INTERACTION_DISTANCE_SQUARED } from '../utils/renderers/turretRenderingUtils';
-import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED, PLAYER_BEEHIVE_INTERACTION_DISTANCE_SQUARED, PLAYER_TALL_BOX_INTERACTION_DISTANCE_SQUARED, BOX_HEIGHT, getBoxDimensions, BOX_TYPE_SCARECROW, BOX_TYPE_COMPOST, BOX_TYPE_TANNING_RACK, BOX_TYPE_COOKING_STATION, BOX_TYPE_REPAIR_BENCH, BOX_TYPE_PLAYER_BEEHIVE, BOX_TYPE_WILD_BEEHIVE, BOX_TYPE_WOLF_PELT, BOX_TYPE_FOX_PELT, BOX_TYPE_POLAR_BEAR_PELT, BOX_TYPE_WALRUS_PELT, MONUMENT_COOKING_STATION_WIDTH, MONUMENT_COOKING_STATION_HEIGHT, MONUMENT_REPAIR_BENCH_WIDTH, MONUMENT_REPAIR_BENCH_HEIGHT, MONUMENT_COMPOST_WIDTH, MONUMENT_COMPOST_HEIGHT } from '../utils/renderers/woodenStorageBoxRenderingUtils';
-import { isCompoundMonument } from '../config/compoundBuildings';
-import { PLAYER_DOOR_INTERACTION_DISTANCE_SQUARED, DOOR_RENDER_Y_OFFSET } from '../utils/renderers/doorRenderingUtils'; // ADDED: Door interaction distance and render offset
-import { PLAYER_ALK_STATION_INTERACTION_DISTANCE_SQUARED, ALK_STATION_Y_OFFSET } from '../utils/renderers/alkStationRenderingUtils'; // ADDED: ALK station interaction distance
-import { getResourceConfig } from '../utils/renderers/resourceConfigurations';
-import { isWaterTileTag } from '../utils/tileTypeGuards';
-import type { ResourceType } from '../types/resourceTypes';
+} from '../../utils/renderers/hearthRenderingUtils'; // ADDED: Hearth interaction constants
+import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from '../../utils/renderers/playerCorpseRenderingUtils';
+import { PLAYER_TURRET_INTERACTION_DISTANCE_SQUARED } from '../../utils/renderers/turretRenderingUtils';
+import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED, PLAYER_BEEHIVE_INTERACTION_DISTANCE_SQUARED, PLAYER_TALL_BOX_INTERACTION_DISTANCE_SQUARED, BOX_HEIGHT, getBoxDimensions, BOX_TYPE_SCARECROW, BOX_TYPE_COMPOST, BOX_TYPE_TANNING_RACK, BOX_TYPE_COOKING_STATION, BOX_TYPE_REPAIR_BENCH, BOX_TYPE_PLAYER_BEEHIVE, BOX_TYPE_WILD_BEEHIVE, BOX_TYPE_WOLF_PELT, BOX_TYPE_FOX_PELT, BOX_TYPE_POLAR_BEAR_PELT, BOX_TYPE_WALRUS_PELT, MONUMENT_COOKING_STATION_WIDTH, MONUMENT_COOKING_STATION_HEIGHT, MONUMENT_REPAIR_BENCH_WIDTH, MONUMENT_REPAIR_BENCH_HEIGHT, MONUMENT_COMPOST_WIDTH, MONUMENT_COMPOST_HEIGHT } from '../../utils/renderers/woodenStorageBoxRenderingUtils';
+import { isCompoundMonument } from '../../config/compoundBuildings';
+import { PLAYER_DOOR_INTERACTION_DISTANCE_SQUARED, DOOR_RENDER_Y_OFFSET } from '../../utils/renderers/doorRenderingUtils'; // ADDED: Door interaction distance and render offset
+import { PLAYER_ALK_STATION_INTERACTION_DISTANCE_SQUARED, ALK_STATION_Y_OFFSET } from '../../utils/renderers/alkStationRenderingUtils'; // ADDED: ALK station interaction distance
+import { getResourceConfig } from '../../utils/renderers/resourceConfigurations';
+import { isWaterTileTag } from '../../utils/tileTypeGuards';
+import type { ResourceType } from '../../types/resourceTypes';
 
 // Generic harvestable resource interaction distance (balanced: 50% increase from original 80px)
 const PLAYER_HARVESTABLE_RESOURCE_INTERACTION_DISTANCE_SQUARED = 120.0 * 120.0;
@@ -113,7 +112,7 @@ const PLAYER_WATER_DRINKING_INTERACTION_DISTANCE_SQUARED = 64.0 * 64.0; // Same 
 const TILE_SIZE = 48;
 
 // Define the hook's input props
-interface UseInteractionFinderProps {
+export interface InteractionTargetRuntimeOptions {
     localPlayer: SpacetimeDBPlayer | null | undefined;
     playerPositionOverride?: { x: number; y: number } | null;
     getCurrentPlayerPosition?: () => { x: number; y: number } | null;
@@ -151,8 +150,7 @@ interface UseInteractionFinderProps {
 
 // Define the hook's return type
 
-interface UseInteractionFinderResult {
-    updateInteractionResult?: () => void;
+export interface InteractionTargetRuntimeResult {
     // Single closest target across all types
     closestInteractableTarget: InteractableTarget | null;
     
@@ -255,7 +253,33 @@ function canPlayerInteractWithObjectInShelter(
 /**
  * Finds the closest interactable entity of each type within range of the local player.
  */
-export function useInteractionFinder({
+export const EMPTY_INTERACTION_TARGET_RUNTIME_RESULT: InteractionTargetRuntimeResult = {
+    closestInteractableTarget: null,
+    closestInteractableHarvestableResourceId: null,
+    closestInteractableCampfireId: null,
+    closestInteractableFurnaceId: null,
+    closestInteractableBarbecueId: null,
+    closestInteractableFumaroleId: null,
+    closestInteractableLanternId: null,
+    closestInteractableTurretId: null,
+    closestInteractableHearthId: null,
+    closestInteractableDroppedItemId: null,
+    closestInteractableBoxId: null,
+    isClosestInteractableBoxEmpty: false,
+    closestInteractableCorpseId: null,
+    closestInteractableStashId: null,
+    closestInteractableRainCollectorId: null,
+    closestInteractableBrothPotId: null,
+    closestInteractableSleepingBagId: null,
+    closestInteractableKnockedOutPlayerId: null,
+    closestInteractableWaterPosition: null,
+    closestInteractableDoorId: null,
+    closestInteractableAlkStationId: null,
+    closestInteractableCairnId: null,
+    closestInteractableMilkableAnimalId: null,
+};
+
+export function calculateInteractionTargetRuntimeResult({
     localPlayer,
     playerPositionOverride,
     getCurrentPlayerPosition,
@@ -289,64 +313,7 @@ export function useInteractionFinder({
     caribouBreedingData,
     walrusBreedingData,
     worldState,
-}: UseInteractionFinderProps): UseInteractionFinderResult {
-
-    // PERFORMANCE: Single setState trigger - all values stored in resultRef, one re-render when any change
-    const [, setInteractionVersion] = useState(0);
-
-    // Track previous state values via ref to avoid stale closure issues
-    const prevStateRef = useRef({
-        closestInteractableHarvestableResourceId: null as bigint | null,
-        closestInteractableCampfireId: null as number | null,
-        closestInteractableFurnaceId: null as number | null,
-        closestInteractableBarbecueId: null as number | null,
-        closestInteractableFumaroleId: null as number | null,
-        closestInteractableLanternId: null as number | null,
-        closestInteractableTurretId: null as number | null,
-        closestInteractableHearthId: null as number | null,
-        closestInteractableDroppedItemId: null as bigint | null,
-        closestInteractableBoxId: null as number | null,
-        isClosestInteractableBoxEmpty: false,
-        closestInteractableCorpseId: null as bigint | null,
-        closestInteractableStashId: null as number | null,
-        closestInteractableRainCollectorId: null as number | null,
-        closestInteractableBrothPotId: null as number | null,
-        closestInteractableSleepingBagId: null as number | null,
-        closestInteractableKnockedOutPlayerId: null as string | null,
-        closestInteractableWaterPosition: null as { x: number; y: number } | null,
-        closestInteractableDoorId: null as bigint | null,
-        closestInteractableAlkStationId: null as number | null,
-        closestInteractableCairnId: null as bigint | null,
-        closestInteractableMilkableAnimalId: null as bigint | null,
-    });
-
-    const resultRef = useRef<UseInteractionFinderResult>({
-        closestInteractableTarget: null,
-        closestInteractableHarvestableResourceId: null,
-        closestInteractableCampfireId: null,
-        closestInteractableFurnaceId: null,
-        closestInteractableBarbecueId: null, // ADDED: Barbecue
-        closestInteractableFumaroleId: null, // ADDED: Fumarole
-        closestInteractableLanternId: null,
-        closestInteractableTurretId: null, // ADDED: Turret
-        closestInteractableHearthId: null, // ADDED: HomesteadHearth
-        closestInteractableDroppedItemId: null,
-        closestInteractableBoxId: null,
-        isClosestInteractableBoxEmpty: false,
-        closestInteractableCorpseId: null,
-        closestInteractableStashId: null,
-        closestInteractableRainCollectorId: null,
-        closestInteractableBrothPotId: null,
-        closestInteractableSleepingBagId: null,
-        closestInteractableKnockedOutPlayerId: null,
-        closestInteractableWaterPosition: null,
-        closestInteractableDoorId: null, // ADDED: Door support
-        closestInteractableAlkStationId: null, // ADDED: ALK station support
-        closestInteractableCairnId: null, // ADDED: Cairn support
-        closestInteractableMilkableAnimalId: null, // ADDED: Milkable animal support
-    });
-
-    const updateInteractionResult = useCallback(() => {
+}: InteractionTargetRuntimeOptions): InteractionTargetRuntimeResult {
         // Single closest target across all types
         let closestTarget: InteractableTarget | null = null;
         let closestTargetDistSq = Infinity;
@@ -1248,7 +1215,7 @@ export function useInteractionFinder({
             }
         }
 
-        const calculatedResult: UseInteractionFinderResult = {
+        const calculatedResult: InteractionTargetRuntimeResult = {
             closestInteractableTarget: closestTarget,
             closestInteractableHarvestableResourceId: closestHarvestableResourceId,
             closestInteractableCampfireId: closestCampfireId,
@@ -1274,69 +1241,5 @@ export function useInteractionFinder({
             closestInteractableMilkableAnimalId: closestMilkableAnimalId, // ADDED: Milkable animal support
         };
 
-        resultRef.current = calculatedResult;
-
-        // PERFORMANCE: Single setState when any value changed - collapses 20+ re-renders into 1
-        const prev = prevStateRef.current;
-        const waterPosChanged = calculatedResult.closestInteractableWaterPosition?.x !== prev.closestInteractableWaterPosition?.x ||
-                                calculatedResult.closestInteractableWaterPosition?.y !== prev.closestInteractableWaterPosition?.y;
-        const hasChanged =
-            calculatedResult.closestInteractableHarvestableResourceId !== prev.closestInteractableHarvestableResourceId ||
-            calculatedResult.closestInteractableCampfireId !== prev.closestInteractableCampfireId ||
-            calculatedResult.closestInteractableFurnaceId !== prev.closestInteractableFurnaceId ||
-            calculatedResult.closestInteractableBarbecueId !== prev.closestInteractableBarbecueId ||
-            calculatedResult.closestInteractableFumaroleId !== prev.closestInteractableFumaroleId ||
-            calculatedResult.closestInteractableLanternId !== prev.closestInteractableLanternId ||
-            calculatedResult.closestInteractableTurretId !== prev.closestInteractableTurretId ||
-            calculatedResult.closestInteractableHearthId !== prev.closestInteractableHearthId ||
-            calculatedResult.closestInteractableDroppedItemId !== prev.closestInteractableDroppedItemId ||
-            calculatedResult.closestInteractableBoxId !== prev.closestInteractableBoxId ||
-            calculatedResult.isClosestInteractableBoxEmpty !== prev.isClosestInteractableBoxEmpty ||
-            calculatedResult.closestInteractableCorpseId !== prev.closestInteractableCorpseId ||
-            calculatedResult.closestInteractableStashId !== prev.closestInteractableStashId ||
-            calculatedResult.closestInteractableRainCollectorId !== prev.closestInteractableRainCollectorId ||
-            calculatedResult.closestInteractableBrothPotId !== prev.closestInteractableBrothPotId ||
-            calculatedResult.closestInteractableDoorId !== prev.closestInteractableDoorId ||
-            calculatedResult.closestInteractableAlkStationId !== prev.closestInteractableAlkStationId ||
-            calculatedResult.closestInteractableCairnId !== prev.closestInteractableCairnId ||
-            calculatedResult.closestInteractableMilkableAnimalId !== prev.closestInteractableMilkableAnimalId ||
-            calculatedResult.closestInteractableSleepingBagId !== prev.closestInteractableSleepingBagId ||
-            calculatedResult.closestInteractableKnockedOutPlayerId !== prev.closestInteractableKnockedOutPlayerId ||
-            waterPosChanged;
-
-        if (hasChanged) {
-            Object.assign(prev, calculatedResult);
-            setInteractionVersion(v => v + 1);
-        }
-    }, [localPlayer, playerPositionOverride, getCurrentPlayerPosition, harvestableResources, campfires, furnaces, barbecues, fumaroles, lanterns, homesteadHearths, droppedItems, woodenStorageBoxes, playerCorpses, stashes, rainCollectors, sleepingBags, players, shelters, inventoryItems, itemDefinitions, connection, playerDrinkingCooldowns, doors, alkStations, cairns, worldTiles, wildAnimals, caribouBreedingData, walrusBreedingData, worldState]);
-
-    const r = resultRef.current;
-    return {
-        updateInteractionResult,
-        closestInteractableTarget: r.closestInteractableTarget,
-        closestInteractableHarvestableResourceId: r.closestInteractableHarvestableResourceId,
-        closestInteractableCampfireId: r.closestInteractableCampfireId,
-        closestInteractableFurnaceId: r.closestInteractableFurnaceId,
-        closestInteractableBarbecueId: r.closestInteractableBarbecueId,
-        closestInteractableFumaroleId: r.closestInteractableFumaroleId,
-        closestInteractableLanternId: r.closestInteractableLanternId,
-        closestInteractableTurretId: r.closestInteractableTurretId,
-        closestInteractableHearthId: r.closestInteractableHearthId,
-        closestInteractableDroppedItemId: r.closestInteractableDroppedItemId,
-        closestInteractableBoxId: r.closestInteractableBoxId,
-        isClosestInteractableBoxEmpty: r.isClosestInteractableBoxEmpty,
-        closestInteractableCorpseId: r.closestInteractableCorpseId,
-        closestInteractableStashId: r.closestInteractableStashId,
-        closestInteractableRainCollectorId: r.closestInteractableRainCollectorId,
-        closestInteractableBrothPotId: r.closestInteractableBrothPotId,
-        closestInteractableDoorId: r.closestInteractableDoorId,
-        closestInteractableAlkStationId: r.closestInteractableAlkStationId,
-        closestInteractableCairnId: r.closestInteractableCairnId,
-        closestInteractableMilkableAnimalId: r.closestInteractableMilkableAnimalId,
-        closestInteractableSleepingBagId: r.closestInteractableSleepingBagId,
-        closestInteractableKnockedOutPlayerId: r.closestInteractableKnockedOutPlayerId,
-        closestInteractableWaterPosition: r.closestInteractableWaterPosition,
-    };
+        return calculatedResult;
 }
-
-export default useInteractionFinder;

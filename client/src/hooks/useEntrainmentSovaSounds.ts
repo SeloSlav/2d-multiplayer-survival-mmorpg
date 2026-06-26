@@ -4,7 +4,7 @@
  * Entrainment occurs when player reaches 100 insanity and gets the Entrainment effect.
  * This hook plays random Entrainment quotes every 10-30 seconds (won't interrupt if one is playing).
  * 
- * Note: Ambient background sound is handled by useAmbientSounds hook (entrainment_ambient).
+ * Note: Ambient background sound is handled by AmbientSoundRuntime (entrainment_ambient).
  * 
  * SOVA Entrainment Sound File Naming Convention:
  * - sova_entrainment_1.mp3 through sova_entrainment_7.mp3 (7 quotes total)

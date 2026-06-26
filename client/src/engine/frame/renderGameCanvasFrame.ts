@@ -126,6 +126,7 @@ export function renderGameCanvasFrame(args: any): void {
     targetedFoundation,
     targetedWall,
     targetedFence,
+    buildTargetingRef,
     hasRepairHammer,
     worldParticlesQuality,
     renderParticles,
@@ -244,6 +245,7 @@ export function renderGameCanvasFrame(args: any): void {
   const nowMs = Date.now();
   const currentWorldMouseX = worldMousePosRef.current.x;
   const currentWorldMouseY = worldMousePosRef.current.y;
+  const currentBuildTargeting = buildTargetingRef?.current;
   const currentCameraOffsetX = cameraOffsetRef.current.x + shakeOffsetXRef.current;
   const currentCameraOffsetY = cameraOffsetRef.current.y + shakeOffsetYRef.current;
   const currentPredictedPosition = predictedPositionRef.current;
@@ -512,9 +514,9 @@ export function renderGameCanvasFrame(args: any): void {
     wildAnimals,
     canvasWidth: currentCanvasWidth,
     canvasHeight: currentCanvasHeight,
-    targetedFoundation,
-    targetedWall,
-    targetedFence,
+    targetedFoundation: currentBuildTargeting?.targetedFoundation ?? targetedFoundation,
+    targetedWall: currentBuildTargeting?.targetedWall ?? targetedWall,
+    targetedFence: currentBuildTargeting?.targetedFence ?? targetedFence,
     hasRepairHammer,
   });
   const _t3b = mark(showFpsProfiler);

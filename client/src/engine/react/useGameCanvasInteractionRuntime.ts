@@ -1,9 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react';
-import { useInteractionFinder } from '../../hooks/useInteractionFinder';
-
-/** Cairns are hidden for now - graphical placeholders only. Set true to re-enable interaction. */
-const CAIRNS_INTERACTABLE = false;
-const EMPTY_CAIRNS_MAP = new Map<string, any>();
+import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react';
 import { useInputHandler } from '../../hooks/useInputHandler';
 import { getInteractableLabel } from '../../utils/interactionLabelUtils';
 import { isAnySovaAudioPlaying } from '../../hooks/useSovaSoundBox';
@@ -11,6 +6,24 @@ import { previewSeaweedHarvestBlockedIfNeeded } from '../../hooks/useSoundSystem
 import { logDebug } from '../../utils/gameDebugUtils';
 import type { InteractableTarget } from '../../types/interactions';
 import { getRecordButtonBounds } from '../../utils/profiler';
+import type { InteractionTargetRuntimeResult } from '../runtime/interactionTargetRuntime';
+
+function getUnifiedInteractionTarget(result: InteractionTargetRuntimeResult): InteractableTarget | null {
+  if (result.closestInteractableTarget) return result.closestInteractableTarget;
+  if (result.closestInteractableWaterPosition) {
+    return {
+      type: 'water',
+      id: 'water',
+      position: {
+        x: result.closestInteractableWaterPosition.x,
+        y: result.closestInteractableWaterPosition.y,
+      },
+      distance: 0,
+      data: undefined,
+    };
+  }
+  return null;
+}
 
 interface UseGameCanvasInteractionRuntimeOptions {
   localPlayer: any;
@@ -61,6 +74,8 @@ interface UseGameCanvasInteractionRuntimeOptions {
   buildingState: any;
   buildingActions: any;
   worldMousePos: { x: number | null; y: number | null };
+  worldMousePosRef?: MutableRefObject<{ x: number | null; y: number | null }>;
+  interactionTargetRef: MutableRefObject<InteractionTargetRuntimeResult>;
   visibleTreesMap: Map<string, any>;
   visibleStonesMap: Map<string, any>;
   visibleLivingCoralsMap: Map<string, any>;
@@ -85,6 +100,11 @@ interface UseGameCanvasInteractionRuntimeOptions {
   targetedFoundation: any | null;
   targetedWall: any | null;
   targetedFence: any | null;
+  buildTargetingRef?: MutableRefObject<{
+    targetedFoundation: any | null;
+    targetedWall: any | null;
+    targetedFence: any | null;
+  }>;
   rangedWeaponStats?: Map<string, any>;
   projectiles: Map<string, any>;
   isMobile?: boolean;
@@ -119,71 +139,8 @@ export function useGameCanvasInteractionRuntime(options: UseGameCanvasInteractio
     return true;
   }, [showFpsProfiler, isProfilerRecording, canvasWidth, startProfilerRecording, stopProfilerRecording, onProfilerCopied]);
 
-  const {
-    updateInteractionResult,
-    closestInteractableTarget,
-    closestInteractableHarvestableResourceId,
-    closestInteractableCampfireId,
-    closestInteractableDroppedItemId,
-    closestInteractableBoxId,
-    isClosestInteractableBoxEmpty,
-    closestInteractableCorpseId,
-    closestInteractableStashId,
-    closestInteractableSleepingBagId,
-    closestInteractableDoorId,
-    closestInteractableAlkStationId,
-    closestInteractableCairnId,
-    closestInteractableKnockedOutPlayerId,
-    closestInteractableWaterPosition,
-    closestInteractableMilkableAnimalId,
-  } = useInteractionFinder({
-    localPlayer: options.localPlayer,
-    playerPositionOverride: options.predictedPosition,
-    getCurrentPlayerPosition: options.getCurrentPositionNow,
-    campfires: options.campfires,
-    furnaces: options.furnaces,
-    barbecues: options.barbecues,
-    fumaroles: options.fumaroles,
-    lanterns: options.lanterns,
-    turrets: options.visibleTurretsMap,
-    homesteadHearths: options.homesteadHearths,
-    droppedItems: options.droppedItems,
-    woodenStorageBoxes: options.woodenStorageBoxes,
-    playerCorpses: options.playerCorpses,
-    stashes: options.stashes,
-    sleepingBags: options.sleepingBags,
-    players: options.players,
-    shelters: options.shelters,
-    connection: options.connection,
-    inventoryItems: options.inventoryItems,
-    itemDefinitions: options.itemDefinitions,
-    playerDrinkingCooldowns: options.playerDrinkingCooldowns,
-    rainCollectors: options.rainCollectors,
-    brothPots: options.brothPots,
-    doors: options.doors,
-    alkStations: options.visibleAlkStationsMap,
-    cairns: CAIRNS_INTERACTABLE ? options.cairns : EMPTY_CAIRNS_MAP,
-    harvestableResources: options.harvestableResources,
-    worldTiles: options.visibleWorldTiles,
-    wildAnimals: options.wildAnimals,
-    caribouBreedingData: options.caribouBreedingData,
-    walrusBreedingData: options.walrusBreedingData,
-    worldState: options.worldState,
-  });
-
-  const unifiedInteractableTarget = useMemo<InteractableTarget | null>(() => {
-    if (closestInteractableTarget) return closestInteractableTarget;
-    if (closestInteractableWaterPosition) {
-      return {
-        type: 'water',
-        id: 'water',
-        position: { x: closestInteractableWaterPosition.x, y: closestInteractableWaterPosition.y },
-        distance: 0,
-        data: undefined,
-      };
-    }
-    return null;
-  }, [closestInteractableTarget, closestInteractableWaterPosition]);
+  const interactionTargetResult = options.interactionTargetRef.current;
+  const unifiedInteractableTarget = getUnifiedInteractionTarget(interactionTargetResult);
 
   const handleDodgeRollStart = useCallback((moveX: number, moveY: number) => {
     options.localOptimisticDodgeRollStartMsRef.current = Date.now();
@@ -207,7 +164,9 @@ export function useGameCanvasInteractionRuntime(options: UseGameCanvasInteractio
     buildingState: options.buildingState,
     buildingActions: options.buildingActions,
     worldMousePos: options.worldMousePos,
+    worldMousePosRef: options.worldMousePosRef,
     closestInteractableTarget: unifiedInteractableTarget,
+    interactionTargetRef: options.interactionTargetRef,
     trees: options.visibleTreesMap,
     stones: options.visibleStonesMap,
     livingCorals: options.visibleLivingCoralsMap,
@@ -238,6 +197,7 @@ export function useGameCanvasInteractionRuntime(options: UseGameCanvasInteractio
     targetedFoundation: options.targetedFoundation,
     targetedWall: options.targetedWall,
     targetedFence: options.targetedFence,
+    buildTargetingRef: options.buildTargetingRef,
     rangedWeaponStats: options.rangedWeaponStats,
     serverProjectiles: options.projectiles,
     onProfilerRecordClick,
@@ -304,22 +264,21 @@ export function useGameCanvasInteractionRuntime(options: UseGameCanvasInteractio
   }, [options, unifiedInteractableTarget]);
 
   return {
-    updateInteractionResult,
-    closestInteractableTarget,
-    closestInteractableHarvestableResourceId,
-    closestInteractableCampfireId,
-    closestInteractableDroppedItemId,
-    closestInteractableBoxId,
-    isClosestInteractableBoxEmpty,
-    closestInteractableCorpseId,
-    closestInteractableStashId,
-    closestInteractableSleepingBagId,
-    closestInteractableDoorId,
-    closestInteractableAlkStationId,
-    closestInteractableCairnId,
-    closestInteractableKnockedOutPlayerId,
-    closestInteractableWaterPosition,
-    closestInteractableMilkableAnimalId,
+    closestInteractableTarget: interactionTargetResult.closestInteractableTarget,
+    closestInteractableHarvestableResourceId: interactionTargetResult.closestInteractableHarvestableResourceId,
+    closestInteractableCampfireId: interactionTargetResult.closestInteractableCampfireId,
+    closestInteractableDroppedItemId: interactionTargetResult.closestInteractableDroppedItemId,
+    closestInteractableBoxId: interactionTargetResult.closestInteractableBoxId,
+    isClosestInteractableBoxEmpty: interactionTargetResult.isClosestInteractableBoxEmpty,
+    closestInteractableCorpseId: interactionTargetResult.closestInteractableCorpseId,
+    closestInteractableStashId: interactionTargetResult.closestInteractableStashId,
+    closestInteractableSleepingBagId: interactionTargetResult.closestInteractableSleepingBagId,
+    closestInteractableDoorId: interactionTargetResult.closestInteractableDoorId,
+    closestInteractableAlkStationId: interactionTargetResult.closestInteractableAlkStationId,
+    closestInteractableCairnId: interactionTargetResult.closestInteractableCairnId,
+    closestInteractableKnockedOutPlayerId: interactionTargetResult.closestInteractableKnockedOutPlayerId,
+    closestInteractableWaterPosition: interactionTargetResult.closestInteractableWaterPosition,
+    closestInteractableMilkableAnimalId: interactionTargetResult.closestInteractableMilkableAnimalId,
     unifiedInteractableTarget,
     onProfilerRecordClick,
     ...inputState,
