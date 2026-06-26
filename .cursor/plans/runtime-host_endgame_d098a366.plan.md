@@ -40,7 +40,7 @@ Current reality after the latest runtime and renderer changes:
 - Ambient effects, ambient audio, and particle production now live behind `GameCanvasRuntimeHost`.
 - Pointer tracking and build/repair target selection for render/input/mobile taps now live behind `GameCanvasRuntimeHost`.
 - React still produces scene and controller snapshots in `GameCanvas`, then synchronizes them directly through host configuration methods.
-- Cloud/grass interpolation, falling-tree animation, projectile presentation, world lookup caches, and the day/night mask runtime now live behind `GameCanvasRuntimeHost`.
+- Cloud/grass interpolation, falling-tree animation, projectile presentation, world lookup caches, the day/night mask runtime, and viewport/entity filtering now live behind `GameCanvasRuntimeHost`.
 - Render-context assembly now lives behind `GameCanvasRuntimeHost.configureRenderContextFromSnapshots()`, with the React render hook reduced to lifecycle/config glue.
 - The procedural world renderer cache/transition optimizations are orthogonal to this plan. They improve render hot paths but do not materially change runtime ownership.
 
@@ -62,7 +62,7 @@ flowchart LR
 
 Still React-produced:
 
-- Scene snapshot: `useGameCanvasSceneRuntime`, `useGameScreenWorldTables`, `useUITable`, `useFrameAssembly`, and entity filtering.
+- Scene snapshot: `useGameCanvasSceneRuntime`, `useGameScreenWorldTables`, `useUITable`, and `useFrameAssembly`.
 - Controller snapshot: `useGameCanvasControllerRuntime`, `useGameCanvasBuildState`, `useGameCanvasInteractionRuntime`, and `useInputHandler`.
 - Render config glue: `configureGameCanvasRenderRuntime` passes stable config into host-owned render-context assembly.
 
@@ -204,12 +204,12 @@ Plan:
 - Completed: move interaction target scanning into `interactionTargetRuntime`, so render labels and input actions consume host-owned target refs instead of a React state-producing hook.
 - Completed: remove the remote-player interpolation wrapper; frame assembly now consumes the existing runtime interpolation singleton directly.
 - Completed: move building placement mode, placement reducer calls, equipment checks, spatial indexes, and triangle-shape prediction into `BuildingPlacementRuntime`, with React only subscribing for overlay updates.
-- In progress: move input timers/actions, remaining entity filtering producers, and controller snapshot production out of React hooks.
+- In progress: move input timers/actions and controller snapshot production out of React hooks.
 - Keep React limited to event capture and minimal subscriptions.
 
 ## Stage 7: Migrate Scene Production Last
 
-This is the heaviest and riskiest migration because it still owns table reads, entity filtering, and frame assembly.
+This is the heaviest and riskiest migration because it still owns table reads and frame assembly.
 
 Files:
 
@@ -229,6 +229,7 @@ Plan:
 - Completed: move projectile presentation into host-owned `ProjectilePresentationRuntime`, including resolved-projectile retention, optimistic/authoritative dedupe, and render tracking cleanup.
 - Completed: move visible world tiles, water/shore lookups, hot spring/quarry detection, and shore-distance cache into host-owned `WorldLookupRuntime`.
 - Completed: move day/night overlay and mask drawing into host-owned `DayNightCycleRuntime`, preserving `overlayRgba`, `maskCanvasRef`, and `redrawMask` contracts.
+- Completed: move viewport culling, visible entity maps, and Y-sort cache production into host-owned `EntityFilteringRuntime`, deleting the React entity-filtering adapter and hook.
 - Keep `assembleGameCanvasSceneSnapshot` as the contract-preserving adapter while migrating one producer group at a time.
 - Expect this stage to require the most coordination with table binding/state registry architecture.
 
