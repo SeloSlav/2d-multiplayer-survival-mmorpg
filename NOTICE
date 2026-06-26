@@ -11,6 +11,17 @@ The source code in this repository is licensed under the Apache License 2.0.
 However, the following elements remain the exclusive intellectual property of
 Martin Erlic and are NOT covered by the Apache 2.0 license:
 
+BABUSHKA UNIVERSE
+-----------------
+Broth & Bullets is set in the Babushka fictional universe, which originates
+from a series of books published at https://www.babushkabook.com
+
+The Babushka universe — including its characters, lore, settings, storylines,
+names, and related creative works — is protected intellectual property. It is
+NOT licensed for reuse, adaptation, redistribution, or commercial use under
+the Apache 2.0 license or otherwise, except with explicit written permission
+from the rights holder.
+
 TRADEMARKS & BRANDING
 ---------------------
 - "Broth & Bullets" name and all associated branding
@@ -45,8 +56,12 @@ WHAT THIS MEANS FOR YOU
 ✅ You CAN build your own game using this codebase as a foundation
 ✅ You CAN run private servers for experimentation and learning
 
+❌ You CANNOT use characters, lore, settings, or story elements from the
+   Babushka universe (https://www.babushkabook.com) without permission
 ❌ You CANNOT use "Broth & Bullets" name or branding commercially
+❌ You CANNOT use "Babushka" name or branding commercially
 ❌ You CANNOT present derivative works as official Broth & Bullets
+❌ You CANNOT present derivative works as official Babushka universe works
 ❌ You CANNOT use original character designs without permission
 ❌ You CANNOT operate competing Broth & Bullets servers
 ❌ You CANNOT redistribute protected assets separately from the code
@@ -61,7 +76,7 @@ This project uses the following third-party components:
 - OpenAuthJS (https://openauth.js.org) - MIT License
 - Kokoro TTS - Apache 2.0 License
 
-For licensing inquiries regarding Broth & Bullets intellectual property,
-please contact Martin Erlic.
+For licensing inquiries regarding Broth & Bullets or Babushka universe
+intellectual property, please contact Martin Erlic.
 
 ================================================================================

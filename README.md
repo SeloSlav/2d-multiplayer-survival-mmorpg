@@ -1,14 +1,12 @@
-![Broth & Bullets - Alpha Launch](https://www.brothandbullets.com/images/blog/systems.png)
-
-> **Warning: Make sure to read the [license](#-license) before use.**
+> **Warning: Make sure to read the [license](#-license) before use.** Broth & Bullets is based on the protected **Babushka** book universe ([babushkabook.com](https://www.babushkabook.com)). Babushka universe IP is not licensed for reuse.
 
 # 2D Multiplayer Survival MMORPG
 
+There is no live game in production at the moment. You can play solo by downloading this project from GitHub and following the setup instructions below.
+
 🎮 **[Watch gameplay demo](https://x.com/SeloSlav/status/2023523837724221851?s=20)**
 
-What started as an open source project for a generic 2D survival game is now a full-fledged game called **Broth & Bullets**. You can read more about it at [https://www.brothandbullets.com/blog](https://www.brothandbullets.com/blog).
-
-I've committed to open sourcing the entire project and providing the best documentation possible to help you get up and running, fork the project, create your own games, or even contribute back to Broth & Bullets itself. This repository has evolved into an exhaustive, feature-rich project with almost every pattern you can think of—constantly in development and running on SpacetimeDB 2.0. A stripped-down true "starter kit" for 2D MMORPGs (all the main features without the bloat) is planned for release soon.
+What started as an open source project for a generic 2D survival game is now a full-fledged game called **Broth & Bullets**. I've committed to open sourcing the entire project and providing the best documentation possible to help you get up and running, fork the project, create your own games, or even contribute back to Broth & Bullets itself. This repository has evolved into an exhaustive, feature-rich project with almost every pattern you can think of—constantly in development and running on SpacetimeDB 2.0. A stripped-down true "starter kit" for 2D MMORPGs (all the main features without the bloat) is planned for release soon.
 
 💬 **Want to chat?** Join the discussion on [Discord](https://discord.gg/tUcBzfAYfs)
 
@@ -804,9 +802,11 @@ For questions or discussions, feel free to open an issue first or join our [Disc
 
 ## 📜 License
 
-This project is licensed under the **Apache License 2.0** - see the [LICENSE](./LICENSE) file for details.
+This project is licensed under the **Apache License 2.0** — see the [LICENSE](./LICENSE) file for details.
 
-The game's assets and IP remain protected, and the official Broth & Bullets servers will continue to be operated by Martin Erlic. For more information see [NOTICE](./NOTICE).
+**Broth & Bullets** is set in the **Babushka** fictional universe, which originates from a series of books published at [babushkabook.com](https://www.babushkabook.com). The Babushka universe — including its characters, lore, settings, storylines, names, and related creative works — is protected intellectual property owned separately from this repository's source code. **It is not licensed for reuse, adaptation, redistribution, or commercial use** under the Apache 2.0 license or otherwise, except with explicit written permission from the rights holder.
+
+The **source code** in this repository may be used, modified, and distributed under Apache 2.0, subject to the restrictions below. Protected game assets, narrative content, branding, and all Babushka universe intellectual property are **not** included in that grant. For full details, see [NOTICE](./NOTICE).
 
 ### What you can and cannot do
 
@@ -818,14 +818,15 @@ To avoid any confusion, here is a clear summary of what is allowed and what is n
 - ✅ Modify and experiment with the code locally
 - ✅ Run your own servers for experimentation and learning
 - ✅ Use it as a reference for building your own projects
-- ✅ Make a game similar to Broth & Bullets with your own IP (art and themes) using our code as a basis
+- ✅ Build a similar game with your own original IP (art, themes, and story) using this code as a foundation
 - ✅ Contribute back to the project via Pull Requests
 
 **You cannot:**
 
+- ❌ Use characters, lore, settings, story elements, or other intellectual property from the Babushka universe ([babushkabook.com](https://www.babushkabook.com)) without permission
 - ❌ Use Broth & Bullets' art, game content, music, or other protected assets
-- ❌ Use the "Broth & Bullets" name, branding, or story for commercial purposes
-- ❌ Present forks or derivative works as official Broth & Bullets
+- ❌ Use the "Broth & Bullets" or "Babushka" names, branding, or story for commercial purposes
+- ❌ Present forks or derivative works as official Broth & Bullets or Babushka universe works
 - ❌ Operate official, unofficial, private, or competing Broth & Bullets servers
 - ❌ Use original character designs or hand-crafted assets without permission
 - ❌ Do anything that violates the Apache 2.0 license
@@ -836,7 +837,7 @@ We truly appreciate any reporting of in-game exploits. To ensure that exploits a
 
 Contributors who report meaningful, previously unreported, and verified exploits may receive special recognition.
 
-For licensing inquiries regarding Broth & Bullets intellectual property, please contact Martin Erlic.
+For licensing inquiries regarding Broth & Bullets or Babushka universe intellectual property, please contact Martin Erlic.
 
 ---
 
