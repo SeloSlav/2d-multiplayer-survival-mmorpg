@@ -43,16 +43,18 @@ PROTECTED ASSETS
 - Original music and sound effects
 - Any assets specifically created for Broth & Bullets
 
-AI-GENERATED ASSETS
+AI-GENERATED IMAGES
 -------------------
-AI-generated assets (created using tools like GPT-4o, retrodiffusion.ai, etc.)
-included in this repository may be used freely under the Apache 2.0 license,
-as they do not constitute original creative works with copyright protection.
+Only AI-generated images (e.g., sprites, textures, and other visual artwork
+created with tools such as GPT-4o, retrodiffusion.ai, etc.) included in this
+repository may be used under the Apache 2.0 license. This does not apply to
+text, dialogue, lore, code, music, sound effects, or any other non-image
+content — those remain subject to the restrictions above.
 
 WHAT THIS MEANS FOR YOU
 -----------------------
 ✅ You CAN freely use, modify, and distribute the SOURCE CODE
-✅ You CAN use AI-generated assets and generic game systems
+✅ You CAN use AI-generated images included in this repository
 ✅ You CAN build your own game using this codebase as a foundation
 ✅ You CAN run private servers for experimentation and learning
 
