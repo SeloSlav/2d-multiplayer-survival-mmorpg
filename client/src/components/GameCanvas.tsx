@@ -9,15 +9,10 @@
 
 import React, { useEffect, useRef, useMemo } from 'react';
 
-import type {
-  Player as SpacetimeDBPlayer,
-} from '../generated/types';
-
 // --- Core Hooks ---
 import { useAssetLoader } from '../hooks/useAssetLoader';
 import { useDoodadImages } from '../hooks/useDoodadImages';
 import { useGameViewport } from '../hooks/useGameViewport';
-import type { GameLoopMetrics } from '../engine/types';
 import { useDamageEffects } from '../hooks/useDamageEffects';
 import { useSettings } from '../contexts/SettingsContext';
 import { useErrorDisplay } from '../contexts/ErrorDisplayContext';
@@ -195,22 +190,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const { showError } = useErrorDisplay();
 
   // --- Refs ---
-  const lastPositionsRef = useRef<Map<string, { x: number, y: number }>>(new Map());
-  const lastPlacementWarningRef = useRef<string | null>(null);
-
-  // High-frequency value refs (to avoid renderGame dependency array churn)
-  const localSwimTransitionRef = useRef<{ wasSwimming: boolean; enteredWaterAtMs: number }>({
-    wasSwimming: false,
-    enteredWaterAtMs: 0,
-  });
-
-  // Phase 3d: Reusable scratch objects for render hot path (avoid spread-operator allocation)
-  const swimmingPlayerScratchRef = useRef<Partial<SpacetimeDBPlayer> & { positionX: number; positionY: number }>({ positionX: 0, positionY: 0 });
-  const swimmingPlayerTopHalfScratchRef = useRef<{ entity: SpacetimeDBPlayer; playerId: string; yPosition: number }>({ entity: null as any, playerId: '', yPosition: 0 });
-  const localPlayerScratchRef = useRef<Record<string, unknown>>({ positionX: 0, positionY: 0, direction: 0 });
-  const deltaTimeRef = useRef<number>(0);
-  const interactionScanFrameSkipRef = useRef<number>(0);
-  const gameLoopMetricsRef = useRef<GameLoopMetrics | null>(null);
+  const renderRefs = runtimeHost.getRenderRefs();
 
   // --- Core Game State Hooks ---
   const localPlayer = useLocalPlayer(localPlayerId ?? null);
@@ -377,9 +357,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     cameraOffsetX,
     cameraOffsetY,
     canvasSize,
-    deltaTimeRef,
-    interactionScanFrameSkipRef,
-    gameLoopMetricsRef,
     onDodgeRollStart,
     addSOVAMessage,
     showSovaSoundBox,
@@ -459,9 +436,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     localPlayer,
     isAutoWalking,
     canvasSize,
-    gameLoopMetricsRef,
-    deltaTimeRef,
-    interactionScanFrameSkipRef,
   });
 
   configureGameCanvasRenderRuntime({
@@ -519,15 +493,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       shelterImageRef,
       foundationTileImagesRef,
     },
-    renderRefs: {
-      deltaTimeRef,
-      lastPositionsRef,
-      localSwimTransitionRef,
-      swimmingPlayerScratchRef,
-      swimmingPlayerTopHalfScratchRef,
-      localPlayerScratchRef,
-      lastPlacementWarningRef,
-    },
+    renderRefs,
   });
 
   useGameCanvasFramePipeline({

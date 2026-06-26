@@ -34,12 +34,12 @@ Move snapshot-producing canvas/runtime adapters out of React and into long-lived
 
 Current reality after the latest runtime and renderer changes:
 
-- `GameCanvasRuntimeHost` owns the `runtimeEngine` frame pipeline, render context storage, typed snapshots, frame bindings, and controller refs in `client/src/engine/runtime/GameCanvasRuntimeHost.ts`.
+- `GameCanvasRuntimeHost` owns the `runtimeEngine` frame pipeline, render context storage, typed snapshots, render/frame scratch refs, frame bindings, final controller snapshot assembly, and controller refs in `client/src/engine/runtime/GameCanvasRuntimeHost.ts`.
 - `useGameCanvasFramePipeline` mounts the host pipeline and only keeps the React frame-loop bridge alive in `client/src/engine/runtime/useGameCanvasFramePipeline.ts`.
-- `useGameCanvasControllerRuntime` already consumes host-owned refs and host-owned build state, but input handling and some controller snapshot shaping are still React hook producers.
+- `useGameCanvasControllerRuntime` already consumes host-owned refs, host-owned build state, and host-owned input snapshot state; E-hold timer/bookkeeping, jump-offset animation state, raw input/cooldown gates, radial-menu transient bookkeeping, mobile tap trigger dispatch, DOM input listener lifecycle, frame action processing, and final controller snapshot/frame-ref assembly now live in host-owned runtime code, while input event handler bodies/action dispatch are still React hook producers.
 - Ambient effects, ambient audio, and particle production now live behind `GameCanvasRuntimeHost`.
 - Pointer tracking and build/repair target selection for render/input/mobile taps now live behind `GameCanvasRuntimeHost`.
-- React still produces scene and controller snapshots in `GameCanvas`, then synchronizes them directly through host configuration methods.
+- React still produces the scene snapshot and some controller input data in `GameCanvas`, then synchronizes them directly through host configuration methods.
 - Cloud/grass interpolation, falling-tree animation, projectile presentation, world lookup caches, the day/night mask runtime, and viewport/entity filtering now live behind `GameCanvasRuntimeHost`.
 - Render-context assembly now lives behind `GameCanvasRuntimeHost.configureRenderContextFromSnapshots()`, with the React render hook reduced to lifecycle/config glue.
 - The procedural world renderer cache/transition optimizations are orthogonal to this plan. They improve render hot paths but do not materially change runtime ownership.
@@ -63,7 +63,7 @@ flowchart LR
 Still React-produced:
 
 - Scene snapshot: `useGameCanvasSceneRuntime`, `useGameScreenWorldTables`, and `useUITable`.
-- Controller snapshot: `useGameCanvasControllerRuntime`, `useGameCanvasInteractionRuntime`, and `useInputHandler`.
+- Controller runtime inputs: `useGameCanvasControllerRuntime`, `useGameCanvasInteractionRuntime`, and `useInputHandler`; `GameCanvasRuntimeHost` now owns final controller snapshot/frame-ref assembly, and `GameCanvasInputRuntime` owns the mutable input snapshot state, E-hold timer/bookkeeping, jump-offset animation state, raw input/cooldown gates, radial-menu transient bookkeeping, mobile tap trigger dispatch, DOM input listener lifecycle, and frame action processing they consume.
 - Render config glue: `configureGameCanvasRenderRuntime` passes stable config into host-owned render-context assembly.
 
 Already host-owned enough to build on:
@@ -178,6 +178,7 @@ Plan:
 - Completed: push render-context assembly into the host so React passes only stable config/assets/DOM refs.
 - Completed: keep browser-bound assets and DOM refs configured from React, but stop recomputing the full render context in a hook.
 - Completed: split the render input bag into stable host config, live host snapshots/refs, and per-frame render parameters before moving it wholesale.
+- Completed: move render scratch refs and shared frame refs into `GameCanvasRuntimeHost`, so `GameCanvas` no longer owns render hot-path bookkeeping refs.
 - Completed: render hook is now tiny config/lifecycle glue around host-owned context assembly.
 
 ## Stage 6: Migrate Core Controller Behavior
@@ -205,7 +206,17 @@ Plan:
 - Completed: remove the remote-player interpolation wrapper; frame assembly now consumes the existing runtime interpolation singleton directly.
 - Completed: move building placement mode, placement reducer calls, equipment checks, spatial indexes, and triangle-shape prediction into `BuildingPlacementRuntime`, with React only subscribing for overlay updates.
 - Completed: remove the build-state React adapter; controller build state is assembled through `GameCanvasRuntimeHost.configureControllerBuildRuntimeState()`.
-- In progress: move input timers/actions and controller snapshot production out of React hooks.
+- Completed: move input snapshot state for auto-attack, crouch, hold progress, radial menu state, optimistic projectiles, jump offset publication, and frame input callback publication into `GameCanvasInputRuntime`, owned by `GameCanvasRuntimeHost`.
+- Completed: move E-hold interaction timer/bookkeeping and hold-completion reducer dispatch into `GameCanvasInputRuntime`.
+- Completed: move per-frame jump offset animation maps/current value into `GameCanvasInputRuntime`.
+- Completed: move crouch pending, mouse-held, jump-release, melee cooldown/suppression, and ranged cooldown gates into `GameCanvasInputRuntime`.
+- Completed: move right-click/radial-menu timeout and upgrade-target bookkeeping into `GameCanvasInputRuntime`.
+- Completed: move mobile interaction trigger dedupe, unavailable-target feedback, and tap reducer dispatch into `GameCanvasInputRuntime`.
+- Completed: drive mobile interaction target-info publication and trigger processing from the host frame pipeline instead of React effects.
+- Completed: move window/canvas input listener binding and cleanup into `GameCanvasInputRuntime`.
+- Completed: move per-frame input/action processing decisions into `GameCanvasInputRuntime`, with React only passing current refs/callbacks.
+- Completed: move final controller frame-state synchronization and controller snapshot assembly into `GameCanvasRuntimeHost.configureControllerSnapshotFromRuntime()`.
+- In progress: move remaining input event/action dispatch out of React hooks.
 - Keep React limited to event capture and minimal subscriptions.
 
 ## Stage 7: Migrate Scene Production Last

@@ -19,11 +19,11 @@
  * 4. BUILDING: Delegates to the host-owned building placement runtime for foundation/wall/door/fence
  *    placement. Handles placement mode activation and cancellation.
  *
- * Performance: Uses refs for closest entity IDs to avoid re-renders on every
- * interaction check. Tap-to-walk and mobile controls supported.
+ * Performance: Reads latest values and host-owned runtime state without re-rendering
+ * on every interaction check. Tap-to-walk and mobile controls supported.
  */
 
-import { useEffect, useRef, useState, useCallback, useMemo, RefObject, MutableRefObject } from 'react';
+import { useEffect, useSyncExternalStore, useCallback, useMemo, MutableRefObject } from 'react';
 import { useLatest } from './useLatest';
 import { DbConnection } from '../generated';
 import {
@@ -37,13 +37,13 @@ import {
     RangedWeaponStats,
     ItemCategory,
 } from '../generated/types';
-import type { Projectile, PlayerDiscoveredCairn, HarvestableResource } from '../generated/types';
+import type { Projectile, PlayerDiscoveredCairn } from '../generated/types';
 import { Identity } from 'spacetimedb';
 import { PlacementItemInfo, PlacementActions } from './usePlacementManager'; // Assuming usePlacementManager exports these
 import { BuildingMode } from '../engine/runtime/buildingPlacementRuntime';
 import React from 'react';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
-import { JUMP_DURATION_MS, JUMP_HEIGHT_PX, HOLD_INTERACTION_DURATION_MS, REVIVE_HOLD_DURATION_MS } from '../config/gameConfig';
+import { HOLD_INTERACTION_DURATION_MS, REVIVE_HOLD_DURATION_MS } from '../config/gameConfig';
 import { DEFAULT_MELEE_ATTACK_RANGE, SPEAR_MELEE_ATTACK_RANGE } from '../config/combatConstants';
 import { isPlacementTooFar } from '../utils/renderers/placementRenderingUtils';
 import { 
@@ -61,21 +61,8 @@ import {
 } from '../types/interactions';
 import type { InteractionTargetRuntimeResult } from '../engine/runtime/interactionTargetRuntime';
 import { hasWaterContent, getWaterContent, getWaterCapacity, isWaterContainer } from '../utils/waterContainerHelpers';
-import { 
-    isCampfire,
-    isHarvestableResource,
-    isDroppedItem,
-    isWoodenStorageBox,
-    isStash,
-    isPlayerCorpse,
-    isSleepingBag,
-    isKnockedOutPlayer,
-    isRainCollector,
-    isLantern,
-    isBarrel
-} from '../utils/typeGuards';
 import { wasAlkPanelJustClosed } from '../components/AlkDeliveryPanel';
-import { CAIRN_LORE_TIDBITS, CairnLoreEntry } from '../data/cairnLoreData';
+import { CAIRN_LORE_TIDBITS } from '../data/cairnLoreData';
 import { Cairn as SpacetimeDBCairn } from '../generated/types';
 import { createCairnLoreAudio, isCairnAudioPlaying, getTotalCairnLoreCount, stopCairnLoreAudio } from '../utils/cairnAudioUtils';
 import { previewSeaweedHarvestBlockedIfNeeded, playImmediateSound } from './useSoundSystem';
@@ -89,7 +76,10 @@ import { triggerAnimalCorpseShakeOptimistic } from '../utils/renderers/animalCor
 import { triggerPlayerCorpseShakeOptimistic } from '../utils/renderers/playerCorpseRenderingUtils';
 import { triggerPlayerShakeOptimistic } from '../utils/renderers/playerRenderingUtils';
 import { triggerAnimalShakeOptimistic } from '../utils/renderers/wildAnimalRenderingUtils';
-import { runtimeEngine } from '../engine/runtimeEngine';
+import type {
+    GameCanvasInputInteractionProgressState,
+    GameCanvasInputRuntime,
+} from '../engine/runtime/gameCanvasInputRuntime';
 
 // --- Constants (Copied from GameCanvas) ---
 /** Immediate hit SFX on optimistic harvest target (matches server barrel variant rules in barrel.rs). */
@@ -108,10 +98,8 @@ function barrelHarvestPredictSound(variant: number): HarvestHitPredictSound {
 }
 
 const SWING_COOLDOWN_MS = 500;
-const PLAYER_RADIUS = 32;
 const TREE_COLLISION_Y_OFFSET = 60; // Match server tree.rs
 const OPTIMISTIC_AXE_RANGE = DEFAULT_MELEE_ATTACK_RANGE;
-const OPTIMISTIC_PICK_RANGE = DEFAULT_MELEE_ATTACK_RANGE;
 const OPTIMISTIC_SPEAR_RANGE = SPEAR_MELEE_ATTACK_RANGE;
 
 function getReducerErrorMessage(err: unknown): string {
@@ -177,7 +165,7 @@ interface InputHandlerProps {
     isAutoWalking: boolean; // Auto-walk state for dodge roll detection
     onDodgeRollStart?: (moveX: number, moveY: number) => boolean | void; // Optional optimistic local dodge start hook; returns false to skip reducer call
     /** Shared with canvas render (same pattern as dodge); immediate jump arc for local player. */
-    localOptimisticJumpPressMsRef?: MutableRefObject<number>;
+    localOptimisticJumpPressMsRef: MutableRefObject<number>;
     targetedFoundation: any | null; // ADDED: Targeted foundation for upgrade menu
     targetedWall: any | null; // ADDED: Targeted wall for upgrade menu
     targetedFence: any | null; // ADDED: Targeted fence for repair/demolish
@@ -187,6 +175,7 @@ interface InputHandlerProps {
         targetedFence: any | null;
     }>;
     onProfilerRecordClick?: (canvasX: number, canvasY: number) => boolean; // Profiler Record button hit test
+    inputRuntime: GameCanvasInputRuntime;
 }
 
 // --- Hook Return Value Interface ---
@@ -210,11 +199,7 @@ export interface InputHandlerState {
     processInputsAndActions: () => void;
 }
 
-interface InteractionProgressState {
-    targetId: number | bigint | string | null;
-    targetType: InteractionTargetType;
-    startTime: number;
-}
+type InteractionProgressState = GameCanvasInputInteractionProgressState;
 
 /** Check if target (tx, ty) is in player's attack cone. Matches server combat::find_targets_in_cone. */
 function isInAttackCone(
@@ -300,8 +285,6 @@ export const useInputHandler = ({
     barrels,
     animalCorpses,
     wildAnimals,
-    woodenStorageBoxes,
-    stashes,
     players,
     cairns, // ADDED: Cairns for lore lookup
     playerDiscoveredCairns, // ADDED: Player discovery tracking
@@ -330,46 +313,43 @@ export const useInputHandler = ({
     rangedWeaponStats, // ADDED: For auto-fire detection
     serverProjectiles,
     onProfilerRecordClick,
+    inputRuntime,
 }: InputHandlerProps): InputHandlerState => {
     // console.log('[useInputHandler IS RUNNING] isInventoryOpen:', isInventoryOpen);
     // Get player actions from the context instead of props
     const { jump } = usePlayerActions();
 
-    // --- Client-side animation tracking ---
-    const clientJumpStartTimes = useRef<Map<string, number>>(new Map());
-    const lastKnownServerJumpTimes = useRef<Map<string, number>>(new Map()); // Track last known server timestamps
-
     // --- Internal State and Refs ---
-    const [isAutoAttacking, setIsAutoAttacking] = useState(false);
-    const [isCrouching, setIsCrouching] = useState(false);
-    const [optimisticProjectiles, setOptimisticProjectiles] = useState<Map<string, Projectile>>(new Map());
-    const pendingCrouchToggleRef = useRef<boolean>(false); // Track pending crouch requests
+    const inputRuntimeState = useSyncExternalStore(
+        inputRuntime.subscribe,
+        inputRuntime.getSnapshot,
+        inputRuntime.getSnapshot,
+    );
+    const {
+        interactionProgress,
+        isActivelyHolding,
+        isAutoAttacking,
+        isCrouching,
+        showBuildingRadialMenu,
+        showUpgradeRadialMenu,
+        radialMenuMouseX,
+        radialMenuMouseY,
+        optimisticProjectiles,
+    } = inputRuntimeState;
+    const {
+        setInteractionProgress,
+        setIsActivelyHolding,
+        setIsAutoAttacking,
+        setIsCrouching,
+        setShowBuildingRadialMenu,
+        setShowUpgradeRadialMenu,
+        setRadialMenuMouseX,
+        setRadialMenuMouseY,
+    } = inputRuntime;
     const isAutoWalkingRef = useLatest(isAutoWalking); // Track auto-walk state for event handlers
 
-    const keysPressed = useRef<Set<string>>(new Set());
-    const isEHeldDownRef = useRef<boolean>(false);
-    const isMouseDownRef = useRef<boolean>(false);
-    /** Monotonic next swing time (performance.now); single source of truth for held-attack cadence. */
-    const nextMeleeSwingAllowedPerfRef = useRef<number>(0);
-    /** When equipped weapon (or unarmed) changes, reset cadence so the first swing on the new item is immediate. */
-    const lastMeleeCooldownKeyRef = useRef<string>('');
-    const lastRangedFireTimeRef = useRef<number>(0); // ADDED: Track last ranged weapon fire time for auto-fire
-    /** Skip one game-loop melee tick after mousedown (mousedown + processInputs both used to swing). */
-    const suppressMeleeHeldTickAfterMouseDownRef = useRef<boolean>(false);
-    /** After a successful jump, ignore space for jump until keyup (avoids bounce / chord duplicates). */
-    const spaceJumpNeedsReleaseRef = useRef<boolean>(false);
-    const eKeyDownTimestampRef = useRef<number>(0);
-    const eKeyHoldTimerRef = useRef<NodeJS.Timeout | number | null>(null); // Use number for browser timeout ID
-    const tapActionTriggeredOnKeyDownRef = useRef<boolean>(false); // Track if tap action was already triggered on keyDown
-    const [interactionProgress, setInteractionProgress] = useState<InteractionProgressState | null>(null);
-    const [isActivelyHolding, setIsActivelyHolding] = useState<boolean>(false);
-    // Use ref for jump offset to avoid re-renders every frame
-    const currentJumpOffsetYRef = useRef<number>(0);
-    const lastSyncedJumpOffsetYRef = useRef<number>(0);
-    const internalJumpOptFallbackRef = useRef<number>(0);
-    const jumpOptRef = localOptimisticJumpPressMsRef ?? internalJumpOptFallbackRef;
+    const jumpOptRef = localOptimisticJumpPressMsRef;
 
-    const lastMovementDirectionRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 1 });
     const movementDirectionRef = useLatest(movementDirection);
     const onDodgeRollStartRef = useLatest(onDodgeRollStart);
 
@@ -387,7 +367,6 @@ export const useInputHandler = ({
             return getUnifiedInteractionTarget(interactionTargetRef?.current) ?? latestClosestTargetRef.current;
         },
     }), [interactionTargetRef, latestClosestTargetRef]);
-    const onSetInteractingWithRef = useLatest(onSetInteractingWith);
     const latestWorldMousePosRef = useLatest(worldMousePos);
     const worldMousePosRefInternal = worldMousePosRef ?? latestWorldMousePosRef;
     const treesRef = useLatest(trees);
@@ -397,8 +376,6 @@ export const useInputHandler = ({
     const animalCorpsesRef = useLatest(animalCorpses);
     const playerCorpsesRef = useLatest(playerCorpses);
     const wildAnimalsRef = useLatest(wildAnimals);
-    const woodenStorageBoxesRef = useLatest(woodenStorageBoxes);
-    const stashesRef = useLatest(stashes);
     const playersRef = useLatest(players);
     const targetedFoundationRef = useLatest(targetedFoundation);
     const targetedWallRef = useLatest(targetedWall);
@@ -406,60 +383,9 @@ export const useInputHandler = ({
     const buildTargetingRefInternal = buildTargetingRef;
     const itemDefinitionsRef = useLatest(itemDefinitions);
     const rangedWeaponStatsRef = useLatest(rangedWeaponStats); // ADDED: Ref for ranged weapon stats
-    const optimisticProjectileSeqRef = useRef<number>(0);
-    const optimisticProjectileCleanupTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-    const lastOptimisticSpawnRef = useRef<{ at: number; fireX: number; fireY: number; targetX: number; targetY: number } | null>(null);
-
-    // Add after existing refs in the hook
-    const isRightMouseDownRef = useRef<boolean>(false);
-    
-    // ADDED: Building radial menu state
-    const [showBuildingRadialMenu, setShowBuildingRadialMenu] = useState(false);
-    const [showUpgradeRadialMenu, setShowUpgradeRadialMenu] = useState(false);
-    const [radialMenuMouseX, setRadialMenuMouseX] = useState(0);
-    const [radialMenuMouseY, setRadialMenuMouseY] = useState(0);
-    const radialMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const radialMenuShownRef = useRef<boolean>(false); // Track if menu is shown to avoid clearing timeout prematurely
-    const upgradeMenuFoundationIdRef = useRef<bigint | null>(null); // Store foundation ID when menu opens
-    const upgradeMenuWallIdRef = useRef<bigint | null>(null); // Store wall ID when menu opens
-    const upgradeMenuFenceIdRef = useRef<bigint | null>(null); // Store fence ID when menu opens
 
     // --- Derive input disabled state based ONLY on player death --- 
     const isPlayerDead = localPlayer?.isDead ?? false;
-
-    useEffect(() => {
-        runtimeEngine.updateInputState('isAutoAttacking', isAutoAttacking);
-    }, [isAutoAttacking]);
-
-    useEffect(() => {
-        runtimeEngine.updateInputState('isCrouching', isCrouching);
-    }, [isCrouching]);
-
-    useEffect(() => {
-        runtimeEngine.updateInputState('interactionProgress', interactionProgress);
-    }, [interactionProgress]);
-
-    useEffect(() => {
-        runtimeEngine.updateInputState('isActivelyHolding', isActivelyHolding);
-    }, [isActivelyHolding]);
-
-    useEffect(() => {
-        runtimeEngine.updateInputState('optimisticProjectiles', optimisticProjectiles as Map<string, unknown>);
-    }, [optimisticProjectiles]);
-
-    useEffect(() => {
-        runtimeEngine.updateUiState('showBuildingRadialMenu', showBuildingRadialMenu);
-        runtimeEngine.updateUiState('showUpgradeRadialMenu', showUpgradeRadialMenu);
-        runtimeEngine.updateUiState('radialMenuMouse', { x: radialMenuMouseX, y: radialMenuMouseY });
-    }, [showBuildingRadialMenu, showUpgradeRadialMenu, radialMenuMouseX, radialMenuMouseY]);
-
-    const syncCurrentJumpOffsetToEngine = useCallback(() => {
-        if (lastSyncedJumpOffsetYRef.current === currentJumpOffsetYRef.current) {
-            return;
-        }
-        lastSyncedJumpOffsetYRef.current = currentJumpOffsetYRef.current;
-        runtimeEngine.updateInputState('currentJumpOffsetY', currentJumpOffsetYRef.current);
-    }, []);
 
     // --- Effect to reset sprint state if player dies --- 
     useEffect(() => {
@@ -467,20 +393,15 @@ export const useInputHandler = ({
         // It's handled by the movement hooks.
 
         // Also clear E hold state if player dies
-        if (localPlayer?.isDead && isEHeldDownRef.current) {
-            // console.log(`[E-Timer] *** PLAYER DEATH CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
-            isEHeldDownRef.current = false;
-            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current as number);
-            eKeyHoldTimerRef.current = null;
-            setInteractionProgress(null);
-            setIsActivelyHolding(false);
+        if (localPlayer?.isDead && inputRuntime.isEHoldActive()) {
+            inputRuntime.cancelEHoldInteraction();
         }
         // Also clear auto-attack state if player dies
         if (localPlayer?.isDead && isAutoAttacking) {
             setIsAutoAttacking(false);
         }
         // Auto-walk removed - movement handled by usePredictedMovement
-    }, [localPlayer?.isDead]); // Depend on death state and the reducer callback
+    }, [inputRuntime, localPlayer?.isDead, isAutoAttacking, setIsAutoAttacking]); // Depend on death state and the reducer callback
 
     // Building refs - using useLatest to avoid stale closures
     const buildingActionsRef = useLatest(buildingActions);
@@ -490,335 +411,47 @@ export const useInputHandler = ({
     useEffect(() => {
         if (!showUpgradeRadialMenu) {
             // Menu closed - reset all refs to allow menu to open again
-            upgradeMenuFoundationIdRef.current = null;
-            upgradeMenuWallIdRef.current = null;
-            upgradeMenuFenceIdRef.current = null;
-            radialMenuShownRef.current = false;
+            inputRuntime.clearUpgradeMenuTargetIds();
+            inputRuntime.setRadialMenuShown(false);
             // Clear any pending timeout
-            if (radialMenuTimeoutRef.current) {
-                clearTimeout(radialMenuTimeoutRef.current);
-                radialMenuTimeoutRef.current = null;
-            }
+            inputRuntime.clearRadialMenuTimeout();
         }
-    }, [showUpgradeRadialMenu]);
+    }, [inputRuntime, showUpgradeRadialMenu]);
 
     // ADDED: Reset building menu refs when menu closes
     useEffect(() => {
         if (!showBuildingRadialMenu) {
             // Building menu closed - reset refs
-            radialMenuShownRef.current = false;
+            inputRuntime.setRadialMenuShown(false);
             // Clear any pending timeout
-            if (radialMenuTimeoutRef.current) {
-                clearTimeout(radialMenuTimeoutRef.current);
-                radialMenuTimeoutRef.current = null;
-            }
+            inputRuntime.clearRadialMenuTimeout();
         }
-    }, [showBuildingRadialMenu]);
-
-    const createClientShotId = useCallback(() => {
-        const seq = optimisticProjectileSeqRef.current++;
-        return `${localPlayerId ?? 'local'}:${Date.now()}:${seq}`;
-    }, [localPlayerId]);
-
-    const spawnOptimisticProjectile = useCallback((
-        targetX: number,
-        targetY: number,
-        fireX: number,
-        fireY: number,
-        equippedItemDefId: bigint,
-        loadedAmmoDefId: bigint | undefined,
-        weaponName: string | undefined,
-        allowAmmoFallbackToEquipped: boolean = false,
-        forcedProjectileSpeed?: number,
-        forcedMaxRange?: number,
-        clientShotId?: string,
-        forcedLifetimeMs?: number,
-    ) => {
-        const player = localPlayerRef.current;
-        if (!player) return;
-        // For ranged fire, only render optimistic projectile when ammo is actually loaded.
-        // For thrown items, allow explicit fallback to equipped def id (ammo == item).
-        const resolvedAmmoDefId = loadedAmmoDefId ?? (allowAmmoFallbackToEquipped ? equippedItemDefId : undefined);
-        if (resolvedAmmoDefId === undefined) return;
-
-        const dx = targetX - fireX;
-        const dy = targetY - fireY;
-        const distance = Math.hypot(dx, dy);
-        if (distance < 1) return;
-
-        const weaponStats = weaponName ? rangedWeaponStatsRef.current?.get(weaponName) : undefined;
-        const projectileSpeed = forcedProjectileSpeed ?? weaponStats?.projectileSpeed ?? 700;
-        const velocityX = (dx / distance) * projectileSpeed;
-        const velocityY = (dy / distance) * projectileSpeed;
-
-        const nowMs = Date.now();
-        const last = lastOptimisticSpawnRef.current;
-        if (
-            last &&
-            nowMs - last.at < 50 &&
-            Math.abs(last.fireX - fireX) < 1 &&
-            Math.abs(last.fireY - fireY) < 1 &&
-            Math.abs(last.targetX - targetX) < 1 &&
-            Math.abs(last.targetY - targetY) < 1
-        ) {
-            // Deduplicate mousedown+click dual event paths for one physical shot.
-            return;
-        }
-        lastOptimisticSpawnRef.current = { at: nowMs, fireX, fireY, targetX, targetY };
-
-        const seq = optimisticProjectileSeqRef.current++;
-        const shotId = clientShotId ?? createClientShotId();
-        const syntheticId = 9_000_000_000_000_000_000n + BigInt(nowMs) * 1000n + BigInt(seq % 1000);
-        const key = shotId;
-
-        const optimisticProjectile: Projectile = {
-            id: syntheticId,
-            clientShotId: shotId,
-            ownerId: player.identity,
-            itemDefId: equippedItemDefId,
-            ammoDefId: resolvedAmmoDefId,
-            sourceType: 0, // PROJECTILE_SOURCE_PLAYER
-            npcProjectileType: 0,
-            startTime: { microsSinceUnixEpoch: BigInt(nowMs) * 1000n } as any,
-            startPosX: fireX,
-            startPosY: fireY,
-            velocityX,
-            velocityY,
-            maxRange: forcedMaxRange ?? weaponStats?.weaponRange ?? 1200,
-        };
-
-        setOptimisticProjectiles(prev => {
-            const next = new Map(prev);
-            next.set(key, optimisticProjectile);
-            return next;
-        });
-
-        const existingTimer = optimisticProjectileCleanupTimersRef.current.get(key);
-        if (existingTimer) clearTimeout(existingTimer);
-        const estimatedFlightMs = forcedLifetimeMs ?? Math.min(
-            2200,
-            Math.max(500, ((optimisticProjectile.maxRange / Math.max(projectileSpeed, 1)) * 1000) + 250)
-        );
-        const timer = setTimeout(() => {
-            setOptimisticProjectiles(prev => {
-                if (!prev.has(key)) return prev;
-                const next = new Map(prev);
-                next.delete(key);
-                return next;
-            });
-            optimisticProjectileCleanupTimersRef.current.delete(key);
-        }, estimatedFlightMs);
-        optimisticProjectileCleanupTimersRef.current.set(key, timer);
-    }, [createClientShotId, localPlayerRef, rangedWeaponStatsRef]);
+    }, [inputRuntime, showBuildingRadialMenu]);
 
     useEffect(() => {
-        return () => {
-            optimisticProjectileCleanupTimersRef.current.forEach(timer => clearTimeout(timer));
-            optimisticProjectileCleanupTimersRef.current.clear();
-        };
-    }, []);
-
-    useEffect(() => {
-        if (!localPlayerId || optimisticProjectiles.size === 0 || !serverProjectiles || serverProjectiles.size === 0) {
-            return;
-        }
-
-        const authoritativeLocalShotIds = new Set<string>();
-        serverProjectiles.forEach((projectile) => {
-            const ownerId =
-                typeof (projectile as any).ownerId === 'string'
-                    ? (projectile as any).ownerId
-                    : projectile.ownerId?.toHexString?.();
-            if (ownerId !== localPlayerId || projectile.sourceType !== 0) return;
-            const clientShotId = projectile.clientShotId?.trim?.() ?? '';
-            if (clientShotId) authoritativeLocalShotIds.add(clientShotId);
-        });
-
-        if (authoritativeLocalShotIds.size === 0) return;
-
-        setOptimisticProjectiles(prev => {
-            let changed = false;
-            const next = new Map(prev);
-            authoritativeLocalShotIds.forEach((shotId) => {
-                if (!next.has(shotId)) return;
-                changed = true;
-                next.delete(shotId);
-                const timer = optimisticProjectileCleanupTimersRef.current.get(shotId);
-                if (timer) clearTimeout(timer);
-                optimisticProjectileCleanupTimersRef.current.delete(shotId);
-            });
-            return changed ? next : prev;
-        });
-    }, [localPlayerId, optimisticProjectiles.size, serverProjectiles]);
+        inputRuntime.reconcileAuthoritativeProjectiles(localPlayerId, serverProjectiles);
+    }, [inputRuntime, localPlayerId, optimisticProjectiles.size, serverProjectiles]);
 
     // ADDED: Clear radial menu state when building mode ends (switching tools)
     useEffect(() => {
         if (!buildingState?.isBuilding) {
             // Building mode ended - clear all radial menu state
-            radialMenuShownRef.current = false;
+            inputRuntime.setRadialMenuShown(false);
             setShowBuildingRadialMenu(false);
-            if (radialMenuTimeoutRef.current) {
-                clearTimeout(radialMenuTimeoutRef.current);
-                radialMenuTimeoutRef.current = null;
-            }
+            inputRuntime.clearRadialMenuTimeout();
         }
-    }, [buildingState?.isBuilding]);
+    }, [buildingState?.isBuilding, inputRuntime, setShowBuildingRadialMenu]);
 
     // Synchronize local crouch state with server state to prevent desync
     // Don't override optimistic state while pending requests are in flight
     useEffect(() => {
-        if (localPlayer?.isCrouching !== undefined && !pendingCrouchToggleRef.current) {
+        if (localPlayer?.isCrouching !== undefined && !inputRuntime.isCrouchTogglePending()) {
             setIsCrouching(localPlayer.isCrouching);
         }
-    }, [localPlayer?.isCrouching]);
+    }, [inputRuntime, localPlayer?.isCrouching, setIsCrouching]);
 
     // Jump offset calculation is now handled directly in processInputsAndActions
     // to avoid React re-renders every frame
-
-    // --- Timer Management Functions (Outside of useEffect to avoid cleanup issues) ---
-    const startHoldTimer = useCallback((holdTarget: InteractionProgressState, connection: DbConnection) => {
-        // Calculate duration based on target type using helper functions
-        const currentTarget = closestTargetRef.current;
-        const duration = currentTarget && holdTarget.targetType === 'knocked_out_player' ? 
-            getHoldDuration(currentTarget) : 
-            currentTarget && hasSecondaryHoldAction(currentTarget) ? 
-                getSecondaryHoldDuration(currentTarget) : 
-                HOLD_INTERACTION_DURATION_MS;
-
-        console.log(`[E-Timer] Setting up timer for ${duration}ms - holdTarget:`, holdTarget);
-        const timerId = setTimeout(() => {
-            try {
-                // console.log(`[E-Timer] *** TIMER FIRED *** after ${duration}ms for:`, holdTarget);
-                // Timer fired, so this is a successful HOLD action.
-                // Re-check if we are still close to the original target using unified system
-                const currentTarget = closestTargetRef.current;
-                console.log(`[E-Timer] Current target check:`, currentTarget ? formatTargetForLogging(currentTarget) : 'null');
-
-                let actionTaken = false;
-
-                // Validate that we still have the same target
-                const targetStillValid = currentTarget && 
-                    currentTarget.type === holdTarget.targetType && 
-                    currentTarget.id === holdTarget.targetId &&
-                    isTargetValid(currentTarget);
-
-                if (targetStillValid) {
-                    switch (holdTarget.targetType) {
-                        case 'knocked_out_player':
-                            console.log('[E-Hold ACTION] Attempting to revive player:', holdTarget.targetId);
-                            connection.reducers.reviveKnockedOutPlayer({ targetPlayerId: Identity.fromString(holdTarget.targetId as string) });
-                            actionTaken = true;
-                            break;
-                        case 'water':
-                            console.log('[E-Hold ACTION] Attempting to drink water');
-                            connection.reducers.drinkWater({});
-                            actionTaken = true;
-                            break;
-                        case 'campfire':
-                            console.log('[E-Hold ACTION] Attempting to toggle campfire burning:', holdTarget.targetId);
-                            connection.reducers.toggleCampfireBurning({ campfireId: Number(holdTarget.targetId) });
-                            actionTaken = true;
-                            break;
-                        case 'furnace':
-                            console.log('[E-Hold ACTION] Attempting to toggle furnace burning:', holdTarget.targetId);
-                            connection.reducers.toggleFurnaceBurning({ furnaceId: Number(holdTarget.targetId) });
-                            actionTaken = true;
-                            break;
-                        case 'barbecue':
-                            console.log('[E-Hold ACTION] Attempting to toggle barbecue burning:', holdTarget.targetId);
-                            connection.reducers.toggleBarbecueBurning({ barbecueId: Number(holdTarget.targetId) });
-                            actionTaken = true;
-                            break;
-                        case 'turret' as InteractionTargetType:
-                            // Check if turret is empty (no ammo) and not a monument turret
-                            const turret = turrets?.get(String(holdTarget.targetId));
-                            if (turret && !turret.ammoInstanceId && !turret.isMonument) {
-                                console.log('[E-Hold ACTION] Attempting to pickup empty turret:', holdTarget.targetId);
-                                connection.reducers.pickupTurret({ turretId: Number(holdTarget.targetId) });
-                                actionTaken = true;
-                            }
-                            break;
-                        case 'lantern':
-                            if (currentTarget.data?.isEmpty) {
-                                console.log('[E-Hold ACTION] Attempting to pickup empty lantern:', holdTarget.targetId);
-                                connection.reducers.pickupLantern({ lanternId: Number(holdTarget.targetId) });
-                                actionTaken = true;
-                            } else {
-                                console.log('[E-Hold ACTION] Attempting to toggle lantern burning:', holdTarget.targetId);
-                                connection.reducers.toggleLantern({ lanternId: Number(holdTarget.targetId) });
-                                actionTaken = true;
-                            }
-                            break;
-                        case 'box':
-                            if (currentTarget.data?.isEmpty) {
-                                console.log('[E-Hold ACTION] Attempting to pickup storage box:', holdTarget.targetId);
-                                connection.reducers.pickupStorageBox({ boxId: Number(holdTarget.targetId) });
-                                actionTaken = true;
-                            } else {
-                                console.log('[E-Hold FAILED] Storage box is no longer empty');
-                            }
-                            break;
-                        case 'stash':
-                            console.log('[E-Hold ACTION] Attempting to toggle stash visibility:', holdTarget.targetId);
-                            connection.reducers.toggleStashVisibility({ stashId: Number(holdTarget.targetId) });
-                            actionTaken = true;
-                            break;
-                        case 'homestead_hearth':
-                            console.log('[E-Hold ACTION] Attempting to grant building privilege from hearth:', holdTarget.targetId);
-                            connection.reducers.grantBuildingPrivilegeFromHearth({ hearthId: Number(holdTarget.targetId) });
-                            actionTaken = true;
-                            break;
-                        case 'door':
-                            // Pickup door (owner only - server validates)
-                            console.log('[E-Hold ACTION] Attempting to pickup door:', holdTarget.targetId);
-                            connection.reducers.pickupDoor({ doorId: holdTarget.targetId as bigint });
-                            actionTaken = true;
-                            break;
-                        default:
-                            console.log('[E-Hold FAILED] Unknown target type:', holdTarget.targetType);
-                    }
-                } else {
-                    console.log('[E-Hold FAILED] Target no longer valid. Expected:', holdTarget.targetType, holdTarget.targetId, 'Current:', currentTarget ? formatTargetForLogging(currentTarget) : 'null');
-                }
-
-                // Clean up UI and state
-                // console.log(`[E-Timer] *** TIMER COMPLETE *** Action taken:`, actionTaken);
-                setInteractionProgress(null);
-                setIsActivelyHolding(false);
-                isEHeldDownRef.current = false; // Reset the master hold flag
-                eKeyHoldTimerRef.current = null; // Clear the timer ref itself
-            } catch (error) {
-                // console.error(`[E-Timer] ERROR in timer callback:`, error);
-                // Clean up state even if there was an error
-                setInteractionProgress(null);
-                setIsActivelyHolding(false);
-                isEHeldDownRef.current = false;
-                eKeyHoldTimerRef.current = null;
-            }
-        }, duration);
-
-        eKeyHoldTimerRef.current = timerId;
-        // console.log(`[E-Timer] Timer assigned to ref. Timer ID:`, timerId);
-
-        // Debug: Check if timer ref gets cleared unexpectedly
-        setTimeout(() => {
-            if (eKeyHoldTimerRef.current === null) {
-                // console.log(`[E-Timer] *** TIMER REF WAS CLEARED *** Timer ${timerId} ref became null before 250ms!`);
-            } else if (eKeyHoldTimerRef.current !== timerId) {
-                // console.log(`[E-Timer] *** TIMER REF CHANGED *** Timer ${timerId} ref is now:`, eKeyHoldTimerRef.current);
-            } else {
-                // console.log(`[E-Timer] Timer ${timerId} ref still valid at 100ms checkpoint`);
-            }
-        }, 100);
-    }, []);
-
-    const clearHoldTimer = useCallback(() => {
-        if (eKeyHoldTimerRef.current) {
-            // console.log(`[E-Timer] Clearing timer manually. Timer ID:`, eKeyHoldTimerRef.current);
-            clearTimeout(eKeyHoldTimerRef.current as number);
-            eKeyHoldTimerRef.current = null;
-        }
-    }, []);
 
     // --- Attempt Swing Function (extracted from canvas click logic) ---
     const attemptSwing = useCallback(() => {
@@ -840,17 +473,14 @@ export const useInputHandler = ({
                 ? 'unarmed'
                 : String(localEquipment.equippedItemDefId);
 
-        if (lastMeleeCooldownKeyRef.current !== cooldownKey) {
-            lastMeleeCooldownKeyRef.current = cooldownKey;
-            nextMeleeSwingAllowedPerfRef.current = 0;
-        }
+        inputRuntime.ensureMeleeCooldownKey(cooldownKey);
 
         if (!localEquipment || localEquipment.equippedItemDefId === null || localEquipment.equippedItemInstanceId === null) {
             // Server-side use_equipped_item intentionally requires an item. Empty hands
             // have no gameplay action, so do not send a reducer that will reject.
-            isMouseDownRef.current = false;
-            suppressMeleeHeldTickAfterMouseDownRef.current = false;
-            nextMeleeSwingAllowedPerfRef.current = performance.now() + SWING_COOLDOWN_MS;
+            inputRuntime.setIsMouseDown(false);
+            inputRuntime.clearMeleeHeldTickSuppression();
+            inputRuntime.blockMeleeSwingFor(SWING_COOLDOWN_MS);
             return;
         } else {
             // Armed (melee/tool)
@@ -860,12 +490,12 @@ export const useInputHandler = ({
                 return;
             }
             const nowPerf = performance.now();
-            if (nowPerf < nextMeleeSwingAllowedPerfRef.current) return;
+            if (!inputRuntime.canMeleeSwing(nowPerf)) return;
             const attackIntervalMs = Math.max(
                 50,
                 itemDef.attackIntervalSecs ? itemDef.attackIntervalSecs * 1000 : SWING_COOLDOWN_MS
             );
-            suppressMeleeHeldTickAfterMouseDownRef.current = true;
+            inputRuntime.suppressNextMeleeHeldTick();
             try {
                 // 🎬 CLIENT-AUTHORITATIVE ANIMATION: Register swing immediately for smooth visuals
                 registerLocalPlayerSwing();
@@ -987,15 +617,15 @@ export const useInputHandler = ({
                 connectionRef.current.reducers.useEquippedItem({})
                     .catch((err: unknown) => {
                         console.warn('[attemptSwing Armed] useEquippedItem failed:', getReducerErrorMessage(err));
-                        nextMeleeSwingAllowedPerfRef.current = performance.now() + 50;
+                        inputRuntime.blockMeleeSwingFor(50);
                     });
-                nextMeleeSwingAllowedPerfRef.current = nowPerf + attackIntervalMs;
+                inputRuntime.setNextMeleeSwingAllowedPerf(nowPerf + attackIntervalMs);
             } catch (err) {
                 console.error("[attemptSwing Armed] Error calling useEquippedItem reducer:", err);
-                nextMeleeSwingAllowedPerfRef.current = performance.now() + 50;
+                inputRuntime.blockMeleeSwingFor(50);
             }
         }
-    }, [localPlayerId, isFishing]); // 🎣 FISHING INPUT FIX: Add isFishing dependency
+    }, [inputRuntime, localPlayerId, isFishing]); // 🎣 FISHING INPUT FIX: Add isFishing dependency
 
     // Unified ranged fire: single dispatch path for click and held-auto-fire, shared cooldown
     const attemptRangedFire = useCallback(() => {
@@ -1007,14 +637,14 @@ export const useInputHandler = ({
         const weaponStats = rangedWeaponStatsRef.current?.get(itemDef.name || "");
         const fireIntervalMs = (weaponStats?.reloadTimeSecs ?? 0.1) * 1000;
         const now = performance.now();
-        if (now - lastRangedFireTimeRef.current < fireIntervalMs) return;
+        if (!inputRuntime.canFireRanged(fireIntervalMs, now)) return;
         const currentPlayer = localPlayerRef.current;
         if (!currentPlayer) return;
         const exactPos = getCurrentPositionNowRef.current?.();
         const fallbackPos = predictedPositionRef.current;
         const fireX = exactPos?.x ?? fallbackPos?.x ?? currentPlayer.positionX;
         const fireY = exactPos?.y ?? fallbackPos?.y ?? currentPlayer.positionY;
-        const clientShotId = createClientShotId();
+        const clientShotId = inputRuntime.createClientShotId(localPlayerId);
         registerLocalPlayerRangedShot(itemDef.name);
         connectionRef.current.reducers.fireProjectile({
             targetWorldX: worldMousePosRefInternal.current.x,
@@ -1023,8 +653,14 @@ export const useInputHandler = ({
             clientPlayerY: fireY,
             clientShotId,
         });
-        lastRangedFireTimeRef.current = now;
-    }, [localPlayerId, spawnOptimisticProjectile]);
+        inputRuntime.markRangedFire(now);
+    }, [inputRuntime, localPlayerId]);
+
+    useEffect(() => {
+        return inputRuntime.bindDomInputEvents({
+            getCanvas: () => canvasRef?.current ?? null,
+        });
+    }, [canvasRef, inputRuntime]);
 
     // --- Input Event Handlers ---
     useEffect(() => {
@@ -1098,11 +734,11 @@ export const useInputHandler = ({
                             return; // Don't allow crouching on water
                         }
                         setIsCrouching(prev => {
-                            pendingCrouchToggleRef.current = true; // Mark as pending
+                            inputRuntime.setCrouchTogglePending(true);
                             connectionRef.current?.reducers.toggleCrouch({});
                             // Clear pending flag after a brief delay (server should respond by then)
                             setTimeout(() => {
-                                pendingCrouchToggleRef.current = false;
+                                inputRuntime.setCrouchTogglePending(false);
                             }, 200); // 200ms should be enough for server response
                             return !prev;
                         });
@@ -1182,7 +818,7 @@ export const useInputHandler = ({
                     const isMoving = Math.abs(moveX) > 0.01 || Math.abs(moveY) > 0.01 || isAutoWalkingRef.current;
 
                     if (isMoving) {
-                        spaceJumpNeedsReleaseRef.current = false;
+                        inputRuntime.setJumpNeedsRelease(false);
                         if (localPlayerRef.current.isOnWater) {
                             console.log('[Input] Dodge roll blocked - player is on water');
                             return;
@@ -1204,18 +840,18 @@ export const useInputHandler = ({
                         }
                     } else {
                         // Jump (only when truly stationary - no manual input AND no auto-walk)
-                        if (spaceJumpNeedsReleaseRef.current) {
+                        if (inputRuntime.shouldIgnoreJumpUntilRelease()) {
                             return;
                         }
                         try {
                             // Optimistic ref only after reducer is actually sent (jump() applies server-aligned throttle).
                             if (jump()) {
-                                jumpOptRef.current = Date.now();
-                                spaceJumpNeedsReleaseRef.current = true;
+                                inputRuntime.markLocalOptimisticJump(jumpOptRef);
+                                inputRuntime.setJumpNeedsRelease(true);
                                 console.log('[Input] Jump triggered (stationary)');
                             }
                         } catch (err) {
-                            jumpOptRef.current = 0;
+                            inputRuntime.clearLocalOptimisticJump(jumpOptRef);
                             console.error("[InputHandler] Error calling jump:", err);
                         }
                     }
@@ -1347,9 +983,8 @@ export const useInputHandler = ({
 
 
             // Interaction key ('e')
-            if (key === 'e' && !event.repeat && !isEHeldDownRef.current) {
-                isEHeldDownRef.current = true;
-                eKeyDownTimestampRef.current = Date.now();
+            if (key === 'e' && !event.repeat && inputRuntime.canBeginEHold()) {
+                inputRuntime.beginEHold();
 
                 const currentConnection = connectionRef.current;
                 if (!currentConnection?.reducers) return;
@@ -1371,7 +1006,7 @@ export const useInputHandler = ({
                         holdTarget = { 
                             targetId: currentTarget.id, 
                             targetType: currentTarget.type,
-                            startTime: eKeyDownTimestampRef.current 
+                            startTime: inputRuntime.getEHoldStartTime(),
                         };
                         console.log('[E-KeyDown] Setting up primary hold target:', holdTarget);
                     } 
@@ -1380,7 +1015,7 @@ export const useInputHandler = ({
                         holdTarget = { 
                             targetId: currentTarget.id, 
                             targetType: currentTarget.type,
-                            startTime: eKeyDownTimestampRef.current 
+                            startTime: inputRuntime.getEHoldStartTime(),
                         };
                         console.log('[E-KeyDown] Setting up secondary hold target:', holdTarget, 'isEmpty:', currentTarget.data?.isEmpty);
                     }
@@ -1388,7 +1023,7 @@ export const useInputHandler = ({
                     else if (isTapInteraction(currentTarget)) {
                         console.log('[E-KeyDown] Immediate tap interaction:', getActionType(currentTarget));
                         // Trigger tap action immediately for vegetables, dropped items, cairns, etc.
-                        tapActionTriggeredOnKeyDownRef.current = true; // Mark that we've triggered the action
+                        inputRuntime.markTapActionTriggeredOnKeyDown(); // Mark that we've triggered the action
                         switch (currentTarget.type) {
                             case 'harvestable_resource':
                                 const resourceId = currentTarget.id as bigint;
@@ -1546,41 +1181,42 @@ export const useInputHandler = ({
                     setInteractionProgress(holdTarget);
                     setIsActivelyHolding(true);
 
-                    startHoldTimer(holdTarget, currentConnection);
+                    inputRuntime.startHoldTimer(holdTarget, currentConnection, {
+                        getCurrentTarget: () => closestTargetRef.current,
+                        getTurret: (targetId) => turrets?.get(String(targetId)),
+                    });
                 }
             }
         };
 
         const handleKeyUp = (event: KeyboardEvent) => {
             const key = event.key.toLowerCase();
-            keysPressed.current.delete(key);
 
             // Movement key handling is now done by useMovementInput hook
             // Only handle non-movement keys here to avoid conflicts
 
             if (event.code === 'Space') {
-                spaceJumpNeedsReleaseRef.current = false;
+                inputRuntime.setJumpNeedsRelease(false);
             }
 
             if (key === 'e') {
-                if (isEHeldDownRef.current) { // Check if E was being held for an interaction
-                    const holdDuration = Date.now() - eKeyDownTimestampRef.current;
+                if (inputRuntime.isEHoldActive()) { // Check if E was being held for an interaction
+                    const holdDuration = inputRuntime.getEHoldDuration();
                                             // Get the current target for tap action processing
                         const currentTarget = closestTargetRef.current;
 
                     // Always clear the timer if it exists (in case keyUp happens before timer fires)
-                    console.log(`[E-KeyUp] Timer ref state: ${eKeyHoldTimerRef.current} (holdDuration: ${holdDuration}ms)`);
-                    if (eKeyHoldTimerRef.current) {
-                        console.log(`[E-KeyUp] *** CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}, holdDuration: ${holdDuration}ms`);
-                        clearTimeout(eKeyHoldTimerRef.current as number);
-                        eKeyHoldTimerRef.current = null;
+                    const timerDebugValue = inputRuntime.getEHoldTimerDebugValue();
+                    console.log(`[E-KeyUp] Timer ref state: ${timerDebugValue} (holdDuration: ${holdDuration}ms)`);
+                    if (timerDebugValue) {
+                        console.log(`[E-KeyUp] *** CLEARING TIMER *** Timer ID: ${timerDebugValue}, holdDuration: ${holdDuration}ms`);
+                        inputRuntime.clearEHoldTimer();
                     } else {
                         console.log(`[E-KeyUp] No timer to clear (holdDuration: ${holdDuration}ms)`);
                     }
 
                     // Reset hold state and unconditionally clear interaction progress if a hold was active
-                    isEHeldDownRef.current = false;
-                    eKeyDownTimestampRef.current = 0;
+                    inputRuntime.finishEHoldKeyPress();
                     if (interactionProgress) { // If there was any interaction progress, clear it now
                         setInteractionProgress(null);
                     }
@@ -1589,8 +1225,7 @@ export const useInputHandler = ({
                     setIsActivelyHolding(false);
 
                     // Check if tap action was already triggered on keyDown (for instant responsiveness)
-                    const wasTapActionTriggeredOnKeyDown = tapActionTriggeredOnKeyDownRef.current;
-                    tapActionTriggeredOnKeyDownRef.current = false; // Reset flag
+                    const wasTapActionTriggeredOnKeyDown = inputRuntime.consumeTapActionTriggeredOnKeyDown();
 
                     // Check if it was a TAP or HOLD based on duration and target type
                     const expectedDuration = currentTarget?.type === 'knocked_out_player' ? REVIVE_HOLD_DURATION_MS : 
@@ -1853,7 +1488,7 @@ export const useInputHandler = ({
                 }
                 
                 // Normal left click logic for attacks, interactions, etc.
-                isMouseDownRef.current = true;
+                inputRuntime.setIsMouseDown(true);
 
                 const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
                 // console.log("[InputHandler DEBUG MOUSEDOWN] localPlayerId:", localPlayerId, "activeEquip:", !!localPlayerActiveEquipment, "itemDefs:", !!itemDefinitionsRef.current);
@@ -1911,7 +1546,7 @@ export const useInputHandler = ({
                                     // console.log("[InputHandler] Water container with water equipped. Calling water_crops reducer.");
                                     // Watering is a discrete click action. Do not leave mouse-down active,
                                     // or the frame loop will also swing/use the bottle while held.
-                                    isMouseDownRef.current = false;
+                                    inputRuntime.setIsMouseDown(false);
                                     connectionRef.current.reducers.waterCrops({ containerInstanceId: localPlayerActiveEquipment.equippedItemInstanceId })
                                         .catch((err: unknown) => {
                                             const message = getReducerErrorMessage(err);
@@ -1978,7 +1613,7 @@ export const useInputHandler = ({
                 if (isInventoryOpen) return;
 
                 // console.log("[InputHandler] Right mouse button pressed");
-                isRightMouseDownRef.current = true;
+                inputRuntime.setIsRightMouseDown(true);
 
                 // ADDED: Check for Blueprint on right mouse down
                 const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
@@ -1988,11 +1623,11 @@ export const useInputHandler = ({
                         // Clear upgrade menu if it's showing (switching from hammer to blueprint)
                         if (showUpgradeRadialMenu) {
                             setShowUpgradeRadialMenu(false);
-                            upgradeMenuFoundationIdRef.current = null;
-                            radialMenuShownRef.current = false;
+                            inputRuntime.setUpgradeMenuFoundationId(null);
+                            inputRuntime.setRadialMenuShown(false);
                         }
                         // Don't show menu if it's already showing (prevent flickering)
-                        if (showBuildingRadialMenu || radialMenuShownRef.current) {
+                        if (showBuildingRadialMenu || inputRuntime.isRadialMenuShown()) {
                             return;
                         }
                         // Get mouse position for radial menu
@@ -2001,16 +1636,13 @@ export const useInputHandler = ({
                         setRadialMenuMouseX(mouseX);
                         setRadialMenuMouseY(mouseY);
                         // Show menu after a short delay to allow for drag detection
-                        if (radialMenuTimeoutRef.current) {
-                            clearTimeout(radialMenuTimeoutRef.current);
-                            radialMenuTimeoutRef.current = null;
-                        }
+                        inputRuntime.clearRadialMenuTimeout();
                         console.log('[BuildingRadialMenu] Right-click detected with Blueprint, setting up menu at', mouseX, mouseY);
-                        radialMenuTimeoutRef.current = setTimeout(() => {
-                            console.log('[BuildingRadialMenu] Timeout fired, isRightMouseDown:', isRightMouseDownRef.current);
-                            if (isRightMouseDownRef.current) {
+                        inputRuntime.setRadialMenuTimeout(() => {
+                            console.log('[BuildingRadialMenu] Timeout fired, isRightMouseDown:', inputRuntime.getIsRightMouseDown());
+                            if (inputRuntime.getIsRightMouseDown()) {
                                 console.log('[BuildingRadialMenu] Showing radial menu');
-                                radialMenuShownRef.current = true;
+                                inputRuntime.setRadialMenuShown(true);
                                 setShowBuildingRadialMenu(true);
                             }
                         }, 100); // 100ms delay before showing menu
@@ -2028,32 +1660,29 @@ export const useInputHandler = ({
                             // Don't show menu if it's already showing (prevent flickering)
                             if (showBuildingRadialMenu) {
                                 setShowBuildingRadialMenu(false);
-                                radialMenuShownRef.current = false;
+                                inputRuntime.setRadialMenuShown(false);
                             }
-                            if (showUpgradeRadialMenu || radialMenuShownRef.current) {
+                            if (showUpgradeRadialMenu || inputRuntime.isRadialMenuShown()) {
                                 return;
                             }
                             // Store the wall ID so menu stays open even if targetedWall changes
-                            upgradeMenuWallIdRef.current = currentTargetedWall.id;
+                            inputRuntime.setUpgradeMenuWallId(currentTargetedWall.id);
                             // Get mouse position for upgrade radial menu
                             const mouseX = event.clientX;
                             const mouseY = event.clientY;
                             setRadialMenuMouseX(mouseX);
                             setRadialMenuMouseY(mouseY);
                             // Show menu after a short delay to allow for drag detection
-                            if (radialMenuTimeoutRef.current) {
-                                clearTimeout(radialMenuTimeoutRef.current);
-                                radialMenuTimeoutRef.current = null;
-                            }
+                            inputRuntime.clearRadialMenuTimeout();
                             console.log('[UpgradeRadialMenu] Right-click detected with Repair Hammer on wall, setting up menu at', mouseX, mouseY);
-                            radialMenuTimeoutRef.current = setTimeout(() => {
-                                if (isRightMouseDownRef.current && upgradeMenuWallIdRef.current !== null) {
+                            inputRuntime.setRadialMenuTimeout(() => {
+                                if (inputRuntime.getIsRightMouseDown() && inputRuntime.getUpgradeMenuWallId() !== null) {
                                     console.log('[UpgradeRadialMenu] Showing upgrade radial menu for wall');
-                                    radialMenuShownRef.current = true;
+                                    inputRuntime.setRadialMenuShown(true);
                                     setShowUpgradeRadialMenu(true);
                                 } else {
                                     // Clear the wall ID if menu didn't show
-                                    upgradeMenuWallIdRef.current = null;
+                                    inputRuntime.setUpgradeMenuWallId(null);
                                 }
                             }, 100);
                             return;
@@ -2063,32 +1692,29 @@ export const useInputHandler = ({
                             // Don't show menu if it's already showing (prevent flickering)
                             if (showBuildingRadialMenu) {
                                 setShowBuildingRadialMenu(false);
-                                radialMenuShownRef.current = false;
+                                inputRuntime.setRadialMenuShown(false);
                             }
-                            if (showUpgradeRadialMenu || radialMenuShownRef.current) {
+                            if (showUpgradeRadialMenu || inputRuntime.isRadialMenuShown()) {
                                 return;
                             }
                             // Store the fence ID so menu stays open even if targetedFence changes
-                            upgradeMenuFenceIdRef.current = currentTargetedFence.id;
+                            inputRuntime.setUpgradeMenuFenceId(currentTargetedFence.id);
                             // Get mouse position for upgrade radial menu
                             const mouseX = event.clientX;
                             const mouseY = event.clientY;
                             setRadialMenuMouseX(mouseX);
                             setRadialMenuMouseY(mouseY);
                             // Show menu after a short delay to allow for drag detection
-                            if (radialMenuTimeoutRef.current) {
-                                clearTimeout(radialMenuTimeoutRef.current);
-                                radialMenuTimeoutRef.current = null;
-                            }
+                            inputRuntime.clearRadialMenuTimeout();
                             console.log('[UpgradeRadialMenu] Right-click detected with Repair Hammer on fence, setting up menu at', mouseX, mouseY);
-                            radialMenuTimeoutRef.current = setTimeout(() => {
-                                if (isRightMouseDownRef.current && upgradeMenuFenceIdRef.current !== null) {
+                            inputRuntime.setRadialMenuTimeout(() => {
+                                if (inputRuntime.getIsRightMouseDown() && inputRuntime.getUpgradeMenuFenceId() !== null) {
                                     console.log('[UpgradeRadialMenu] Showing upgrade radial menu for fence');
-                                    radialMenuShownRef.current = true;
+                                    inputRuntime.setRadialMenuShown(true);
                                     setShowUpgradeRadialMenu(true);
                                 } else {
                                     // Clear the fence ID if menu didn't show
-                                    upgradeMenuFenceIdRef.current = null;
+                                    inputRuntime.setUpgradeMenuFenceId(null);
                                 }
                             }, 100);
                             return;
@@ -2098,32 +1724,29 @@ export const useInputHandler = ({
                             // Don't show menu if it's already showing (prevent flickering)
                             if (showBuildingRadialMenu) {
                                 setShowBuildingRadialMenu(false);
-                                radialMenuShownRef.current = false;
+                                inputRuntime.setRadialMenuShown(false);
                             }
-                            if (showUpgradeRadialMenu || radialMenuShownRef.current) {
+                            if (showUpgradeRadialMenu || inputRuntime.isRadialMenuShown()) {
                                 return;
                             }
                             // Store the foundation ID so menu stays open even if targetedFoundation changes
-                            upgradeMenuFoundationIdRef.current = currentTargetedFoundation.id;
+                            inputRuntime.setUpgradeMenuFoundationId(currentTargetedFoundation.id);
                             // Get mouse position for upgrade radial menu
                             const mouseX = event.clientX;
                             const mouseY = event.clientY;
                             setRadialMenuMouseX(mouseX);
                             setRadialMenuMouseY(mouseY);
                             // Show menu after a short delay to allow for drag detection
-                            if (radialMenuTimeoutRef.current) {
-                                clearTimeout(radialMenuTimeoutRef.current);
-                                radialMenuTimeoutRef.current = null;
-                            }
+                            inputRuntime.clearRadialMenuTimeout();
                             console.log('[UpgradeRadialMenu] Right-click detected with Repair Hammer on foundation, setting up menu at', mouseX, mouseY);
-                            radialMenuTimeoutRef.current = setTimeout(() => {
-                                if (isRightMouseDownRef.current && upgradeMenuFoundationIdRef.current !== null) {
+                            inputRuntime.setRadialMenuTimeout(() => {
+                                if (inputRuntime.getIsRightMouseDown() && inputRuntime.getUpgradeMenuFoundationId() !== null) {
                                     console.log('[UpgradeRadialMenu] Showing upgrade radial menu for foundation');
-                                    radialMenuShownRef.current = true;
+                                    inputRuntime.setRadialMenuShown(true);
                                     setShowUpgradeRadialMenu(true);
                                 } else {
                                     // Clear the foundation ID if menu didn't show
-                                    upgradeMenuFoundationIdRef.current = null;
+                                    inputRuntime.setUpgradeMenuFoundationId(null);
                                 }
                             }, 100);
                             return;
@@ -2138,45 +1761,39 @@ export const useInputHandler = ({
         const handleMouseUp = (event: MouseEvent) => {
             // Handle both left and right mouse button releases
             if (event.button === 0) { // Left mouse
-                isMouseDownRef.current = false;
+                inputRuntime.setIsMouseDown(false);
                 
                 // ADDED: Close radial menu on left click
                 if (showBuildingRadialMenu) {
                     setShowBuildingRadialMenu(false);
-                    radialMenuShownRef.current = false;
+                    inputRuntime.setRadialMenuShown(false);
                 }
                 // Upgrade menu handles its own clicks - don't close it here
                 // It will close itself when clicking outside
             } else if (event.button === 2) { // Right mouse
-                isRightMouseDownRef.current = false;
+                inputRuntime.setIsRightMouseDown(false);
                 
                 // ADDED: Close radial menu on right mouse release (menu component will handle selection before this)
                 if (showBuildingRadialMenu) {
                     // Small delay to let menu component handle selection first
                     setTimeout(() => {
                         setShowBuildingRadialMenu(false);
-                        radialMenuShownRef.current = false;
+                        inputRuntime.setRadialMenuShown(false);
                     }, 50);
                 }
                 // Close upgrade menu on right mouse release (same as blueprint)
                 if (showUpgradeRadialMenu) {
                     // Clear the stored IDs
-                    upgradeMenuFoundationIdRef.current = null;
-                    upgradeMenuWallIdRef.current = null;
-                    upgradeMenuFenceIdRef.current = null;
+                    inputRuntime.clearUpgradeMenuTargetIds();
                     // Small delay to let menu component handle selection first
                     setTimeout(() => {
                         setShowUpgradeRadialMenu(false);
-                        radialMenuShownRef.current = false;
+                        inputRuntime.setRadialMenuShown(false);
                     }, 50);
                 }
                 // Only clear timeout if menu wasn't shown yet (user released before delay)
-                if (radialMenuTimeoutRef.current && !radialMenuShownRef.current) {
-                    clearTimeout(radialMenuTimeoutRef.current);
-                    radialMenuTimeoutRef.current = null;
-                    upgradeMenuFoundationIdRef.current = null;
-                    upgradeMenuWallIdRef.current = null;
-                    upgradeMenuFenceIdRef.current = null;
+                if (inputRuntime.hasRadialMenuTimeout() && !inputRuntime.isRadialMenuShown()) {
+                    inputRuntime.clearPendingRadialMenu();
                 }
             }
         };
@@ -2393,7 +2010,7 @@ export const useInputHandler = ({
             // ADDED: Hide radial menu on context menu
             if (showBuildingRadialMenu) {
                 event.preventDefault();
-                radialMenuShownRef.current = false;
+                inputRuntime.setRadialMenuShown(false);
                 setShowBuildingRadialMenu(false);
             }
             // Prevent context menu when upgrade menu is showing (but don't close it)
@@ -2425,17 +2042,12 @@ export const useInputHandler = ({
 
         // --- Blur Handler ---
         const handleBlur = () => {
-            // console.log(`[E-Timer] *** WINDOW BLUR CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
+            // console.log(`[E-Timer] *** WINDOW BLUR CLEARING TIMER *** Timer ID: ${inputRuntime.getEHoldTimerDebugValue()}`);
             // REMOVED Sprinting logic from blur handler.
-            // keysPressed.current.clear(); // Keep this commented out
-            isMouseDownRef.current = false;
-            isRightMouseDownRef.current = false; // Reset right mouse state
-            spaceJumpNeedsReleaseRef.current = false;
+            inputRuntime.resetPointerAndJumpState();
+            inputRuntime.setIsRightMouseDown(false);
 
-            isEHeldDownRef.current = false;
-            if (eKeyHoldTimerRef.current) clearTimeout(eKeyHoldTimerRef.current);
-            eKeyHoldTimerRef.current = null;
-            setInteractionProgress(null);
+            inputRuntime.cancelEHoldInteraction();
             // NOTE: Auto-attack (Z) intentionally NOT cleared on blur
             // This allows auto-attack to persist through tab-outs for AFK harvesting
         };
@@ -2457,227 +2069,63 @@ export const useInputHandler = ({
             }
         };
 
-        // Add global listeners
-        window.addEventListener('keydown', handleKeyDown, { capture: true });
-        window.addEventListener('keyup', handleKeyUp);
-        window.addEventListener('mousedown', handleMouseDown);
-        window.addEventListener('mouseup', handleMouseUp);
-        window.addEventListener('wheel', handleWheel, { passive: true });
-        window.addEventListener('contextmenu', handleContextMenu);
-        window.addEventListener('blur', handleBlur);
-
-        // Add listener for canvas click (if canvas ref is passed in)
-        const canvas = canvasRef?.current; // Get canvas element from ref
-        if (canvas) {
-            // Attach the locally defined handler
-            canvas.addEventListener('click', handleCanvasClick);
-            // console.log("[useInputHandler] Added canvas click listener.");
-        } else {
-            // console.warn("[useInputHandler] Canvas ref not available on mount to add click listener.");
-        }
+        const domEventHandlers = {
+            onKeyDown: handleKeyDown,
+            onKeyUp: handleKeyUp,
+            onMouseDown: handleMouseDown,
+            onMouseUp: handleMouseUp,
+            onWheel: handleWheel,
+            onContextMenu: handleContextMenu,
+            onWindowBlur: handleBlur,
+            onCanvasClick: handleCanvasClick,
+        };
+        inputRuntime.configureDomEventHandlers(domEventHandlers);
 
         // Cleanup
         return () => {
-            // Remove global listeners
-            window.removeEventListener('keydown', handleKeyDown, { capture: true }); // 🎣 FISHING INPUT FIX: Match capture option in cleanup
-            window.removeEventListener('keyup', handleKeyUp);
-            window.removeEventListener('mousedown', handleMouseDown);
-            window.removeEventListener('mouseup', handleMouseUp);
-            window.removeEventListener('wheel', handleWheel);
-            window.removeEventListener('contextmenu', handleContextMenu);
-            window.removeEventListener('blur', handleBlur);
-            // Remove canvas listener on cleanup
-            if (canvas) {
-                canvas.removeEventListener('click', handleCanvasClick);
-                // console.log("[useInputHandler] Removed canvas click listener.");
-            }
-            // Don't clear timers on cleanup - they're short-lived (250ms) and self-cleaning
-            // The cleanup was causing timers to be cleared when dependencies changed during hold
-            // if (eKeyHoldTimerRef.current) {
-            //     console.log(`[E-Timer] *** USEEFFECT CLEANUP CLEARING TIMER *** Timer ID: ${eKeyHoldTimerRef.current}`);
-            //     clearTimeout(eKeyHoldTimerRef.current as number);
-            //     eKeyHoldTimerRef.current = null;
-            // }
+            inputRuntime.clearDomEventHandlers(domEventHandlers);
         };
-    }, [canvasRef, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen, isFishing, movementDirection, onProfilerRecordClick]);
+    }, [canvasRef, inputRuntime, localPlayer?.isDead, placementInfo, jump, attemptSwing, setIsMinimapOpen, isChatting, isSearchingCraftRecipes, isInventoryOpen, isGameMenuOpen, isFishing, movementDirection, onProfilerRecordClick]);
 
     // Auto-walk functionality removed - movement handled by usePredictedMovement hook
 
-    // Movement throttling refs
-    const lastMovementUpdateRef = useRef<number>(0);
-    const MOVEMENT_UPDATE_INTERVAL_MS = 50; // Limit movement updates to 20fps (every 50ms)
-
     // --- Function to process inputs and call actions (called by game loop) ---
     const processInputsAndActions = useCallback(() => {
-        const currentConnection = connectionRef.current;
-        const currentLocalPlayer = localPlayerRef.current;
-        const currentActiveEquipments = activeEquipmentsRef.current;
-
-        if (!currentConnection?.reducers || !localPlayerId || !currentLocalPlayer) {
-            return; // Early return if dependencies aren't ready
-        }
-
-        // Get input disabled state based ONLY on player death
-        const isInputDisabledState = currentLocalPlayer.isDead;
-
-        // Input is disabled if the player is dead
-        // Do not process any game-related input if disabled
-        if (isInputDisabledState) {
-            syncCurrentJumpOffsetToEngine();
-            return; // Early return - player is dead, skip all input processing
-        }
-
-        // MODIFIED: Skip most input processing if player is dead or chatting/searching
-        // BUT allow auto-attack to continue in the background for AFK harvesting
-        if (!currentLocalPlayer || currentLocalPlayer.isDead || isChatting || isSearchingCraftRecipes) {
-            // NOTE: Auto-attack intentionally NOT cancelled when UI is open
-            // This allows auto-attack to persist through menus for AFK harvesting
-            
-            // Also clear jump offset if player is dead or UI is active
-            if (currentJumpOffsetYRef.current !== 0) {
-                currentJumpOffsetYRef.current = 0;
-            }
-            
-            // Still process auto-attack even when UI is open (but not when dead)
-            if (isAutoAttacking && !currentLocalPlayer?.isDead && !placementInfo && !isFishing) {
-                attemptSwing();
-            }
-            syncCurrentJumpOffsetToEngine();
-            return;
-        }
-
-        // Fast idle path: skip heavy action checks when there is no active input/action state.
-        const isLocalPlayerForJump =
-            !!localPlayerId &&
-            currentLocalPlayer.identity.toHexString() === localPlayerId;
-        const hasOptimisticJump =
-            isLocalPlayerForJump && jumpOptRef.current > 0;
-        const hasJumpAnimation =
-            (currentLocalPlayer.jumpStartTimeMs ?? 0) > 0 || hasOptimisticJump;
-        const hasActiveInteraction =
-            isActivelyHolding ||
-            isEHeldDownRef.current ||
-            eKeyHoldTimerRef.current !== null ||
-            interactionProgress !== null;
-        const hasCombatOrUseAction = isMouseDownRef.current || isAutoAttacking;
-        if (!hasJumpAnimation && !hasActiveInteraction && !hasCombatOrUseAction) {
-            if (currentJumpOffsetYRef.current !== 0) currentJumpOffsetYRef.current = 0;
-            syncCurrentJumpOffsetToEngine();
-            return;
-        }
-
-        // --- Jump Offset Calculation (per-frame; server authoritative for gameplay) ---
-        if (currentLocalPlayer && ((currentLocalPlayer.jumpStartTimeMs ?? 0) > 0 || hasOptimisticJump)) {
-            const jumpStartTime = Number(currentLocalPlayer.jumpStartTimeMs || 0);
-            const playerId = currentLocalPlayer.identity.toHexString();
-            const isLocal = localPlayerId === playerId;
-
-            if (jumpStartTime > 0) {
-                const lastKnownServerTime = lastKnownServerJumpTimes.current.get(playerId) || 0;
-
-                if (jumpStartTime !== lastKnownServerTime) {
-                    lastKnownServerJumpTimes.current.set(playerId, jumpStartTime);
-                    const opt = jumpOptRef.current;
-                    if (isLocal && opt > 0) {
-                        // Keep jumpOptRef until render merges server jump (renderingUtils clears
-                        // localOptimisticJumpPressMsRef). Clearing here runs before render and
-                        // forces a fresh clientJumpStartTimes=nowMs arc → double-hop visual.
-                        clientJumpStartTimes.current.set(playerId, opt);
-                    } else {
-                        clientJumpStartTimes.current.set(playerId, jumpStartTime);
-                    }
-                }
-            }
-
-            let clientStartTime = clientJumpStartTimes.current.get(playerId);
-            if (isLocal && jumpOptRef.current > 0) {
-                const opt = jumpOptRef.current;
-                const elapsedOpt = Date.now() - opt;
-                if (elapsedOpt < JUMP_DURATION_MS) {
-                    clientStartTime = opt;
-                } else {
-                    jumpOptRef.current = 0;
-                }
-            }
-
-            if (clientStartTime) {
-                const elapsedJumpTime = Date.now() - clientStartTime;
-
-                if (elapsedJumpTime < JUMP_DURATION_MS) {
-                    const t = elapsedJumpTime / JUMP_DURATION_MS;
-                    currentJumpOffsetYRef.current = Math.sin(t * Math.PI) * JUMP_HEIGHT_PX;
-                } else {
-                    currentJumpOffsetYRef.current = 0;
-                }
-            } else {
-                currentJumpOffsetYRef.current = 0;
-            }
-        } else {
-            if (currentLocalPlayer) {
-                const playerId = currentLocalPlayer.identity.toHexString();
-                clientJumpStartTimes.current.delete(playerId);
-                lastKnownServerJumpTimes.current.delete(playerId);
-            }
-            jumpOptRef.current = 0;
-            currentJumpOffsetYRef.current = 0;
-        }
-        // --- End Jump Offset Calculation ---
-        syncCurrentJumpOffsetToEngine();
-
-        // Handle continuous swing check (removed movement tracking for weapons)
-        // NOTE: Continuous swing (holding left mouse) now works regardless of inventory UI state
-        // This enables chopping wood/mining while managing inventory (same behavior as auto-attack)
-        if (isMouseDownRef.current && !placementInfo && !isChatting && !isSearchingCraftRecipes) {
-            // 🎣 FISHING INPUT FIX: Disable continuous swing while fishing
-            if (!isFishing) {
-                const heldMeleeSwingUnlessDuplicateOfMouseDown = () => {
-                    if (suppressMeleeHeldTickAfterMouseDownRef.current) {
-                        suppressMeleeHeldTickAfterMouseDownRef.current = false;
-                        return;
-                    }
-                    attemptSwing();
-                };
-                // Ranged vs melee: unified dispatch paths
-                const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
-                if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) {
-                    const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId));
-                    const weaponStats = equippedItemDef ? rangedWeaponStatsRef.current?.get(equippedItemDef.name || '') : undefined;
-                    if (equippedItemDef?.category?.tag === "RangedWeapon" && weaponStats?.isAutomatic) {
-                        attemptRangedFire(); // Shared path: click + held-auto-fire
-                    } else if (equippedItemDef?.category?.tag === "RangedWeapon") {
-                        // Semi-auto weapons fire on click/mousedown path only.
-                        // Avoid re-firing while mouse is held in per-frame loop.
-                    } else if (equippedItemDef && isWaterContainer(equippedItemDef.name)) {
-                        // Water containers are handled as a one-shot watering action on mousedown.
-                        // Holding the button should not repeatedly swing/use the bottle.
-                    } else {
-                        heldMeleeSwingUnlessDuplicateOfMouseDown();
-                    }
-                } else {
-                    heldMeleeSwingUnlessDuplicateOfMouseDown();
-                }
-            }
-        } else if (isAutoAttacking && !placementInfo) {
-            // Auto-attack only when mouse is not driving combat this frame.
-            // If mouse is held (melee), the block above already calls attemptSwing — running both
-            // in the same tick could double-register swing visuals before cooldown logic runs.
-            // NOTE: Auto-attack works regardless of UI state (inventory, chat, etc.)
-            if (!isFishing) {
-                attemptSwing();
-            }
-        }
+        inputRuntime.processFrameActions({
+            currentConnection: connectionRef.current,
+            localPlayerId,
+            currentLocalPlayer: localPlayerRef.current,
+            currentActiveEquipments: activeEquipmentsRef.current,
+            itemDefinitions: itemDefinitionsRef.current,
+            rangedWeaponStats: rangedWeaponStatsRef.current,
+            optimisticJumpPressMsRef: jumpOptRef,
+            placementInfo,
+            isChatting,
+            isSearchingCraftRecipes,
+            isAutoAttacking,
+            isActivelyHolding,
+            interactionProgress,
+            isFishing,
+            attemptSwing,
+            attemptRangedFire,
+        });
     }, [
-        isPlayerDead, attemptSwing, attemptRangedFire, placementInfo,
-        localPlayerId, localPlayer, activeEquipments, connection,
-        closestInteractableTarget, onSetInteractingWith,
-        isChatting, isSearchingCraftRecipes, setIsMinimapOpen, isInventoryOpen,
-        isAutoAttacking, isFishing, movementDirection, isActivelyHolding, interactionProgress,
-        syncCurrentJumpOffsetToEngine
+        attemptSwing,
+        attemptRangedFire,
+        inputRuntime,
+        isActivelyHolding,
+        isAutoAttacking,
+        isChatting,
+        isFishing,
+        isSearchingCraftRecipes,
+        localPlayerId,
+        placementInfo,
+        interactionProgress,
     ]);
 
     useEffect(() => {
-        runtimeEngine.updateInputState('processInputsAndActions', processInputsAndActions);
-    }, [processInputsAndActions]);
+        inputRuntime.setProcessInputsAndActions(processInputsAndActions);
+    }, [inputRuntime, processInputsAndActions]);
 
     // ADDED: Helper function to check if Blueprint is equipped
     const isBlueprintEquipped = useCallback(() => {
@@ -2695,7 +2143,7 @@ export const useInputHandler = ({
     return {
         interactionProgress,
         isActivelyHolding,
-        currentJumpOffsetY: currentJumpOffsetYRef.current, // Return current ref value
+        currentJumpOffsetY: inputRuntime.getCurrentJumpOffsetY(),
         isAutoAttacking,
         isCrouching, // Include local crouch state
         // ADDED: Building radial menu state

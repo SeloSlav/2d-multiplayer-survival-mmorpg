@@ -7,8 +7,8 @@ Runtime modules own subscriptions, table bindings, and side effects. React hooks
 `GameCanvasRuntimeHost` is the first non-React ownership boundary for the canvas game loop.
 
 - React still gathers hook-bound scene/controller data in `GameCanvas`.
-- The host now owns the imperative render context, frame bindings, and `RuntimeFramePipeline`.
-- The host also owns typed scene/controller/particle/ambient-effects snapshots plus the mutable controller frame-state ref bag that render + frame code read from.
+- The host now owns the imperative render context, render/frame scratch refs, frame bindings, and `RuntimeFramePipeline`.
+- The host also owns typed scene/controller/particle/ambient-effects snapshots, final controller snapshot assembly, input snapshot state, E-hold interaction bookkeeping, jump-offset animation state, raw input/cooldown gates, radial-menu transient bookkeeping, frame-driven mobile target/trigger processing, DOM input listener lifecycle, frame action processing, and the mutable controller frame-state ref bag that render + frame code read from.
 - `GameCanvas` now synchronizes those host-owned surfaces directly through host configuration methods.
 - `useGameCanvasOverlayRuntime()` now owns hover and overlay prop shaping so `GameCanvas` stays closer to shell/view composition.
 - The host assembles frame bindings directly from the controller snapshot, while `GameCanvas` reads the tiny view-facing controller fields it still needs.
@@ -18,7 +18,7 @@ Runtime modules own subscriptions, table bindings, and side effects. React hooks
 
 1. **render/frame ownership**: moved behind `GameCanvasRuntimeHost`
 2. **scene assembly**: split into `useGameCanvasSceneRuntime()` data reads + pure `assembleGameCanvasSceneSnapshot()`, with a typed host scene snapshot
-3. **controller state**: host owns the mutable frame-state refs, typed controller snapshot, and frame bindings, while build/interaction logic is still temporarily hook-bound
+3. **controller state**: host owns the mutable frame-state refs, final typed controller snapshot assembly, frame bindings, build state, input snapshot state, E-hold interaction bookkeeping, jump-offset animation state, raw input/cooldown gates, radial-menu transient bookkeeping, frame-driven mobile target/trigger processing, DOM input listener lifecycle, and frame action processing, while remaining input event handler bodies/action dispatch are still temporarily hook-bound
 4. **effects runtime**: particle production, non-audio ambient effects, and ambient audio are host-owned services fed by typed host snapshots
 
 ## Current Architecture

@@ -1,8 +1,6 @@
-import { useSyncExternalStore, type MutableRefObject } from 'react';
-import type { GameLoopMetrics } from '../types';
+import { useSyncExternalStore } from 'react';
 import { useGameCanvasInteractionRuntime } from './useGameCanvasInteractionRuntime';
 import type { GameCanvasRuntimeControllerSnapshot, GameCanvasRuntimeHost } from '../runtime/GameCanvasRuntimeHost';
-import { assembleGameCanvasControllerSnapshot } from '../runtime/assembleGameCanvasControllerSnapshot';
 
 /**
  * Temporary React adapter for canvas controller state.
@@ -25,9 +23,6 @@ interface UseGameCanvasControllerRuntimeOptions {
   cameraOffsetX: number;
   cameraOffsetY: number;
   canvasSize: { width: number; height: number };
-  deltaTimeRef: MutableRefObject<number>;
-  interactionScanFrameSkipRef: MutableRefObject<number>;
-  gameLoopMetricsRef: MutableRefObject<GameLoopMetrics | null>;
   onDodgeRollStart?: (moveX: number, moveY: number) => void;
   addSOVAMessage?: (message: any) => void;
   showSovaSoundBox?: (audio: HTMLAudioElement, label: string) => void;
@@ -69,9 +64,6 @@ export function useGameCanvasControllerRuntime({
   cameraOffsetX,
   cameraOffsetY,
   canvasSize,
-  deltaTimeRef,
-  interactionScanFrameSkipRef,
-  gameLoopMetricsRef,
   onDodgeRollStart,
   addSOVAMessage,
   showSovaSoundBox,
@@ -101,18 +93,12 @@ export function useGameCanvasControllerRuntime({
 }: UseGameCanvasControllerRuntimeOptions): GameCanvasRuntimeControllerSnapshot {
   const {
     worldMousePosRef,
-    cameraOffsetRef,
-    predictedPositionRef,
-    localFacingDirectionRef,
     localOptimisticDodgeRollStartMsRef,
     localOptimisticJumpPressMsRef,
-    interpolatedCloudsRef,
-    cycleProgressRef,
-    ySortedEntitiesRef,
-    swimmingPlayersForBottomHalfRef,
   } = host.getControllerRefs();
   const buildTargetingRef = host.getBuildTargetingRef();
   const interactionTargetRef = host.getInteractionTargetRef();
+  const inputRuntime = host.getInputRuntime();
 
   useSyncExternalStore(
     host.subscribeToBuildingPlacementRuntime,
@@ -213,58 +199,21 @@ export function useGameCanvasControllerRuntime({
     onMobileInteractInfoChange,
     mobileInteractTrigger,
     showError,
+    inputRuntime,
   });
 
-  const { renderGameDepsRef } = host.configureControllerFrameRuntimeState({
-    worldMousePos: buildState.worldMousePos,
+  const controllerSnapshot = host.configureControllerSnapshotFromRuntime({
+    buildState,
+    interactionRuntime,
+    sceneRuntime,
     cameraOffsetX,
     cameraOffsetY,
     predictedPosition,
     localFacingDirection,
-    interpolatedClouds: sceneRuntime.interpolatedClouds,
-    cycleProgress: sceneRuntime.worldState?.cycleProgress ?? 0.375,
-    ySortedEntities: sceneRuntime.resolvedYSortedEntities,
-    swimmingPlayersForBottomHalf: sceneRuntime.resolvedSwimmingPlayersForBottomHalf,
-    messages: sceneRuntime.messages,
-    renderableProjectiles: sceneRuntime.renderableProjectiles,
-    holdInteractionProgress: interactionRuntime.interactionProgress,
-    isActivelyHolding: interactionRuntime.isActivelyHolding,
-    closestInteractableHarvestableResourceId: interactionRuntime.closestInteractableHarvestableResourceId,
-    closestInteractableCampfireId: interactionRuntime.closestInteractableCampfireId,
-    closestInteractableDroppedItemId: interactionRuntime.closestInteractableDroppedItemId,
-    closestInteractableBoxId: interactionRuntime.closestInteractableBoxId,
-    isClosestInteractableBoxEmpty: interactionRuntime.isClosestInteractableBoxEmpty,
-    closestInteractableWaterPosition: interactionRuntime.closestInteractableWaterPosition,
-    closestInteractableStashId: interactionRuntime.closestInteractableStashId,
-    closestInteractableSleepingBagId: interactionRuntime.closestInteractableSleepingBagId,
-    closestInteractableDoorId: interactionRuntime.closestInteractableDoorId,
-    closestInteractableTarget: interactionRuntime.closestInteractableTarget,
-    unifiedInteractableTarget: interactionRuntime.unifiedInteractableTarget,
-    closestInteractableKnockedOutPlayerId: interactionRuntime.closestInteractableKnockedOutPlayerId,
-    closestInteractableCorpseId: interactionRuntime.closestInteractableCorpseId,
-    closestInteractableAlkStationId: interactionRuntime.closestInteractableAlkStationId,
-    closestInteractableCairnId: interactionRuntime.closestInteractableCairnId,
-    closestInteractableMilkableAnimalId: interactionRuntime.closestInteractableMilkableAnimalId,
-  });
-
-  const controllerAdjunctState = host.configureControllerAdjunctState({
-    showUpgradeRadialMenu: interactionRuntime.showUpgradeRadialMenu,
-    targetedFoundation: buildTargetingRef.current.targetedFoundation ?? buildState.targetedFoundation,
-    targetedWall: buildTargetingRef.current.targetedWall ?? buildState.targetedWall,
-    targetedFence: buildTargetingRef.current.targetedFence ?? buildState.targetedFence,
     localPlayer,
     connection,
     isGameMenuOpen,
     placementInfo,
-    deathMarkers: sceneRuntime.deathMarkers,
-    sleepingBags: sceneRuntime.sleepingBags,
-  });
-
-  const controllerSnapshot = assembleGameCanvasControllerSnapshot({
-    host,
-    buildState,
-    interactionRuntime,
-    controllerAdjunctState,
   });
 
   return controllerSnapshot;

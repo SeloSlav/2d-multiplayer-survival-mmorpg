@@ -17,6 +17,7 @@ import {
   assembleGameCanvasRenderContext,
   type GameCanvasRenderRuntimeConfig,
 } from './assembleGameCanvasRenderContext';
+import { assembleGameCanvasControllerSnapshot } from './assembleGameCanvasControllerSnapshot';
 import {
   releaseAnimationCycleLoop,
   retainAnimationCycleLoop,
@@ -69,11 +70,13 @@ import {
   EntityFilteringRuntime,
   type EntityFilteringResult,
 } from './entityFilteringRuntime';
+import { GameCanvasInputRuntime } from './gameCanvasInputRuntime';
 import { remotePlayerInterpolationRuntime } from './remotePlayerInterpolator';
 import type {
   Cloud as SpacetimeDBCloud,
   Grass as SpacetimeDBGrass,
   GrassState as SpacetimeDBGrassState,
+  Player as SpacetimeDBPlayer,
   Tree as SpacetimeDBTree,
 } from '../../generated/types';
 
@@ -131,6 +134,19 @@ export interface GameCanvasRuntimeFrameBindingControllerOptions {
   localPlayer: any;
   isAutoWalking: boolean;
   canvasSize: { width: number; height: number };
+}
+
+export interface GameCanvasRuntimeRenderRefs {
+  deltaTimeRef: MutableRef<number>;
+  lastPositionsRef: MutableRef<Map<string, { x: number; y: number }>>;
+  localSwimTransitionRef: MutableRef<{ wasSwimming: boolean; enteredWaterAtMs: number }>;
+  swimmingPlayerScratchRef: MutableRef<Partial<SpacetimeDBPlayer> & { positionX: number; positionY: number }>;
+  swimmingPlayerTopHalfScratchRef: MutableRef<{ entity: SpacetimeDBPlayer | null; playerId: string; yPosition: number }>;
+  localPlayerScratchRef: MutableRef<Record<string, unknown>>;
+  lastPlacementWarningRef: MutableRef<string | null>;
+}
+
+export interface GameCanvasRuntimeFrameRefs {
   gameLoopMetricsRef: MutableRef<GameLoopMetrics | null>;
   deltaTimeRef: MutableRef<number>;
   interactionScanFrameSkipRef: MutableRef<number>;
@@ -295,6 +311,20 @@ export interface GameCanvasRuntimeFrameStateOptions {
   closestInteractableMilkableAnimalId: number | bigint | null;
 }
 
+export interface GameCanvasControllerSnapshotRuntimeOptions {
+  buildState: GameCanvasControllerBuildRuntimeState;
+  interactionRuntime: Record<string, any>;
+  sceneRuntime: GameCanvasRuntimeSceneSnapshot;
+  cameraOffsetX: number;
+  cameraOffsetY: number;
+  predictedPosition: { x: number; y: number } | null;
+  localFacingDirection: string | undefined;
+  localPlayer: any;
+  connection: any | null;
+  isGameMenuOpen: boolean;
+  placementInfo: any;
+}
+
 export interface GameCanvasRuntimeControllerRefs {
   worldMousePosRef: MutableRef<{ x: number | null; y: number | null }>;
   cameraOffsetRef: MutableRef<{ x: number; y: number }>;
@@ -402,6 +432,7 @@ export class GameCanvasRuntimeHost {
   private readonly particleRuntime = new GameCanvasParticleRuntime();
   private readonly pointerRuntime = new GameCanvasPointerRuntime();
   private readonly buildingPlacementRuntime = new BuildingPlacementRuntime();
+  private readonly inputRuntime = new GameCanvasInputRuntime();
   private readonly buildTargetingRuntime = new GameCanvasBuildTargetingRuntime();
   private readonly cloudInterpolationRuntime = new CloudInterpolationRuntime();
   private readonly grassInterpolationRuntime = new GrassInterpolationRuntime();
@@ -415,6 +446,25 @@ export class GameCanvasRuntimeHost {
   };
   private readonly interactionTargetRef: MutableRef<InteractionTargetRuntimeResult> = {
     current: EMPTY_INTERACTION_TARGET_RUNTIME_RESULT,
+  };
+  private readonly renderRefs: GameCanvasRuntimeRenderRefs = {
+    deltaTimeRef: { current: 0 },
+    lastPositionsRef: { current: new Map() },
+    localSwimTransitionRef: {
+      current: {
+        wasSwimming: false,
+        enteredWaterAtMs: 0,
+      },
+    },
+    swimmingPlayerScratchRef: { current: { positionX: 0, positionY: 0 } },
+    swimmingPlayerTopHalfScratchRef: { current: { entity: null, playerId: '', yPosition: 0 } },
+    localPlayerScratchRef: { current: { positionX: 0, positionY: 0, direction: 0 } },
+    lastPlacementWarningRef: { current: null },
+  };
+  private readonly frameRefs: GameCanvasRuntimeFrameRefs = {
+    gameLoopMetricsRef: { current: null },
+    deltaTimeRef: this.renderRefs.deltaTimeRef,
+    interactionScanFrameSkipRef: { current: 0 },
   };
   private prevShowUpgradeRadialMenu = false;
   private readonly controllerAdjunctState: GameCanvasRuntimeControllerAdjunctState = {
@@ -546,6 +596,9 @@ export class GameCanvasRuntimeHost {
       if (++bindings.interactionScanFrameSkipRef.current % 2 === 0) {
         this.updateInteractionTargetRuntimeServices(bindings);
       }
+      this.inputRuntime.processConfiguredMobileInteractionState(
+        this.controllerRefsState.renderGameDepsRef.current.unifiedInteractableTarget ?? null,
+      );
 
       const liveFacingDirection = bindings.getCurrentFacingDirectionNow?.() ?? bindings.localFacingDirectionRef.current;
       if (liveFacingDirection) {
@@ -627,6 +680,14 @@ export class GameCanvasRuntimeHost {
     this.frameBindings = frameBindings;
   }
 
+  getRenderRefs(): GameCanvasRuntimeRenderRefs {
+    return this.renderRefs;
+  }
+
+  getFrameRefs(): GameCanvasRuntimeFrameRefs {
+    return this.frameRefs;
+  }
+
   configurePointerRuntime(options: GameCanvasPointerRuntimeOptions): GameCanvasPointerSnapshot {
     const snapshot = this.pointerRuntime.configure(options);
     this.controllerRefsState.worldMousePosRef.current = snapshot.worldMousePos;
@@ -641,6 +702,10 @@ export class GameCanvasRuntimeHost {
 
   getBuildingPlacementRuntimeSnapshot(): BuildingPlacementRuntimeSnapshot {
     return this.buildingPlacementRuntime.getSnapshot();
+  }
+
+  getInputRuntime(): GameCanvasInputRuntime {
+    return this.inputRuntime;
   }
 
   configureBuildingPlacementRuntime(options: BuildingPlacementRuntimeOptions): BuildingPlacementRuntimeSnapshot {
@@ -828,6 +893,77 @@ export class GameCanvasRuntimeHost {
     return { renderGameDepsRef: refs.renderGameDepsRef };
   }
 
+  configureControllerSnapshotFromRuntime({
+    buildState,
+    interactionRuntime,
+    sceneRuntime,
+    cameraOffsetX,
+    cameraOffsetY,
+    predictedPosition,
+    localFacingDirection,
+    localPlayer,
+    connection,
+    isGameMenuOpen,
+    placementInfo,
+  }: GameCanvasControllerSnapshotRuntimeOptions): GameCanvasRuntimeControllerSnapshot {
+    const buildTargetingRef = this.getBuildTargetingRef();
+    const targetedFoundation = buildTargetingRef.current.targetedFoundation ?? buildState.targetedFoundation;
+    const targetedWall = buildTargetingRef.current.targetedWall ?? buildState.targetedWall;
+    const targetedFence = buildTargetingRef.current.targetedFence ?? buildState.targetedFence;
+
+    this.configureControllerFrameRuntimeState({
+      worldMousePos: buildState.worldMousePos,
+      cameraOffsetX,
+      cameraOffsetY,
+      predictedPosition,
+      localFacingDirection,
+      interpolatedClouds: sceneRuntime.interpolatedClouds,
+      cycleProgress: sceneRuntime.worldState?.cycleProgress ?? 0.375,
+      ySortedEntities: sceneRuntime.resolvedYSortedEntities,
+      swimmingPlayersForBottomHalf: sceneRuntime.resolvedSwimmingPlayersForBottomHalf,
+      messages: sceneRuntime.messages,
+      renderableProjectiles: sceneRuntime.renderableProjectiles,
+      holdInteractionProgress: interactionRuntime.interactionProgress,
+      isActivelyHolding: interactionRuntime.isActivelyHolding,
+      closestInteractableHarvestableResourceId: interactionRuntime.closestInteractableHarvestableResourceId,
+      closestInteractableCampfireId: interactionRuntime.closestInteractableCampfireId,
+      closestInteractableDroppedItemId: interactionRuntime.closestInteractableDroppedItemId,
+      closestInteractableBoxId: interactionRuntime.closestInteractableBoxId,
+      isClosestInteractableBoxEmpty: interactionRuntime.isClosestInteractableBoxEmpty,
+      closestInteractableWaterPosition: interactionRuntime.closestInteractableWaterPosition,
+      closestInteractableStashId: interactionRuntime.closestInteractableStashId,
+      closestInteractableSleepingBagId: interactionRuntime.closestInteractableSleepingBagId,
+      closestInteractableDoorId: interactionRuntime.closestInteractableDoorId,
+      closestInteractableTarget: interactionRuntime.closestInteractableTarget,
+      unifiedInteractableTarget: interactionRuntime.unifiedInteractableTarget,
+      closestInteractableKnockedOutPlayerId: interactionRuntime.closestInteractableKnockedOutPlayerId,
+      closestInteractableCorpseId: interactionRuntime.closestInteractableCorpseId,
+      closestInteractableAlkStationId: interactionRuntime.closestInteractableAlkStationId,
+      closestInteractableCairnId: interactionRuntime.closestInteractableCairnId,
+      closestInteractableMilkableAnimalId: interactionRuntime.closestInteractableMilkableAnimalId,
+    });
+
+    const controllerAdjunctState = this.configureControllerAdjunctState({
+      showUpgradeRadialMenu: interactionRuntime.showUpgradeRadialMenu,
+      targetedFoundation,
+      targetedWall,
+      targetedFence,
+      localPlayer,
+      connection,
+      isGameMenuOpen,
+      placementInfo,
+      deathMarkers: sceneRuntime.deathMarkers,
+      sleepingBags: sceneRuntime.sleepingBags,
+    });
+
+    return assembleGameCanvasControllerSnapshot({
+      host: this,
+      buildState,
+      interactionRuntime,
+      controllerAdjunctState,
+    });
+  }
+
   configureFrameBindingsFromController({
     controllerSnapshot,
     stepPredictedMovement,
@@ -839,10 +975,8 @@ export class GameCanvasRuntimeHost {
     connection,
     isAutoWalking,
     canvasSize,
-    gameLoopMetricsRef,
-    deltaTimeRef,
-    interactionScanFrameSkipRef,
   }: GameCanvasRuntimeFrameBindingControllerOptions): void {
+    const frameRefs = this.frameRefs;
     this.configureFrameBindings({
       processInputsAndActions: controllerSnapshot.processInputsAndActions,
       stepPredictedMovement,
@@ -857,9 +991,9 @@ export class GameCanvasRuntimeHost {
       isAutoWalking,
       canvasWidth: canvasSize.width,
       canvasHeight: canvasSize.height,
-      gameLoopMetricsRef,
-      deltaTimeRef,
-      interactionScanFrameSkipRef,
+      gameLoopMetricsRef: frameRefs.gameLoopMetricsRef,
+      deltaTimeRef: frameRefs.deltaTimeRef,
+      interactionScanFrameSkipRef: frameRefs.interactionScanFrameSkipRef,
       cameraOffsetRef: controllerSnapshot.cameraOffsetRef,
     });
   }
@@ -1346,6 +1480,10 @@ export class GameCanvasRuntimeHost {
     this.buildingPlacementRuntime.stop();
   }
 
+  stopInputRuntimeServices(): void {
+    this.inputRuntime.reset();
+  }
+
   mount(): void {
     retainAnimationCycleLoop();
     runtimeEngine.setFramePipeline(this.framePipeline);
@@ -1356,6 +1494,7 @@ export class GameCanvasRuntimeHost {
     this.stopParticleRuntimeServices();
     this.stopPointerRuntimeServices();
     this.stopBuildingPlacementRuntimeServices();
+    this.stopInputRuntimeServices();
     this.stopSceneAnimationRuntimeServices();
     releaseAnimationCycleLoop();
     runtimeEngine.setFramePipeline(null);

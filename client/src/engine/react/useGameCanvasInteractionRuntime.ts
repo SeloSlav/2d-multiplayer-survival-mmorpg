@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react';
+import { useCallback, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react';
 import { useInputHandler } from '../../hooks/useInputHandler';
 import { getInteractableLabel } from '../../utils/interactionLabelUtils';
-import { isAnySovaAudioPlaying } from '../../hooks/useSovaSoundBox';
-import { previewSeaweedHarvestBlockedIfNeeded } from '../../hooks/useSoundSystem';
-import { logDebug } from '../../utils/gameDebugUtils';
 import type { InteractableTarget } from '../../types/interactions';
 import { getRecordButtonBounds } from '../../utils/profiler';
+import type { GameCanvasInputRuntime } from '../runtime/gameCanvasInputRuntime';
 import type { InteractionTargetRuntimeResult } from '../runtime/interactionTargetRuntime';
 
 function getUnifiedInteractionTarget(result: InteractionTargetRuntimeResult): InteractableTarget | null {
@@ -111,6 +109,7 @@ interface UseGameCanvasInteractionRuntimeOptions {
   onMobileInteractInfoChange?: (info: { hasTarget: boolean; label?: string } | null) => void;
   mobileInteractTrigger?: number;
   showError: (message: string) => void;
+  inputRuntime: GameCanvasInputRuntime;
 }
 
 export function useGameCanvasInteractionRuntime(options: UseGameCanvasInteractionRuntimeOptions) {
@@ -201,67 +200,19 @@ export function useGameCanvasInteractionRuntime(options: UseGameCanvasInteractio
     rangedWeaponStats: options.rangedWeaponStats,
     serverProjectiles: options.projectiles,
     onProfilerRecordClick,
+    inputRuntime: options.inputRuntime,
   });
 
-  useEffect(() => {
-    if (options.onMobileInteractInfoChange && options.isMobile) {
-      options.onMobileInteractInfoChange(
-        unifiedInteractableTarget
-          ? { hasTarget: true, label: getInteractableLabel(unifiedInteractableTarget) }
-          : null,
-      );
-    }
-  }, [unifiedInteractableTarget, options]);
-
-  const lastMobileInteractTriggerRef = useRef(options.mobileInteractTrigger || 0);
-  useEffect(() => {
-    if (!options.isMobile || !options.mobileInteractTrigger || options.mobileInteractTrigger === lastMobileInteractTriggerRef.current) {
-      return;
-    }
-    lastMobileInteractTriggerRef.current = options.mobileInteractTrigger;
-    if (!unifiedInteractableTarget) return;
-
-    const target = unifiedInteractableTarget;
-    const blocked = ['campfire', 'furnace', 'lantern', 'box', 'stash', 'corpse', 'sleeping_bag', 'rain_collector', 'homestead_hearth', 'fumarole', 'broth_pot', 'alk_station', 'door'];
-    if (blocked.includes(target.type)) {
-      if (isAnySovaAudioPlaying()) {
-        options.showError('Not available on mobile.');
-      } else if (options.showSovaSoundBox) {
-        const audio = new Audio('/sounds/sova_error_mobile_capability.mp3');
-        audio.volume = 0.8;
-        options.showSovaSoundBox(audio, 'SOVA');
-        audio.play().catch((error) => {
-          console.warn('[Mobile] Failed to play capability error:', error);
-        });
-      }
-      return;
-    }
-
-    if (options.connection?.reducers) {
-      switch (target.type) {
-        case 'harvestable_resource':
-          previewSeaweedHarvestBlockedIfNeeded(
-            options.connection,
-            target.id as bigint,
-            options.localPlayer?.isSnorkeling,
-          );
-          options.connection.reducers.interactWithHarvestableResource({ resourceId: target.id as bigint });
-          break;
-        case 'dropped_item':
-          options.connection.reducers.pickupDroppedItem({ droppedItemId: target.id as bigint });
-          break;
-        case 'door':
-          options.connection.reducers.interactDoor({ doorId: target.id as bigint });
-          break;
-        case 'water':
-          logDebug('[Mobile] Water drinking requires hold action - not supported in tap');
-          break;
-        case 'knocked_out_player':
-          logDebug('[Mobile] Reviving requires hold action - not supported in tap');
-          break;
-      }
-    }
-  }, [options, unifiedInteractableTarget]);
+  options.inputRuntime.configureMobileInteractionState({
+    isMobile: options.isMobile,
+    mobileInteractTrigger: options.mobileInteractTrigger,
+    connection: options.connection,
+    localPlayer: options.localPlayer,
+    showError: options.showError,
+    showSovaSoundBox: options.showSovaSoundBox,
+    onMobileInteractInfoChange: options.onMobileInteractInfoChange,
+    getTargetLabel: getInteractableLabel,
+  });
 
   return {
     closestInteractableTarget: interactionTargetResult.closestInteractableTarget,

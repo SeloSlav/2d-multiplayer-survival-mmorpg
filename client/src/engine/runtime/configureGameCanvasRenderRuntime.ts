@@ -10,7 +10,7 @@ import { renderLateFramePasses } from '../frame/renderLateFramePasses';
 import { renderWorldPreparationPasses } from '../frame/renderWorldPreparationPasses';
 import { renderEntityWorldPasses } from '../frame/renderEntityWorldPasses';
 import { renderScreenSpaceWorldEffects } from '../frame/renderScreenSpaceWorldEffects';
-import type { GameCanvasRuntimeHost } from './GameCanvasRuntimeHost';
+import type { GameCanvasRuntimeHost, GameCanvasRuntimeRenderRefs } from './GameCanvasRuntimeHost';
 import type { GameCanvasRenderRuntimeConfig } from './assembleGameCanvasRenderContext';
 
 interface ConfigureGameCanvasRenderRuntimeOptions
@@ -19,15 +19,7 @@ interface ConfigureGameCanvasRenderRuntimeOptions
     'diagnostics' | 'animationRefs' | 'damageRefs' | 'renderFunctions' | 'gameCanvasRef' | 'renderRefs'
   > {
   gameCanvasRef: MutableRef<HTMLCanvasElement | null>;
-  renderRefs: {
-    deltaTimeRef: MutableRef<number>;
-    lastPositionsRef: MutableRef<Map<string, { x: number; y: number }>>;
-    localSwimTransitionRef: MutableRef<{ wasSwimming: boolean; enteredWaterAtMs: number }>;
-    swimmingPlayerScratchRef: MutableRef<any>;
-    swimmingPlayerTopHalfScratchRef: MutableRef<any>;
-    localPlayerScratchRef: MutableRef<Record<string, unknown>>;
-    lastPlacementWarningRef: MutableRef<string | null>;
-  };
+  renderRefs: GameCanvasRuntimeRenderRefs;
   host: GameCanvasRuntimeHost;
 }
 
