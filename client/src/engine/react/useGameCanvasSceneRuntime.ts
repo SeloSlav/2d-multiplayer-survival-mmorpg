@@ -1,7 +1,6 @@
 import { useEngineSnapshot } from './useEngineSnapshot';
 import { useUITable } from './selectors';
 import { useGameScreenWorldTables } from './selectors/useGameScreenWorldTables';
-import { useFrameAssembly } from './useFrameAssembly';
 import { assembleGameCanvasSceneSnapshot } from '../runtime/assembleGameCanvasSceneSnapshot';
 import type { GameCanvasRuntimeHost, GameCanvasRuntimeSceneSnapshot } from '../runtime/GameCanvasRuntimeHost';
 import type { GameCanvasPointerSnapshot } from '../runtime/gameCanvasPointerRuntime';
@@ -73,8 +72,7 @@ export function useGameCanvasSceneRuntime({
     localPlayer,
   });
 
-  const frameAssembly = useFrameAssembly({
-    host,
+  const frameAssembly = host.configureFrameAssemblyRuntime({
     connection,
     players: tables.players,
     trees: tables.trees,

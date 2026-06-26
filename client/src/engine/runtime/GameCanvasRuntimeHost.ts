@@ -69,6 +69,7 @@ import {
   EntityFilteringRuntime,
   type EntityFilteringResult,
 } from './entityFilteringRuntime';
+import { remotePlayerInterpolationRuntime } from './remotePlayerInterpolator';
 import type {
   Cloud as SpacetimeDBCloud,
   Grass as SpacetimeDBGrass,
@@ -158,6 +159,33 @@ export interface GameCanvasRuntimeControllerAdjunctState {
   sleepingBagsById: Map<number, any>;
 }
 
+export interface GameCanvasControllerBuildRuntimeOptions {
+  connection: any | null;
+  predictedPosition: { x: number; y: number } | null;
+  localPlayer: any;
+  activeEquipments: Map<string, any>;
+  itemDefinitions: Map<string, any>;
+  localPlayerId?: string;
+  foundationCells?: Map<string, any>;
+  fences?: Map<string, any>;
+}
+
+export interface GameCanvasControllerBuildRuntimeState {
+  worldMousePos: { x: number | null; y: number | null };
+  canvasMousePos: { x: number | null; y: number | null };
+  buildingState: BuildingPlacementRuntimeSnapshot['buildingState'];
+  buildingActions: BuildingPlacementRuntimeSnapshot['buildingActions'];
+  hasRepairHammer: boolean;
+  hasStoneTiller: boolean;
+  targetedFoundation: any;
+  targetTileX: number | null;
+  targetTileY: number | null;
+  targetedWall: any;
+  targetWallTileX: number | null;
+  targetWallTileY: number | null;
+  targetedFence: any;
+}
+
 export interface GameCanvasSceneInterpolationRuntimeOptions {
   clouds: Map<string, SpacetimeDBCloud>;
   grass: Map<string, SpacetimeDBGrass>;
@@ -172,6 +200,67 @@ export interface GameCanvasSceneInterpolationRuntimeSnapshot {
 export interface GameCanvasProjectilePresentationRuntimeOptions {
   connection: DbConnection | null;
   authoritativeProjectiles: Map<string, SpacetimeDBProjectile>;
+}
+
+export interface GameCanvasFrameAssemblyRuntimeOptions {
+  connection: any | null;
+  players: Map<string, any>;
+  trees: Map<string, any>;
+  stones: Map<string, any>;
+  runeStones: Map<string, any>;
+  cairns: Map<string, any>;
+  campfires: Map<string, any>;
+  furnaces: Map<string, any>;
+  barbecues: Map<string, any>;
+  lanterns: Map<string, any>;
+  turrets: Map<string, any>;
+  homesteadHearths: Map<string, any>;
+  harvestableResources: Map<string, any>;
+  droppedItems: Map<string, any>;
+  woodenStorageBoxes: Map<string, any>;
+  sleepingBags: Map<string, any>;
+  playerCorpses: Map<string, any>;
+  stashes: Map<string, any>;
+  cameraOffsetX: number;
+  cameraOffsetY: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  interpolatedGrass: Map<string, any>;
+  projectiles: Map<string, any>;
+  shelters: Map<string, any>;
+  clouds: Map<string, any>;
+  plantedSeeds: Map<string, any>;
+  rainCollectors: Map<string, any>;
+  brothPots: Map<string, any>;
+  wildAnimals: Map<string, any>;
+  animalCorpses: Map<string, any>;
+  barrels: Map<string, any>;
+  roadLampposts: Map<string, any>;
+  fumaroles: Map<string, any>;
+  basaltColumns: Map<string, any>;
+  seaStacks: Map<string, any>;
+  foundationCells: Map<string, any>;
+  wallCells: Map<string, any>;
+  doors: Map<string, any>;
+  fences: Map<string, any>;
+  localPlayerId?: string;
+  isLocalPlayerSnorkeling: boolean;
+  predictedPosition: { x: number; y: number } | null;
+  isTreeFalling: (treeId: string) => boolean;
+  worldChunkDataMap: Map<string, any> | null | undefined;
+  alkStations: Map<string, any>;
+  monumentParts: Map<string, any>;
+  livingCorals: Map<string, any>;
+  seaTransitionTileLookup: Map<string, boolean>;
+  waterTileLookup: Map<string, boolean>;
+  worldState: any;
+  firePatches: Map<string, any>;
+  activeEquipments: Map<string, any>;
+  itemDefinitions: Map<string, any>;
+  worldMouseX: number;
+  worldMouseY: number;
+  roadLamppostsAll: Map<string, any>;
+  barrelsAll: Map<string, any>;
 }
 
 export interface GameCanvasRuntimeFrameStateOptions {
@@ -558,6 +647,51 @@ export class GameCanvasRuntimeHost {
     return this.buildingPlacementRuntime.update(options, { emit: false });
   }
 
+  configureControllerBuildRuntimeState({
+    connection,
+    predictedPosition,
+    localPlayer,
+    activeEquipments,
+    itemDefinitions,
+    localPlayerId,
+    foundationCells,
+    fences,
+  }: GameCanvasControllerBuildRuntimeOptions): GameCanvasControllerBuildRuntimeState {
+    const pointerSnapshot = this.getPointerSnapshot();
+    const worldMousePos = pointerSnapshot.worldMousePos;
+    const canvasMousePos = pointerSnapshot.canvasMousePos;
+    const localPlayerX = predictedPosition?.x ?? localPlayer?.positionX ?? 0;
+    const localPlayerY = predictedPosition?.y ?? localPlayer?.positionY ?? 0;
+    const placementRuntime = this.configureBuildingPlacementRuntime({
+      connection,
+      localPlayerX,
+      localPlayerY,
+      activeEquipments,
+      itemDefinitions,
+      localPlayerId,
+      worldMousePos,
+      foundationCells,
+      fences,
+    });
+    const buildTargeting = this.buildTargetingRef.current;
+
+    return {
+      worldMousePos,
+      canvasMousePos,
+      buildingState: placementRuntime.buildingState,
+      buildingActions: placementRuntime.buildingActions,
+      hasRepairHammer: placementRuntime.hasRepairHammer,
+      hasStoneTiller: placementRuntime.hasStoneTiller,
+      targetedFoundation: buildTargeting.targetedFoundation,
+      targetTileX: buildTargeting.targetTileX,
+      targetTileY: buildTargeting.targetTileY,
+      targetedWall: buildTargeting.targetedWall,
+      targetWallTileX: buildTargeting.targetWallTileX,
+      targetWallTileY: buildTargeting.targetWallTileY,
+      targetedFence: buildTargeting.targetedFence,
+    };
+  }
+
   getPointerSnapshot(): GameCanvasPointerSnapshot {
     return this.pointerRuntime.getSnapshot();
   }
@@ -784,6 +918,122 @@ export class GameCanvasRuntimeHost {
 
   configureEntityFilteringRuntime(...args: Parameters<EntityFilteringRuntime['update']>): EntityFilteringResult {
     return this.entityFilteringRuntime.update(...args);
+  }
+
+  configureFrameAssemblyRuntime(options: GameCanvasFrameAssemblyRuntimeOptions): Record<string, any> {
+    const remotePlayerInterpolation = remotePlayerInterpolationRuntime;
+
+    const filtering = this.configureEntityFilteringRuntime(
+      options.players,
+      options.trees,
+      options.stones,
+      options.runeStones,
+      options.cairns,
+      options.campfires,
+      options.furnaces,
+      options.barbecues,
+      options.lanterns,
+      options.turrets,
+      options.homesteadHearths,
+      options.harvestableResources,
+      options.droppedItems,
+      options.woodenStorageBoxes,
+      options.sleepingBags,
+      options.playerCorpses,
+      options.stashes,
+      options.cameraOffsetX,
+      options.cameraOffsetY,
+      options.canvasWidth,
+      options.canvasHeight,
+      options.interpolatedGrass,
+      options.projectiles,
+      options.shelters,
+      options.clouds,
+      options.plantedSeeds,
+      options.rainCollectors,
+      options.brothPots,
+      options.wildAnimals,
+      options.animalCorpses,
+      options.barrels,
+      options.roadLampposts,
+      options.fumaroles,
+      options.basaltColumns,
+      options.seaStacks,
+      options.foundationCells,
+      options.wallCells,
+      options.doors,
+      options.fences,
+      options.localPlayerId,
+      options.isLocalPlayerSnorkeling,
+      options.predictedPosition ? { x: options.predictedPosition.x, y: options.predictedPosition.y } : null,
+      options.isTreeFalling,
+      options.worldChunkDataMap ?? undefined,
+      options.alkStations,
+      options.monumentParts,
+      options.livingCorals,
+      options.seaTransitionTileLookup,
+      options.waterTileLookup,
+    );
+
+    const { overlayRgba, maskCanvasRef, redrawMask } = this.configureDayNightCycleRuntime({
+      worldState: options.worldState,
+      droppedItems: filtering.visibleDroppedItemsMap,
+      campfires: options.campfires,
+      lanterns: options.lanterns,
+      furnaces: options.furnaces,
+      barbecues: options.barbecues,
+      roadLampposts: options.roadLamppostsAll,
+      barrels: options.barrelsAll,
+      runeStones: options.runeStones,
+      firePatches: options.firePatches,
+      fumaroles: options.fumaroles,
+      monumentParts: options.monumentParts,
+      players: options.players,
+      activeEquipments: options.activeEquipments,
+      itemDefinitions: options.itemDefinitions,
+      cameraOffsetX: options.cameraOffsetX,
+      cameraOffsetY: options.cameraOffsetY,
+      canvasSize: { width: options.canvasWidth, height: options.canvasHeight },
+      localPlayerId: options.localPlayerId,
+      predictedPosition: options.predictedPosition ? { x: options.predictedPosition.x, y: options.predictedPosition.y } : null,
+      remotePlayerInterpolation,
+      buildingClusters: filtering.buildingClusters,
+      worldMouseX: options.worldMouseX,
+      worldMouseY: options.worldMouseY,
+    });
+
+    const renderableProjectiles = this.configureProjectilePresentationRuntime({
+      connection: options.connection,
+      authoritativeProjectiles: options.projectiles,
+    });
+
+    const corpseSourceAnimalIds = new Set<string>();
+    filtering.visibleAnimalCorpsesMap.forEach((corpse: any) => {
+      corpseSourceAnimalIds.add(corpse.animalId.toString());
+    });
+
+    const withoutReplacedAnimals =
+      corpseSourceAnimalIds.size === 0
+        ? filtering.ySortedEntities
+        : filtering.ySortedEntities.filter((entity: any) => {
+            if (entity.type !== 'wild_animal') return true;
+            return !corpseSourceAnimalIds.has(entity.entity.id.toString());
+          });
+
+    const finalizedYSortedEntities = withoutReplacedAnimals.filter((entity: any) => entity.type !== 'projectile');
+    renderableProjectiles.forEach((projectile) => {
+      finalizedYSortedEntities.push({ type: 'projectile', entity: projectile } as any);
+    });
+
+    return {
+      ...filtering,
+      ySortedEntities: finalizedYSortedEntities,
+      overlayRgba,
+      maskCanvasRef,
+      redrawMask,
+      renderableProjectiles,
+      remotePlayerInterpolation,
+    };
   }
 
   getControllerRefs(): GameCanvasRuntimeControllerRefs {

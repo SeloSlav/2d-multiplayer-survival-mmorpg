@@ -36,7 +36,7 @@ Current reality after the latest runtime and renderer changes:
 
 - `GameCanvasRuntimeHost` owns the `runtimeEngine` frame pipeline, render context storage, typed snapshots, frame bindings, and controller refs in `client/src/engine/runtime/GameCanvasRuntimeHost.ts`.
 - `useGameCanvasFramePipeline` mounts the host pipeline and only keeps the React frame-loop bridge alive in `client/src/engine/runtime/useGameCanvasFramePipeline.ts`.
-- `useGameCanvasControllerRuntime` already consumes host-owned refs, but input handling and some controller snapshot shaping are still React hook producers.
+- `useGameCanvasControllerRuntime` already consumes host-owned refs and host-owned build state, but input handling and some controller snapshot shaping are still React hook producers.
 - Ambient effects, ambient audio, and particle production now live behind `GameCanvasRuntimeHost`.
 - Pointer tracking and build/repair target selection for render/input/mobile taps now live behind `GameCanvasRuntimeHost`.
 - React still produces scene and controller snapshots in `GameCanvas`, then synchronizes them directly through host configuration methods.
@@ -62,8 +62,8 @@ flowchart LR
 
 Still React-produced:
 
-- Scene snapshot: `useGameCanvasSceneRuntime`, `useGameScreenWorldTables`, `useUITable`, and `useFrameAssembly`.
-- Controller snapshot: `useGameCanvasControllerRuntime`, `useGameCanvasBuildState`, `useGameCanvasInteractionRuntime`, and `useInputHandler`.
+- Scene snapshot: `useGameCanvasSceneRuntime`, `useGameScreenWorldTables`, and `useUITable`.
+- Controller snapshot: `useGameCanvasControllerRuntime`, `useGameCanvasInteractionRuntime`, and `useInputHandler`.
 - Render config glue: `configureGameCanvasRenderRuntime` passes stable config into host-owned render-context assembly.
 
 Already host-owned enough to build on:
@@ -186,7 +186,7 @@ This remains one of the largest ownership seams and should happen after the thin
 
 Files:
 
-- `client/src/engine/react/useGameCanvasBuildState.ts`
+- Deleted build-state adapter
 - `client/src/engine/react/useGameCanvasInteractionRuntime.ts`
 - Deleted frame-state adapter
 - `client/src/engine/runtime/movementPredictionRuntime.ts`
@@ -204,6 +204,7 @@ Plan:
 - Completed: move interaction target scanning into `interactionTargetRuntime`, so render labels and input actions consume host-owned target refs instead of a React state-producing hook.
 - Completed: remove the remote-player interpolation wrapper; frame assembly now consumes the existing runtime interpolation singleton directly.
 - Completed: move building placement mode, placement reducer calls, equipment checks, spatial indexes, and triangle-shape prediction into `BuildingPlacementRuntime`, with React only subscribing for overlay updates.
+- Completed: remove the build-state React adapter; controller build state is assembled through `GameCanvasRuntimeHost.configureControllerBuildRuntimeState()`.
 - In progress: move input timers/actions and controller snapshot production out of React hooks.
 - Keep React limited to event capture and minimal subscriptions.
 
@@ -215,7 +216,7 @@ Files:
 
 - `client/src/engine/react/useGameCanvasSceneRuntime.ts`
 - `client/src/engine/runtime/assembleGameCanvasSceneSnapshot.ts`
-- `client/src/engine/react/useFrameAssembly.ts`
+- Deleted frame assembly adapter
 - `client/src/engine/react/useGameplayTableStateRegistry.ts`
 - `client/src/engine/adapters/spacetime/createGameplayTableBindings.ts`
 - `client/src/engine/runtimeEngine.ts`
@@ -230,6 +231,7 @@ Plan:
 - Completed: move visible world tiles, water/shore lookups, hot spring/quarry detection, and shore-distance cache into host-owned `WorldLookupRuntime`.
 - Completed: move day/night overlay and mask drawing into host-owned `DayNightCycleRuntime`, preserving `overlayRgba`, `maskCanvasRef`, and `redrawMask` contracts.
 - Completed: move viewport culling, visible entity maps, and Y-sort cache production into host-owned `EntityFilteringRuntime`, deleting the React entity-filtering adapter and hook.
+- Completed: move frame assembly composition into `GameCanvasRuntimeHost.configureFrameAssemblyRuntime()`, deleting the React frame assembly adapter.
 - Keep `assembleGameCanvasSceneSnapshot` as the contract-preserving adapter while migrating one producer group at a time.
 - Expect this stage to require the most coordination with table binding/state registry architecture.
 

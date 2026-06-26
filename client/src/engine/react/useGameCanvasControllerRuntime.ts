@@ -1,6 +1,5 @@
-import type { MutableRefObject } from 'react';
+import { useSyncExternalStore, type MutableRefObject } from 'react';
 import type { GameLoopMetrics } from '../types';
-import { useGameCanvasBuildState } from './useGameCanvasBuildState';
 import { useGameCanvasInteractionRuntime } from './useGameCanvasInteractionRuntime';
 import type { GameCanvasRuntimeControllerSnapshot, GameCanvasRuntimeHost } from '../runtime/GameCanvasRuntimeHost';
 import { assembleGameCanvasControllerSnapshot } from '../runtime/assembleGameCanvasControllerSnapshot';
@@ -115,8 +114,13 @@ export function useGameCanvasControllerRuntime({
   const buildTargetingRef = host.getBuildTargetingRef();
   const interactionTargetRef = host.getInteractionTargetRef();
 
-  const buildState = useGameCanvasBuildState({
-    host,
+  useSyncExternalStore(
+    host.subscribeToBuildingPlacementRuntime,
+    host.getBuildingPlacementRuntimeVersion,
+    host.getBuildingPlacementRuntimeVersion,
+  );
+
+  const buildState = host.configureControllerBuildRuntimeState({
     connection,
     predictedPosition,
     localPlayer,
@@ -125,8 +129,6 @@ export function useGameCanvasControllerRuntime({
     localPlayerId,
     foundationCells: sceneRuntime.foundationCells,
     fences: sceneRuntime.fences,
-    pointerSnapshot: host.getPointerSnapshot(),
-    buildTargetingRef,
   });
 
   const interactionRuntime = useGameCanvasInteractionRuntime({
