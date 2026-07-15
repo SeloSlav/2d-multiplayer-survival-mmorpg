@@ -1,5 +1,7 @@
 > **Warning: Make sure to read the [license](#-license) before use.** Broth & Bullets is based on the protected **Babushka** book universe ([babushkabook.com](https://www.babushkabook.com)). Babushka universe IP is not licensed for reuse.
 
+![Broth & Bullets gameplay — a new survivor exploring the rainy shoreline](./preview.png)
+
 # 2D Multiplayer Survival MMORPG
 
 There is no live game in production at the moment. You can play solo by downloading this project from GitHub and following the setup instructions below.
