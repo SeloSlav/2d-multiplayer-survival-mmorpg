@@ -2,13 +2,15 @@
 
 ![Broth & Bullets gameplay — a new survivor exploring the rainy shoreline](./preview.png)
 
-# 2D Multiplayer Survival MMORPG
+# Broth & Bullets — Open-Source 2D Multiplayer Survival MMORPG
 
 There is no live game in production at the moment. You can play solo by downloading this project from GitHub and following the setup instructions below.
 
 🎮 **[Watch gameplay demo](https://x.com/SeloSlav/status/2023523837724221851?s=20)**
 
-What started as an open source project for a generic 2D survival game is now a full-fledged game called **Broth & Bullets**. I've committed to open sourcing the entire project and providing the best documentation possible to help you get up and running, fork the project, create your own games, or even contribute back to Broth & Bullets itself. This repository has evolved into an exhaustive, feature-rich project with almost every pattern you can think of—constantly in development and running on SpacetimeDB 2.0. A stripped-down true "starter kit" for 2D MMORPGs (all the main features without the bloat) is planned for release soon.
+**Broth & Bullets** is a full-fledged 2D multiplayer survival MMORPG powered by SpacetimeDB 2.0. What began as a generic open-source survival game has grown into an extensive, feature-rich project that demonstrates a wide range of multiplayer game-development patterns.
+
+The source code is open for you to study, run locally, fork, and use as the foundation for games of your own. The documentation is designed to help you get up and running quickly, understand how the systems fit together, and contribute improvements back to Broth & Bullets.
 
 💬 **Want to chat?** Join the discussion on [Discord](https://discord.gg/tUcBzfAYfs)
 
