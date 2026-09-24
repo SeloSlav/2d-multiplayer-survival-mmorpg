@@ -54,7 +54,11 @@ class StreamingTests(unittest.TestCase):
             self.assertEqual(voice, "af_heart")
             yield None, None, np.zeros(2400, dtype=np.float32)
 
-        request = voice_app.SOVAStreamRequest(messages=[{"role": "user", "content": "Help me."}])
+        # A populated encyclopedia exceeded the original 25,000-character cap.
+        request = voice_app.SOVAStreamRequest(messages=[
+            {"role": "system", "content": "game knowledge " * 2300},
+            {"role": "user", "content": "Help me."},
+        ])
         async def collect():
             events = []
             response = voice_app.stream_sova_response(request, authorization="mocked-unit-test")

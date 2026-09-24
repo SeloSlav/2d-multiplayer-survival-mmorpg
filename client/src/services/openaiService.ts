@@ -3,7 +3,7 @@
 // Supports AI providers: OpenAI, Gemini, and Grok
 
 import { type GameContext } from '../utils/gameContextBuilder';
-import { getGameKnowledgeForSOVA, getRandomSOVAJoke } from '../utils/gameKnowledgeExtractor';
+import { getGameKnowledgeForSOVA, getRandomSOVAJoke, tipSections, controlSections } from '../utils/gameKnowledgeExtractor';
 import type { DbConnection } from '../generated';
 
 // Provider selection: 'openai' | 'gemini' | 'grok'
@@ -91,10 +91,34 @@ class AIService {
 
   buildSOVAMessages(request: SOVAPromptRequest): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
     return [
-      { role: 'system', content: this.buildSOVASystemPrompt() },
+      { role: 'system', content: this.buildVoiceSystemPrompt(request.userMessage) },
       ...this.conversationHistory,
       { role: 'user', content: this.buildUserPrompt(request) },
     ];
+  }
+
+  /** Keep spoken turns focused so a large game encyclopedia does not delay first audio. */
+  private buildVoiceSystemPrompt(userMessage: string): string {
+    const words = [...new Set((userMessage.toLowerCase().match(/[a-z]{4,}/g) || [])
+      .filter(word => !new Set(['what', 'where', 'when', 'which', 'would', 'could', 'should', 'please', 'tell', 'about', 'there', 'their', 'have', 'your', 'from', 'this', 'that', 'with', 'hello', 'confirm']).has(word)))];
+    const ranked = tipSections.map(section => {
+      const title = section.title.toLowerCase();
+      const detail = section.tips.join(' ').toLowerCase();
+      const score = words.reduce((sum, word) => sum + (title.includes(word) ? 3 : 0) + (detail.includes(word) ? 1 : 0), 0);
+      return { section, score };
+    }).filter(entry => entry.score > 0).sort((a, b) => b.score - a.score).slice(0, 2);
+    const relevantTips = ranked.map(({ section }) =>
+      `${section.title}:\n${section.tips.slice(0, 12).map(tip => `- ${tip}`).join('\n')}`
+    ).join('\n\n');
+    const controls = /\b(key|button|control|press|open|interface|how do i use)\b/i.test(userMessage)
+      ? controlSections.map(section => `${section.title}: ${section.controls.map(control => `${control.key} ${control.description}`).join('; ')}`).join('\n')
+      : '';
+
+    return `You are SOVA, the player's tactical AI in a survival game. Speak naturally and concisely, usually in one or two sentences. You care about the operative, an experienced Gredian babushka. Be warm, professional, and occasionally dryly witty. The operative is stranded on a remote Aleutian island in the Bering Sea after the icebreaker Sovereign Tide was lost in an Arctic storm. Grand Mariner Veronika Lagunov sacrificed herself sealing its reactor. Gred is a geothermal city-state in Kamchatka in the year 2096. The island's old Admiralty Logistics Kernel (ALK) trades deliveries for memory shards, which SOVA uses for upgrades.
+
+The CURRENT SITUATION in the user message is authoritative. Ground advice in the supplied time, weather, vitals, nearby resources, equipment, and inventory. Never invent current conditions, available items, crafting costs, or nearby threats. If a fact is absent, say you cannot verify it. For rain, recommend shelter under trees; heavy rain extinguishes exposed campfires, while torches provide mobile light and warmth. Give the operative one practical next step.
+
+${relevantTips ? `RELEVANT GAME KNOWLEDGE:\n${relevantTips}\n\n` : ''}${controls ? `CONTROLS:\n${controls}\n` : ''}`;
   }
 
   rememberSOVAResponse(userMessage: string, response: string): void {

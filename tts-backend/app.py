@@ -91,10 +91,12 @@ def stream_sova_response(request: SOVAStreamRequest, authorization: str | None =
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is missing from the voice backend")
-    if not request.messages or len(request.messages) > 16 or sum(len(m.get("content", "")) for m in request.messages) > 25000:
+    if not request.messages or len(request.messages) > 16:
         raise HTTPException(status_code=400, detail="Invalid SOVA prompt size")
     if any(m.get("role") not in {"system", "user", "assistant"} or not isinstance(m.get("content"), str) for m in request.messages):
         raise HTTPException(status_code=400, detail="Invalid SOVA messages")
+    if sum(len(m["content"]) for m in request.messages) > 64000:
+        raise HTTPException(status_code=400, detail="Invalid SOVA prompt size")
 
     def events():
         outgoing: queue.Queue[dict] = queue.Queue(maxsize=128)
