@@ -153,6 +153,8 @@ const GAMEPLAY_NON_SPATIAL_SUBSCRIPTIONS: GameplayNonSpatialSubscriptionDefiniti
   { query: 'SELECT * FROM alk_state', errorLabel: 'ALK_STATE' },
   { query: 'SELECT * FROM player_shard_balance', errorLabel: 'PLAYER_SHARD_BALANCE' },
   { query: 'SELECT * FROM monument_part', errorLabel: 'MONUMENT_PART' },
+  { query: 'SELECT * FROM reed_marsh', errorLabel: 'REED_MARSH' },
+  { query: 'SELECT * FROM tide_pool', errorLabel: 'TIDE_POOL' },
   { query: 'SELECT * FROM large_quarry', errorLabel: 'LARGE_QUARRY' },
   { query: 'SELECT * FROM matronage', errorLabel: 'MATRONAGE' },
   { query: 'SELECT * FROM matronage_member', errorLabel: 'MATRONAGE_MEMBER' },

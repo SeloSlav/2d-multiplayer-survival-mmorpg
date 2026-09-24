@@ -7,13 +7,14 @@ import { HEARTH_HEIGHT, HEARTH_RENDER_Y_OFFSET } from '../utils/renderers/hearth
 import { playImmediateSound } from './useSoundSystem';
 import { getPlacementConfig, snapToPlacementGrid, shouldUseGridSnapping } from '../config/placeablePlacementConfig';
 import { checkPlacementOverlap } from '../utils/renderers/placementRenderingUtils';
+import { getMonumentRestrictionRadiusForType } from '../utils/renderers/buildingRestrictionRulesUtils';
 import { isWaterTileTag } from '../utils/tileTypeGuards';
 
 // Minimum distance between planted seeds (in pixels)
 const MIN_SEED_DISTANCE = 20;
 
 // Cache chunk lookups per active DB connection to avoid O(n) scans on every tile query.
-const chunkLookupCache = new WeakMap<DbConnection, { chunkSize: number; chunksByCoord: Map<string, any> }>();
+const chunkLookupCache = new WeakMap<DbConnection, { chunkSize: number; chunksByCoord: Map<string, any>; refreshedAt: number }>();
 
 // Type for the information needed to start placement
 export interface PlacementItemInfo {
@@ -55,7 +56,7 @@ function getTileTypeFromChunkData(connection: DbConnection | null, tileX: number
       if (chunk.chunkSize) chunkSize = chunk.chunkSize;
       chunksByCoord.set(`${chunk.chunkX},${chunk.chunkY}`, chunk);
     }
-    lookup = { chunkSize, chunksByCoord };
+    lookup = { chunkSize, chunksByCoord, refreshedAt: Date.now() };
     chunkLookupCache.set(connection, lookup);
   }
 
@@ -64,7 +65,14 @@ function getTileTypeFromChunkData(connection: DbConnection | null, tileX: number
   const chunkX = Math.floor(tileX / chunkSize);
   const chunkY = Math.floor(tileY / chunkSize);
 
-  const chunk = lookup.chunksByCoord.get(`${chunkX},${chunkY}`);
+  let chunk = lookup.chunksByCoord.get(`${chunkX},${chunkY}`);
+  if (!chunk && Date.now() - lookup.refreshedAt > 500) {
+    for (const loadedChunk of connection.db.world_chunk_data.iter()) {
+      lookup.chunksByCoord.set(`${loadedChunk.chunkX},${loadedChunk.chunkY}`, loadedChunk);
+    }
+    lookup.refreshedAt = Date.now();
+    chunk = lookup.chunksByCoord.get(`${chunkX},${chunkY}`);
+  }
   if (!chunk) return null;
 
   // Calculate local tile position within the chunk (matching GameCanvas.tsx logic)
@@ -689,7 +697,8 @@ function isMonumentZonePlacementBlocked(connection: DbConnection | null, worldX:
         const tdy = worldY - tileCenterY;
         const distanceSq = tdx * tdx + tdy * tdy;
         
-        if (distanceSq <= MONUMENT_PLACEMENT_RESTRICTION_RADIUS_SQ) {
+        const restrictionRadius = tileType === 'Quarry' ? 400 : MONUMENT_PLACEMENT_RESTRICTION_RADIUS;
+        if (distanceSq <= restrictionRadius * restrictionRadius) {
           return true; // Blocked by hot spring or quarry
         }
       }
@@ -699,15 +708,6 @@ function isMonumentZonePlacementBlocked(connection: DbConnection | null, worldX:
   // Check monument parts (unified table for fishing village, shipwreck, whale bone graveyard, etc.)
   // NOTE: MonumentType is a tagged union with a `tag` property (e.g., { tag: 'FishingVillage' })
   // All monument restriction radii must match server/src/building.rs values
-  const MONUMENT_MINIMUM_RESTRICTION_RADIUS = 800.0; // 800px minimum for all monuments
-  const MONUMENT_MINIMUM_RESTRICTION_RADIUS_SQ = MONUMENT_MINIMUM_RESTRICTION_RADIUS * MONUMENT_MINIMUM_RESTRICTION_RADIUS;
-  const FISHING_VILLAGE_RESTRICTION_RADIUS = 1000.0; // 25% larger than original 800
-  const FISHING_VILLAGE_RESTRICTION_RADIUS_SQ = FISHING_VILLAGE_RESTRICTION_RADIUS * FISHING_VILLAGE_RESTRICTION_RADIUS;
-  const SHIPWRECK_RESTRICTION_RADIUS = 1875.0; // 25% larger than original 1500
-  const SHIPWRECK_RESTRICTION_RADIUS_SQ = SHIPWRECK_RESTRICTION_RADIUS * SHIPWRECK_RESTRICTION_RADIUS;
-  const WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS = 800.0;
-  const WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS_SQ = WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS * WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS;
-  
   for (const part of connection.db.monument_part.iter()) {
     // Only check against the center piece for the exclusion zone
     if (part.isCenter) {
@@ -715,33 +715,22 @@ function isMonumentZonePlacementBlocked(connection: DbConnection | null, worldX:
       const dy = worldY - part.worldY;
       const distanceSq = dx * dx + dy * dy;
       
-      // Use different restriction radius based on monument type
-      // Larger monuments get larger radii, all others use 800px minimum
-      let restrictionRadiusSq: number;
-      switch (part.monumentType?.tag) {
-        case 'Shipwreck':
-          restrictionRadiusSq = SHIPWRECK_RESTRICTION_RADIUS_SQ;
-          break;
-        case 'FishingVillage':
-          restrictionRadiusSq = FISHING_VILLAGE_RESTRICTION_RADIUS_SQ;
-          break;
-        case 'WhaleBoneGraveyard':
-          restrictionRadiusSq = WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS_SQ;
-          break;
-        case 'CrashedResearchDrone':
-        case 'WeatherStation':
-        case 'WolfDen':
-        case 'HuntingVillage':
-        case 'AlpineVillage':
-        default:
-          // 800px minimum for all other monuments
-          restrictionRadiusSq = MONUMENT_MINIMUM_RESTRICTION_RADIUS_SQ;
-      }
-      
-      if (distanceSq <= restrictionRadiusSq) {
+      const restrictionRadius = getMonumentRestrictionRadiusForType(part.monumentType?.tag);
+      if (restrictionRadius > 0 && distanceSq <= restrictionRadius * restrictionRadius) {
         return true; // Blocked by monument
       }
     }
+  }
+
+  for (const marsh of connection.db.reed_marsh.iter()) {
+    const dx = worldX - marsh.worldX;
+    const dy = worldY - marsh.worldY;
+    if (dx * dx + dy * dy <= marsh.radiusPx * marsh.radiusPx) return true;
+  }
+  for (const pool of connection.db.tide_pool.iter()) {
+    const dx = worldX - pool.worldX;
+    const dy = worldY - pool.worldY;
+    if (dx * dx + dy * dy <= pool.radiusPx * pool.radiusPx) return true;
   }
   
   // Check asphalt tiles (compound areas - cannot place anything)
@@ -854,13 +843,6 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
     // console.log(`[PlacementManager] Attempting to place ${placementInfo.itemName} at (${worldX}, ${worldY})`);
     setPlacementError(null); // Clear previous error
 
-    // Check for distance restriction first
-    if (isPlacementTooFar) {
-      setPlacementError('Placement location is too far away.');
-      playImmediateSound('error_placement_failed', 1.0);
-      return; // Don't proceed with placement
-    }
-
     // Snap to placement grid for items that use it (preview will match server placement exactly)
     let placeX = worldX;
     let placeY = worldY;
@@ -873,6 +855,49 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
       }
     }
 
+    // Doors are placed at a foundation edge, not at the cursor. Validate the
+    // actual target used by the reducer for both range and monument proximity.
+    let doorTarget: { x: number; y: number; cellX: number; cellY: number; edge: number } | null = null;
+    if (placementInfo.itemName === 'Wood Door' || placementInfo.itemName === 'Metal Door') {
+      let nearestFoundation: { cellX: number; cellY: number } | null = null;
+      let nearestDistanceSq = (96 * 1.5) ** 2;
+      for (const foundation of connection.db.foundation_cell.iter()) {
+        if (foundation.isDestroyed) continue;
+        const centerX = foundation.cellX * 96 + 48;
+        const centerY = foundation.cellY * 96 + 48;
+        const distanceSq = (placeX - centerX) ** 2 + (placeY - centerY) ** 2;
+        if (distanceSq < nearestDistanceSq) {
+          nearestDistanceSq = distanceSq;
+          nearestFoundation = foundation;
+        }
+      }
+      if (nearestFoundation) {
+        const edge = placeY < nearestFoundation.cellY * 96 + 48 ? 0 : 2;
+        const edgeY = edge === 0
+          ? nearestFoundation.cellY * 96
+          : (nearestFoundation.cellY + 1) * 96;
+        doorTarget = {
+          x: nearestFoundation.cellX * 96 + 48, y: edgeY,
+          cellX: nearestFoundation.cellX, cellY: nearestFoundation.cellY, edge,
+        };
+      }
+    }
+
+    const targetX = doorTarget?.x ?? placeX;
+    const targetY = doorTarget?.y ?? placeY;
+    const localIdentity = connection.identity?.toHexString();
+    const localPlayer = localIdentity
+      ? Array.from(connection.db.player.iter()).find(player => player.identity.toHexString() === localIdentity)
+      : undefined;
+    const doorIsTooFar = doorTarget && localPlayer
+      ? (targetX - localPlayer.positionX) ** 2 + (targetY - localPlayer.positionY) ** 2 > 128 ** 2
+      : false;
+    if ((doorTarget ? doorIsTooFar : isPlacementTooFar)) {
+      setPlacementError('Placement location is too far away.');
+      playImmediateSound('error_placement_failed', 1.0);
+      return;
+    }
+
     // Check for overlap with existing placeables (grid-snapping items only)
     const { overlaps: isOverlapping } = checkPlacementOverlap(connection, placementInfo, placeX, placeY);
     if (isOverlapping) {
@@ -882,7 +907,7 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
     }
 
     // Check for monument zone restriction (use snapped position for grid-snapping items)
-    if (isMonumentZonePlacementBlocked(connection, placeX, placeY)) {
+    if (isMonumentZonePlacementBlocked(connection, targetX, targetY)) {
       setPlacementError('Too close to monument');
       // Play monument-specific error sound based on item type
       if (isSeedItemValid(placementInfo.itemName)) {
@@ -1095,47 +1120,20 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           break;
         case 'Wood Door':
         case 'Metal Door': {
-          // Door placement requires finding the nearest foundation edge (N/S only)
-          const FOUNDATION_TILE_SIZE = 96;
-          let nearestFoundation: any = null;
-          let nearestDistance = Infinity;
-          
-          // Find closest foundation cell
-          for (const foundation of connection.db.foundation_cell.iter()) {
-            if (foundation.isDestroyed) continue;
-            
-            // Calculate foundation center position
-            const foundationCenterX = foundation.cellX * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
-            const foundationCenterY = foundation.cellY * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
-            
-            const dx = placeX - foundationCenterX;
-            const dy = placeY - foundationCenterY;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            // Only consider foundations within interaction range
-            if (distance < nearestDistance && distance < FOUNDATION_TILE_SIZE * 1.5) {
-              nearestDistance = distance;
-              nearestFoundation = foundation;
-            }
-          }
-          
-          if (!nearestFoundation) {
+          if (!doorTarget) {
             console.log('[PlacementManager] No foundation nearby for door placement');
             playImmediateSound('error_chest_placement', 1.0);
             return;
           }
-          
-          // Determine which edge (North=0, South=2) based on cursor Y position relative to foundation
-          const foundationCenterY = nearestFoundation.cellY * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
-          const edge = placeY < foundationCenterY ? 0 : 2; // 0 = North, 2 = South
+          const { cellX, cellY, edge } = doorTarget;
           
           // Check for existing wall or door on this edge
           let hasWallOnEdge = false;
           let hasDoorOnEdge = false;
           
           for (const wall of connection.db.wall_cell.iter()) {
-            if (wall.cellX === nearestFoundation.cellX && 
-                wall.cellY === nearestFoundation.cellY && 
+            if (wall.cellX === cellX &&
+                wall.cellY === cellY &&
                 wall.edge === edge && 
                 !wall.isDestroyed) {
               hasWallOnEdge = true;
@@ -1144,8 +1142,8 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           }
           
           for (const door of connection.db.door.iter()) {
-            if (door.cellX === nearestFoundation.cellX && 
-                door.cellY === nearestFoundation.cellY && 
+            if (door.cellX === cellX &&
+                door.cellY === cellY &&
                 door.edge === edge) {
               hasDoorOnEdge = true;
               break;
@@ -1161,10 +1159,10 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           // Determine door type (0 = Wood, 1 = Metal)
           const doorType = placementInfo.itemName === 'Wood Door' ? 0 : 1;
           
-          console.log(`[PlacementManager] Placing ${placementInfo.itemName} on foundation (${nearestFoundation.cellX}, ${nearestFoundation.cellY}) edge ${edge === 0 ? 'North' : 'South'}`);
+          console.log(`[PlacementManager] Placing ${placementInfo.itemName} on foundation (${cellX}, ${cellY}) edge ${edge === 0 ? 'North' : 'South'}`);
           connection.reducers.placeDoor({
-            cellX: BigInt(nearestFoundation.cellX),
-            cellY: BigInt(nearestFoundation.cellY),
+            cellX: BigInt(cellX),
+            cellY: BigInt(cellY),
             worldX: placeX,
             worldY: placeY,
             doorType,

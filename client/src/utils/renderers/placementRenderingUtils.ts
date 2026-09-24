@@ -23,6 +23,7 @@ import { DbConnection } from '../../generated';
 import { isSeedItemValid, requiresWaterPlacement, requiresBeachPlacement, requiresAlpinePlacement, requiresTundraPlacement, isPineconeBlockedOnBeach, isBirchCatkinBlockedOnAlpine, requiresTemperateOnlyPlacement } from '../plantsUtils';
 import { renderFoundationPreview, renderWallPreview, renderFencePreview } from './foundationRenderingUtils';
 import { isWaterTileTag } from '../tileTypeGuards';
+import { getMonumentRestrictionRadiusForType } from './buildingRestrictionRulesUtils';
 
 // Import interaction distance constants
 const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0; // Mirrors interaction target runtime.
@@ -75,6 +76,8 @@ export function worldPosToTileKey(worldX: number, worldY: number): string {
 const chunkCache: Map<string, { chunkSize: number; tileTypes: Uint8Array }> = new Map();
 let cachedChunkSize = 8; // Default chunk size, updated when first chunk is seen
 let lastConnectionIdentity: string | null = null; // Track connection changes to invalidate cache
+let lastChunkCacheConnection: DbConnection | null = null;
+let lastChunkRefreshMs = 0;
 
 // PERFORMANCE FIX: Spatial index for foundations - O(1) cell lookup instead of O(n) iteration
 // Key: "cellX,cellY", Value: array of foundations at that cell
@@ -95,6 +98,7 @@ const SEED_INDEX_REFRESH_MS = 250;
 
 // PERFORMANCE: Cache monument-zone validation per tile for preview path.
 const monumentZoneTileCache: Map<string, { blocked: boolean; timestamp: number }> = new Map();
+let monumentZoneCacheConnection: DbConnection | null = null;
 const MONUMENT_ZONE_CACHE_TTL_MS = 120;
 
 /**
@@ -192,9 +196,11 @@ export function getTileTypeFromChunkData(connection: DbConnection | null, tileX:
     
     // PERFORMANCE FIX: Check if we need to rebuild the cache (connection changed)
     const currentIdentity = connection.identity?.toHexString() || 'unknown';
-    if (lastConnectionIdentity !== currentIdentity || chunkCache.size === 0) {
+    if (lastChunkCacheConnection !== connection || lastConnectionIdentity !== currentIdentity) {
+        lastChunkCacheConnection = connection;
         lastConnectionIdentity = currentIdentity;
         rebuildChunkCache(connection);
+        lastChunkRefreshMs = Date.now();
     }
     
     // Calculate which chunk this tile belongs to
@@ -203,7 +209,13 @@ export function getTileTypeFromChunkData(connection: DbConnection | null, tileX:
     
     // PERFORMANCE FIX: O(1) lookup instead of O(n) iteration
     const chunkKey = `${chunkX},${chunkY}`;
-    const cachedChunk = chunkCache.get(chunkKey);
+    let cachedChunk = chunkCache.get(chunkKey);
+    if (!cachedChunk && Date.now() - lastChunkRefreshMs > 500) {
+        // Spatial subscriptions can deliver a chunk after the first cache build.
+        rebuildChunkCache(connection);
+        lastChunkRefreshMs = Date.now();
+        cachedChunk = chunkCache.get(chunkKey);
+    }
     
     if (!cachedChunk) {
         return null; // Chunk not in cache
@@ -701,12 +713,18 @@ function isPositionInMonumentZone(
 ): boolean {
     if (!connection) return false;
 
+    if (monumentZoneCacheConnection !== connection) {
+        monumentZoneTileCache.clear();
+        monumentZoneCacheConnection = connection;
+    }
+
     const TILE_SIZE_LOCAL = 48;
-    const tileX = Math.floor(worldX / TILE_SIZE_LOCAL);
-    const tileY = Math.floor(worldY / TILE_SIZE_LOCAL);
-    const cacheKey = `${tileX},${tileY}`;
+    // The boundary can cross a tile. Cache the exact tested position, not a
+    // 48px tile shared by valid and invalid points.
+    const cacheKey = `${worldX},${worldY}`;
     const cached = monumentZoneTileCache.get(cacheKey);
     const now = Date.now();
+    if (monumentZoneTileCache.size > 512) monumentZoneTileCache.clear();
     if (cached && (now - cached.timestamp) < MONUMENT_ZONE_CACHE_TTL_MS) {
         return cached.blocked;
     }
@@ -779,15 +797,6 @@ function isPositionInMonumentZone(
     // Check monument parts (unified table for fishing village, shipwreck, whale bone graveyard, etc.)
     // NOTE: MonumentType is a tagged union with a `tag` property (e.g., { tag: 'FishingVillage' })
     // All monument restriction radii must match server/src/building.rs values
-    const MONUMENT_MINIMUM_RESTRICTION_RADIUS = 800.0; // 800px minimum for all monuments
-    const MONUMENT_MINIMUM_RESTRICTION_RADIUS_SQ = MONUMENT_MINIMUM_RESTRICTION_RADIUS * MONUMENT_MINIMUM_RESTRICTION_RADIUS;
-    const FISHING_VILLAGE_RESTRICTION_RADIUS = 1000.0; // 25% larger than original 800
-    const FISHING_VILLAGE_RESTRICTION_RADIUS_SQ = FISHING_VILLAGE_RESTRICTION_RADIUS * FISHING_VILLAGE_RESTRICTION_RADIUS;
-    const SHIPWRECK_RESTRICTION_RADIUS = 1875.0; // 25% larger than original 1500
-    const SHIPWRECK_RESTRICTION_RADIUS_SQ = SHIPWRECK_RESTRICTION_RADIUS * SHIPWRECK_RESTRICTION_RADIUS;
-    const WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS = 800.0;
-    const WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS_SQ = WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS * WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS;
-    
     for (const part of connection.db.monument_part.iter()) {
         // Only check against the center piece for the exclusion zone
         if (part.isCenter) {
@@ -795,33 +804,28 @@ function isPositionInMonumentZone(
             const dy = worldY - part.worldY;
             const distSq = dx * dx + dy * dy;
             
-            // Use different restriction radius based on monument type
-            // Larger monuments get larger radii, all others use 800px minimum
-            let restrictionRadiusSq: number;
-            switch (part.monumentType?.tag) {
-                case 'Shipwreck':
-                    restrictionRadiusSq = SHIPWRECK_RESTRICTION_RADIUS_SQ;
-                    break;
-                case 'FishingVillage':
-                    restrictionRadiusSq = FISHING_VILLAGE_RESTRICTION_RADIUS_SQ;
-                    break;
-                case 'WhaleBoneGraveyard':
-                    restrictionRadiusSq = WHALE_BONE_GRAVEYARD_RESTRICTION_RADIUS_SQ;
-                    break;
-                case 'CrashedResearchDrone':
-                case 'WeatherStation':
-                case 'WolfDen':
-                case 'HuntingVillage':
-                case 'AlpineVillage':
-                default:
-                    // 800px minimum for all other monuments (AlpineVillage uses 600px on server)
-                    restrictionRadiusSq = MONUMENT_MINIMUM_RESTRICTION_RADIUS_SQ;
-            }
-            
-            if (distSq <= restrictionRadiusSq) {
+            const restrictionRadius = getMonumentRestrictionRadiusForType(part.monumentType?.tag);
+            if (restrictionRadius > 0 && distSq <= restrictionRadius * restrictionRadius) {
                 monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
                 return true; // Too close to monument
             }
+        }
+    }
+
+    for (const marsh of connection.db.reed_marsh.iter()) {
+        const dx = worldX - marsh.worldX;
+        const dy = worldY - marsh.worldY;
+        if (dx * dx + dy * dy <= marsh.radiusPx * marsh.radiusPx) {
+            monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
+            return true;
+        }
+    }
+    for (const pool of connection.db.tide_pool.iter()) {
+        const dx = worldX - pool.worldX;
+        const dy = worldY - pool.worldY;
+        if (dx * dx + dy * dy <= pool.radiusPx * pool.radiusPx) {
+            monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
+            return true;
         }
     }
     
@@ -1049,7 +1053,10 @@ export function isPlacementTooFar(
     // Use appropriate placement range based on item type
     // These should match server-side placement distance constants!
     let clientPlacementRangeSq: number;
-    if (placementInfo.iconAssetName === 'shelter.png') {
+    if (isSeedItemValid(placementInfo.itemName)) {
+        // Matches MAX_PLANTING_DISTANCE_SQ in server/src/planted_seeds.rs.
+        clientPlacementRangeSq = 150.0 * 150.0;
+    } else if (placementInfo.iconAssetName === 'shelter.png') {
         // Shelter has a much larger placement range (256px vs 64px for other items)
         clientPlacementRangeSq = SHELTER_PLACEMENT_MAX_DISTANCE * SHELTER_PLACEMENT_MAX_DISTANCE;
     } else if (placementInfo.iconAssetName === 'hearth.png') {
@@ -1158,6 +1165,13 @@ function isFoundationPlacementValid(
     const cached = placementValidationCache.get(cacheKey);
     if (cached && (now - cached.timestamp) < PLACEMENT_CACHE_TTL_MS) {
         return cached.isValid;
+    }
+
+    // Match the server's foundation zone check, including monument parts and
+    // protected marsh/pool areas that the older foundation preview omitted.
+    if (isPositionInMonumentZone(connection, worldX, worldY)) {
+        placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+        return false;
     }
 
     // PERFORMANCE FIX: Check if grass spatial hash needs rebuilding
@@ -2360,6 +2374,9 @@ export function renderPlacementPreview({
         }
     }
 
+    const isDoorTooFar = isDoorPlacement &&
+        (snappedX - localPlayerX) ** 2 + (snappedY - localPlayerY) ** 2 > 128 ** 2;
+
     // Check for water placement restriction
     const isOnWater = isWaterPlacementBlocked(connection, placementInfo, snappedX, snappedY);
     
@@ -2468,7 +2485,7 @@ export function renderPlacementPreview({
         isInvalidPlacement = isBrothPotInvalid || isInMonumentZone; // Check both campfire validity and monument zone
         isPositionValid = !isInvalidPlacement;
     } else if (isDoorPlacement) {
-        isInvalidPlacement = isDoorInvalid || isInMonumentZone; // Check both foundation edge validity and monument zone
+        isInvalidPlacement = isDoorInvalid || isDoorTooFar || isInMonumentZone;
         isPositionValid = !isInvalidPlacement;
     } else {
         const { overlaps: isOverlappingPlaceable } = checkPlacementOverlap(connection, placementInfo, snappedX, snappedY);

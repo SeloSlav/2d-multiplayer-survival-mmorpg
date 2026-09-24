@@ -580,6 +580,9 @@ pub fn place_door(
     
     // 5. Check placement distance from player
     let (door_pos_x, door_pos_y) = calculate_door_position(cell_x_i32, cell_y_i32, edge);
+
+    // Validate the same snapped edge position shown by the client preview.
+    crate::building::check_monument_zone_placement(ctx, door_pos_x, door_pos_y)?;
     
     let dx = door_pos_x - player.position_x;
     let dy = door_pos_y - player.position_y;

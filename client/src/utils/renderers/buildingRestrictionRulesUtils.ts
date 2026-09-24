@@ -23,15 +23,31 @@ export function shouldShowBuildingRestrictionOverlay(
 }
 
 export function getMonumentRestrictionRadius(buildingId: string): number {
-  if (buildingId.startsWith('shipwreck_')) return 1875;
-  if (buildingId.startsWith('fishing_village_')) return 1000;
-  if (buildingId.startsWith('whale_bone_graveyard_')) return 1200;
-  if (buildingId.startsWith('hunting_village_')) return 1200;
-  if (buildingId.startsWith('crashed_research_drone_')) return 800;
-  if (buildingId.startsWith('weather_station_')) return 2000;
-  if (buildingId.startsWith('wolf_den_')) return 800;
-  if (buildingId.startsWith('alpine_village_')) return 600;
+  if (buildingId.startsWith('shipwreck_')) return getMonumentRestrictionRadiusForType('Shipwreck');
+  if (buildingId.startsWith('fishing_village_')) return getMonumentRestrictionRadiusForType('FishingVillage');
+  if (buildingId.startsWith('whale_bone_graveyard_')) return getMonumentRestrictionRadiusForType('WhaleBoneGraveyard');
+  if (buildingId.startsWith('hunting_village_')) return getMonumentRestrictionRadiusForType('HuntingVillage');
+  if (buildingId.startsWith('crashed_research_drone_')) return getMonumentRestrictionRadiusForType('CrashedResearchDrone');
+  if (buildingId.startsWith('weather_station_')) return getMonumentRestrictionRadiusForType('WeatherStation');
+  if (buildingId.startsWith('wolf_den_')) return getMonumentRestrictionRadiusForType('WolfDen');
+  if (buildingId.startsWith('alpine_village_')) return getMonumentRestrictionRadiusForType('AlpineVillage');
   return 0;
+}
+
+/** Keep the preview, click check, and overlay in sync with server/src/building.rs. */
+export function getMonumentRestrictionRadiusForType(monumentType: string | undefined): number {
+  switch (monumentType) {
+    case 'Shipwreck': return 1875;
+    case 'FishingVillage': return 1000;
+    case 'WeatherStation': return 2000;
+    case 'HotSpring': return 0; // Water tiles, not the shack, carry the restriction.
+    case 'WhaleBoneGraveyard':
+    case 'HuntingVillage':
+    case 'CrashedResearchDrone':
+    case 'WolfDen':
+    case 'AlpineVillage': return 800;
+    default: return 0;
+  }
 }
 
 export function buildLargeQuarryRestrictionZones(

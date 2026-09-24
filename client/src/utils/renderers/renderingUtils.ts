@@ -2275,6 +2275,21 @@ export const renderYSortedEntities = ({
       }
   }
 
+  if (connection && shouldShowBuildingRestrictionOverlay(
+      placementInfo, localPlayerId, activeEquipments, itemDefinitions
+  )) {
+      for (const marsh of connection.db.reed_marsh.iter()) {
+          renderBuildingRestrictionOverlay(ctx, {
+              centerX: marsh.worldX, centerY: marsh.worldY, radius: marsh.radiusPx,
+          });
+      }
+      for (const pool of connection.db.tide_pool.iter()) {
+          renderBuildingRestrictionOverlay(ctx, {
+              centerX: pool.worldX, centerY: pool.worldY, radius: pool.radiusPx,
+          });
+      }
+  }
+
   // PASS: Health bar overlay - render ON TOP of barrels, doodads, and other world objects
   const playerX = localPlayerPosition?.x ?? 0;
   const playerY = localPlayerPosition?.y ?? 0;
