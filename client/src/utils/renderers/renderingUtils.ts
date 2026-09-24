@@ -2196,8 +2196,8 @@ export const renderYSortedEntities = ({
   // South doors need to render above ceiling tiles to be visible
   // NOTE: North doors (edge 0) were already rendered in PASS 2.5 before ceiling tiles
   for (const door of doorEntities) {
-          // Only render south doors (edge 2) in this pass - north doors were rendered in PASS 2.5
-          if (door.edge !== 2) {
+          // South and side doors remain visible above ceiling tiles.
+          if (door.edge !== 1 && door.edge !== 2 && door.edge !== 3) {
               continue;
           }
           

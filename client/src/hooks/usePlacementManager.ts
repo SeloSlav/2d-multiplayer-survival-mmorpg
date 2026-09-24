@@ -9,6 +9,7 @@ import { getPlacementConfig, snapToPlacementGrid, shouldUseGridSnapping } from '
 import { checkPlacementOverlap } from '../utils/renderers/placementRenderingUtils';
 import { getMonumentRestrictionRadiusForType } from '../utils/renderers/buildingRestrictionRulesUtils';
 import { isWaterTileTag } from '../utils/tileTypeGuards';
+import { getAdjacentDoorEdge, getDoorEdgeForCursor, getDoorEdgePosition, isDoorEdgeOnFoundation } from '../utils/doorPlacementGeometry';
 
 // Minimum distance between planted seeds (in pixels)
 const MIN_SEED_DISTANCE = 20;
@@ -857,9 +858,9 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
 
     // Doors are placed at a foundation edge, not at the cursor. Validate the
     // actual target used by the reducer for both range and monument proximity.
-    let doorTarget: { x: number; y: number; cellX: number; cellY: number; edge: number } | null = null;
+    let doorTarget: { x: number; y: number; cellX: number; cellY: number; edge: number; shape: number } | null = null;
     if (placementInfo.itemName === 'Wood Door' || placementInfo.itemName === 'Metal Door') {
-      let nearestFoundation: { cellX: number; cellY: number } | null = null;
+      let nearestFoundation: { cellX: number; cellY: number; shape: number } | null = null;
       let nearestDistanceSq = (96 * 1.5) ** 2;
       for (const foundation of connection.db.foundation_cell.iter()) {
         if (foundation.isDestroyed) continue;
@@ -872,13 +873,11 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
         }
       }
       if (nearestFoundation) {
-        const edge = placeY < nearestFoundation.cellY * 96 + 48 ? 0 : 2;
-        const edgeY = edge === 0
-          ? nearestFoundation.cellY * 96
-          : (nearestFoundation.cellY + 1) * 96;
+        const edge = getDoorEdgeForCursor(nearestFoundation.cellX, nearestFoundation.cellY, placeX, placeY);
+        const position = getDoorEdgePosition(nearestFoundation.cellX, nearestFoundation.cellY, edge);
         doorTarget = {
-          x: nearestFoundation.cellX * 96 + 48, y: edgeY,
-          cellX: nearestFoundation.cellX, cellY: nearestFoundation.cellY, edge,
+          ...position,
+          cellX: nearestFoundation.cellX, cellY: nearestFoundation.cellY, edge, shape: nearestFoundation.shape,
         };
       }
     }
@@ -1125,7 +1124,12 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
             playImmediateSound('error_chest_placement', 1.0);
             return;
           }
-          const { cellX, cellY, edge } = doorTarget;
+          const { cellX, cellY, edge, shape } = doorTarget;
+          if (!isDoorEdgeOnFoundation(shape, edge)) {
+            setPlacementError('No foundation edge here for a door');
+            playImmediateSound('error_chest_placement', 1.0);
+            return;
+          }
           
           // Check for existing wall or door on this edge
           let hasWallOnEdge = false;
@@ -1144,14 +1148,25 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           for (const door of connection.db.door.iter()) {
             if (door.cellX === cellX &&
                 door.cellY === cellY &&
-                door.edge === edge) {
+                door.edge === edge &&
+                !door.isDestroyed) {
               hasDoorOnEdge = true;
               break;
             }
           }
+
+          const adjacent = getAdjacentDoorEdge(cellX, cellY, edge);
+          for (const wall of connection.db.wall_cell.iter()) {
+            if (wall.cellX === adjacent.cellX && wall.cellY === adjacent.cellY &&
+                wall.edge === adjacent.edge && !wall.isDestroyed) hasWallOnEdge = true;
+          }
+          for (const door of connection.db.door.iter()) {
+            if (door.cellX === adjacent.cellX && door.cellY === adjacent.cellY &&
+                door.edge === adjacent.edge && !door.isDestroyed) hasDoorOnEdge = true;
+          }
           
           if (hasWallOnEdge || hasDoorOnEdge) {
-            console.log(`[PlacementManager] Edge ${edge === 0 ? 'North' : 'South'} already has wall or door`);
+            setPlacementError('A wall or door already occupies this edge');
             playImmediateSound('error_chest_placement', 1.0);
             return;
           }
@@ -1159,7 +1174,7 @@ export const usePlacementManager = (connection: DbConnection | null): [Placement
           // Determine door type (0 = Wood, 1 = Metal)
           const doorType = placementInfo.itemName === 'Wood Door' ? 0 : 1;
           
-          console.log(`[PlacementManager] Placing ${placementInfo.itemName} on foundation (${cellX}, ${cellY}) edge ${edge === 0 ? 'North' : 'South'}`);
+          console.log(`[PlacementManager] Placing ${placementInfo.itemName} on foundation (${cellX}, ${cellY}) edge ${edge}`);
           connection.reducers.placeDoor({
             cellX: BigInt(cellX),
             cellY: BigInt(cellY),

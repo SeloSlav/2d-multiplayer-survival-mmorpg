@@ -3,7 +3,7 @@
  * Door System - Placeable doors on foundation edges                          *
  *                                                                            *
  * Handles placement, opening/closing, and pickup of doors.                   *
- * Doors can only be placed on North/South edges of foundations.              *
+ * Doors can be placed on all four cardinal foundation edges.                 *
  *                                                                            *
  ******************************************************************************/
 
@@ -49,7 +49,7 @@ pub struct Door {
     pub door_type: u8,        // 0 = Wood, 1 = Metal
     pub cell_x: i32,          // Foundation cell X
     pub cell_y: i32,          // Foundation cell Y
-    pub edge: u8,             // 0 = North, 2 = South (matching wall edge convention)
+    pub edge: u8,             // 0=N, 1=E, 2=S, 3=W (matching wall edges)
     pub is_open: bool,        // Open/closed state
     pub pos_x: f32,           // World position X (edge center)
     pub pos_y: f32,           // World position Y (edge center)
@@ -83,31 +83,45 @@ fn get_door_max_health(door_type: u8) -> f32 {
     }
 }
 
-/// Check if a door position is valid (foundation exists, N/S edge only, no existing door/wall)
+/// Check if a door position is valid (foundation exists, cardinal edge, no existing door/wall)
 pub fn is_door_position_valid(
     ctx: &ReducerContext,
     cell_x: i32,
     cell_y: i32,
     edge: BuildingEdge,
 ) -> Result<(), String> {
-    // 1. Only allow North or South edges
-    if !matches!(edge, BuildingEdge::N | BuildingEdge::S) {
-        return Err("Doors can only be placed on North or South edges.".to_string());
+    // 1. Doors occupy cardinal edges only.
+    if !matches!(edge, BuildingEdge::N | BuildingEdge::E | BuildingEdge::S | BuildingEdge::W) {
+        return Err("Doors can only be placed on cardinal foundation edges.".to_string());
     }
     
     // 2. Check if there's a foundation at this cell
     let foundations = ctx.db.foundation_cell();
     let mut foundation_found = false;
+    let mut foundation_shape = 0;
     
     for foundation in foundations.idx_cell_coords().filter((cell_x, cell_y)) {
         if !foundation.is_destroyed {
             foundation_found = true;
+            foundation_shape = foundation.shape;
             break;
         }
     }
     
     if !foundation_found {
         return Err("Cannot place door: no foundation at this location.".to_string());
+    }
+
+    let edge_exists = match foundation_shape {
+        1 => true, // Full foundation
+        2 => matches!(edge, BuildingEdge::N | BuildingEdge::W),
+        3 => matches!(edge, BuildingEdge::N | BuildingEdge::E),
+        4 => matches!(edge, BuildingEdge::S | BuildingEdge::E),
+        5 => matches!(edge, BuildingEdge::S | BuildingEdge::W),
+        _ => false,
+    };
+    if !edge_exists {
+        return Err("Cannot place door on a missing foundation edge.".to_string());
     }
     
     // 3. Check if there's already a wall at this edge
@@ -129,7 +143,9 @@ pub fn is_door_position_valid(
     // 5. Check adjacent tiles for shared edges (walls or doors)
     let (adjacent_cell_x, adjacent_cell_y, opposite_edge) = match edge {
         BuildingEdge::N => (cell_x, cell_y - 1, BuildingEdge::S as u8),
+        BuildingEdge::E => (cell_x + 1, cell_y, BuildingEdge::W as u8),
         BuildingEdge::S => (cell_x, cell_y + 1, BuildingEdge::N as u8),
+        BuildingEdge::W => (cell_x - 1, cell_y, BuildingEdge::E as u8),
         _ => return Err("Invalid edge for door.".to_string()),
     };
     
@@ -159,8 +175,44 @@ pub fn calculate_door_position(cell_x: i32, cell_y: i32, edge: BuildingEdge) -> 
     
     match edge {
         BuildingEdge::N => (tile_center_x, tile_top),
+        BuildingEdge::E => (tile_left + tile_size, tile_top + tile_size / 2.0),
         BuildingEdge::S => (tile_center_x, tile_top + tile_size),
+        BuildingEdge::W => (tile_left, tile_top + tile_size / 2.0),
         _ => (tile_center_x, tile_top + (tile_size / 2.0)), // Fallback to center
+    }
+}
+
+/// Mirrors the client's nearest-edge selection for the placement cursor.
+fn door_edge_from_cursor(cell_x: i32, cell_y: i32, world_x: f32, world_y: f32) -> BuildingEdge {
+    let size = FOUNDATION_TILE_SIZE_PX as f32;
+    let left = cell_x as f32 * size;
+    let top = cell_y as f32 * size;
+    let candidates = [
+        (BuildingEdge::N, (world_y - top).abs()),
+        (BuildingEdge::S, (world_y - top - size).abs()),
+        (BuildingEdge::E, (world_x - left - size).abs()),
+        (BuildingEdge::W, (world_x - left).abs()),
+    ];
+    candidates.into_iter().min_by(|a, b| a.1.total_cmp(&b.1)).unwrap().0
+}
+
+#[cfg(test)]
+mod placement_geometry_tests {
+    use super::*;
+
+    #[test]
+    fn picks_each_cardinal_edge_and_centers_side_doors() {
+        let cell_x = 2;
+        let cell_y = 3;
+        let left = cell_x as f32 * FOUNDATION_TILE_SIZE_PX as f32;
+        let top = cell_y as f32 * FOUNDATION_TILE_SIZE_PX as f32;
+        let size = FOUNDATION_TILE_SIZE_PX as f32;
+        assert_eq!(door_edge_from_cursor(cell_x, cell_y, left + size / 2.0, top + 5.0), BuildingEdge::N);
+        assert_eq!(door_edge_from_cursor(cell_x, cell_y, left + size - 5.0, top + size / 2.0), BuildingEdge::E);
+        assert_eq!(door_edge_from_cursor(cell_x, cell_y, left + size / 2.0, top + size - 5.0), BuildingEdge::S);
+        assert_eq!(door_edge_from_cursor(cell_x, cell_y, left + 5.0, top + size / 2.0), BuildingEdge::W);
+        assert_eq!(calculate_door_position(cell_x, cell_y, BuildingEdge::E), (left + size, top + size / 2.0));
+        assert_eq!(calculate_door_position(cell_x, cell_y, BuildingEdge::W), (left, top + size / 2.0));
     }
 }
 
@@ -337,11 +389,17 @@ pub fn check_door_collision(
                     0 => { // North edge - perfect as is
                         (tile_left, tile_right, tile_top - DOOR_COLLISION_THICKNESS / 2.0, tile_top + DOOR_COLLISION_THICKNESS / 2.0)
                     },
+                    1 => { // East edge
+                        (tile_right - DOOR_COLLISION_THICKNESS / 2.0, tile_right + DOOR_COLLISION_THICKNESS / 2.0, tile_top, tile_bottom)
+                    },
                     2 => { // South edge - positioned higher to cover more of door visually
                         // Move collision up by 24px from bottom edge to prevent visual clipping
                         const SOUTH_DOOR_COLLISION_OFFSET: f32 = 24.0;
                         let collision_y = tile_bottom - SOUTH_DOOR_COLLISION_OFFSET;
                         (tile_left, tile_right, collision_y - DOOR_COLLISION_THICKNESS / 2.0, collision_y + DOOR_COLLISION_THICKNESS / 2.0)
+                    },
+                    3 => { // West edge
+                        (tile_left - DOOR_COLLISION_THICKNESS / 2.0, tile_left + DOOR_COLLISION_THICKNESS / 2.0, tile_top, tile_bottom)
                     },
                     _ => continue, // Invalid edge for door
                 };
@@ -433,10 +491,16 @@ pub fn check_door_projectile_collision(
                     0 => { // North edge
                         (tile_left, tile_right, tile_top - DOOR_COLLISION_THICKNESS / 2.0, tile_top + DOOR_COLLISION_THICKNESS / 2.0)
                     },
+                    1 => { // East edge
+                        (tile_right - DOOR_COLLISION_THICKNESS / 2.0, tile_right + DOOR_COLLISION_THICKNESS / 2.0, tile_top, tile_bottom)
+                    },
                     2 => { // South edge - positioned higher to match player collision offset
                         const SOUTH_DOOR_COLLISION_OFFSET: f32 = 24.0;
                         let collision_y = tile_bottom - SOUTH_DOOR_COLLISION_OFFSET;
                         (tile_left, tile_right, collision_y - DOOR_COLLISION_THICKNESS / 2.0, collision_y + DOOR_COLLISION_THICKNESS / 2.0)
+                    },
+                    3 => { // West edge
+                        (tile_left - DOOR_COLLISION_THICKNESS / 2.0, tile_left + DOOR_COLLISION_THICKNESS / 2.0, tile_top, tile_bottom)
                     },
                     _ => continue,
                 };
@@ -564,16 +628,8 @@ pub fn place_door(
     let cell_x_i32 = cell_x as i32;
     let cell_y_i32 = cell_y as i32;
     
-    // 3. Determine which edge based on world position
-    let tile_size = FOUNDATION_TILE_SIZE_PX as f32;
-    let tile_center_y = (cell_y_i32 as f32 * tile_size) + (tile_size / 2.0);
-    let dy = world_y - tile_center_y;
-    
-    let edge = if dy < 0.0 {
-        BuildingEdge::N
-    } else {
-        BuildingEdge::S
-    };
+    // 3. Select the closest cardinal edge to the placement cursor.
+    let edge = door_edge_from_cursor(cell_x_i32, cell_y_i32, world_x, world_y);
     
     // 4. Validate door position
     is_door_position_valid(ctx, cell_x_i32, cell_y_i32, edge)?;

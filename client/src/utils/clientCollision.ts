@@ -1125,7 +1125,7 @@ function getCollisionCandidates(
       }
       
       // Create thin AABB collision shape based on door edge (matches server-side logic)
-      // Edge 0 = North (top), Edge 2 = South (bottom)
+      // Cardinal door edges use the same collision strip as the server.
       let doorMinX: number, doorMaxX: number, doorMinY: number, doorMaxY: number;
       
       switch (door.edge) {
@@ -1141,6 +1141,12 @@ function getCollisionCandidates(
           doorMinY = topEdge - PLAYER_RADIUS - NORTH_DOOR_COLLISION_EXTENT;
           doorMaxY = topEdge - PLAYER_RADIUS;
           break;
+        case 1: // East edge
+          doorMinX = tileRight - DOOR_COLLISION_THICKNESS / 2;
+          doorMaxX = tileRight + DOOR_COLLISION_THICKNESS / 2;
+          doorMinY = tileTop;
+          doorMaxY = tileBottom;
+          break;
         case 2: // South edge - positioned higher to prevent visual clipping through bottom half
           // Move collision up by 24px from bottom edge to match server-side
           const SOUTH_DOOR_COLLISION_OFFSET = 24;
@@ -1150,8 +1156,14 @@ function getCollisionCandidates(
           doorMinY = collisionY - DOOR_COLLISION_THICKNESS / 2;
           doorMaxY = collisionY + DOOR_COLLISION_THICKNESS / 2;
           break;
+        case 3: // West edge
+          doorMinX = tileLeft - DOOR_COLLISION_THICKNESS / 2;
+          doorMaxX = tileLeft + DOOR_COLLISION_THICKNESS / 2;
+          doorMinY = tileTop;
+          doorMaxY = tileBottom;
+          break;
         default:
-          continue; // Skip invalid edges (doors only on North/South)
+          continue;
       }
       
       // Convert AABB bounds to center + width/height format for collision shape
@@ -1519,7 +1531,7 @@ function checkWallDoorLineTunneling(
       let minX: number, maxX: number, minY: number, maxY: number;
       
       if (item.type === 'door') {
-        // Doors only on North (0) or South (2)
+        // Doors can occupy all four cardinal edges.
         if (item.edge === 0) {
           minX = cellLeft; maxX = cellRight;
           minY = cellTop - thickness / 2; maxY = cellTop + thickness / 2;
@@ -1527,6 +1539,12 @@ function checkWallDoorLineTunneling(
           const collisionY = cellBottom - 24;
           minX = cellLeft; maxX = cellRight;
           minY = collisionY - thickness / 2; maxY = collisionY + thickness / 2;
+        } else if (item.edge === 1) {
+          minX = cellRight - thickness / 2; maxX = cellRight + thickness / 2;
+          minY = cellTop; maxY = cellBottom;
+        } else if (item.edge === 3) {
+          minX = cellLeft - thickness / 2; maxX = cellLeft + thickness / 2;
+          minY = cellTop; maxY = cellBottom;
         } else {
           continue;
         }

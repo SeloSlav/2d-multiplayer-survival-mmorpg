@@ -19,6 +19,7 @@ import {
 // Centralized visual config - single source of truth for all entity visual bounds
 import { ENTITY_VISUAL_CONFIG, getLabelPosition } from '../entityVisualConfig';
 import { isCompoundMonument } from '../../config/compoundBuildings';
+import { DOOR_RENDER_HEIGHT } from './doorRenderingUtils';
 
 // Define the single target type for labels
 interface InteractableTarget {
@@ -503,10 +504,12 @@ export function renderInteractionLabels({
         }
         case 'door': {
             const door = doors.get(closestInteractableTarget.id.toString());
-            if (door) {
-                const config = ENTITY_VISUAL_CONFIG.door;
-                const labelPos = getLabelPosition(door.posX, door.posY, config);
-                renderStyledInteractionLabel(ctx, text, labelPos.x, labelPos.y);
+            if (door && !door.isDestroyed) {
+                const isSideDoor = door.edge === 1 || door.edge === 3;
+                const labelPos = isSideDoor
+                    ? { x: door.posX, y: door.posY - DOOR_RENDER_HEIGHT / 2 - 17 }
+                    : getLabelPosition(door.posX, door.posY, ENTITY_VISUAL_CONFIG.door);
+                renderStyledInteractionLabel(ctx, door.isOpen ? 'E - Close Door' : 'E - Open Door', labelPos.x, labelPos.y);
             }
             break;
         }
@@ -714,4 +717,4 @@ export function renderLocalPlayerStatusTags({
     }
     
     ctx.restore();
-} 
+}

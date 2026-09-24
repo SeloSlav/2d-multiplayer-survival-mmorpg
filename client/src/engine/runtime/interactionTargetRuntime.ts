@@ -92,7 +92,7 @@ import { PLAYER_CORPSE_INTERACTION_DISTANCE_SQUARED } from '../../utils/renderer
 import { PLAYER_TURRET_INTERACTION_DISTANCE_SQUARED } from '../../utils/renderers/turretRenderingUtils';
 import { PLAYER_BOX_INTERACTION_DISTANCE_SQUARED, PLAYER_BEEHIVE_INTERACTION_DISTANCE_SQUARED, PLAYER_TALL_BOX_INTERACTION_DISTANCE_SQUARED, BOX_HEIGHT, getBoxDimensions, BOX_TYPE_SCARECROW, BOX_TYPE_COMPOST, BOX_TYPE_TANNING_RACK, BOX_TYPE_COOKING_STATION, BOX_TYPE_REPAIR_BENCH, BOX_TYPE_PLAYER_BEEHIVE, BOX_TYPE_WILD_BEEHIVE, BOX_TYPE_WOLF_PELT, BOX_TYPE_FOX_PELT, BOX_TYPE_POLAR_BEAR_PELT, BOX_TYPE_WALRUS_PELT, MONUMENT_COOKING_STATION_WIDTH, MONUMENT_COOKING_STATION_HEIGHT, MONUMENT_REPAIR_BENCH_WIDTH, MONUMENT_REPAIR_BENCH_HEIGHT, MONUMENT_COMPOST_WIDTH, MONUMENT_COMPOST_HEIGHT } from '../../utils/renderers/woodenStorageBoxRenderingUtils';
 import { isCompoundMonument } from '../../config/compoundBuildings';
-import { PLAYER_DOOR_INTERACTION_DISTANCE_SQUARED, DOOR_RENDER_Y_OFFSET } from '../../utils/renderers/doorRenderingUtils'; // ADDED: Door interaction distance and render offset
+import { PLAYER_DOOR_INTERACTION_DISTANCE_SQUARED } from '../../utils/renderers/doorRenderingUtils';
 import { PLAYER_ALK_STATION_INTERACTION_DISTANCE_SQUARED, ALK_STATION_Y_OFFSET } from '../../utils/renderers/alkStationRenderingUtils'; // ADDED: ALK station interaction distance
 import { getResourceConfig } from '../../utils/renderers/resourceConfigurations';
 import { isWaterTileTag } from '../../utils/tileTypeGuards';
@@ -363,7 +363,7 @@ export function calculateInteractionTargetRuntimeResult({
         let closestBrothPotDistSq = PLAYER_RAIN_COLLECTOR_INTERACTION_DISTANCE_SQUARED; // Use same distance as rain collectors
 
         let closestDoorId: bigint | null = null;
-        let closestDoorDistSq = PLAYER_DOOR_INTERACTION_DISTANCE_SQUARED; // Increased interaction distance for doors
+        let closestDoorDistSq = PLAYER_DOOR_INTERACTION_DISTANCE_SQUARED;
 
         let closestAlkStationId: number | null = null;
         let closestAlkStationDistSq = PLAYER_ALK_STATION_INTERACTION_DISTANCE_SQUARED; // ALK delivery station interaction distance
@@ -795,17 +795,16 @@ export function calculateInteractionTargetRuntimeResult({
             // Find closest door
             if (doors) {
                 doors.forEach((door) => {
-                    // Doors are rendered 44px higher than their actual position
-                    // Use the visual position for interaction checks
-                    const visualDoorY = door.posY - DOOR_RENDER_Y_OFFSET;
-                    const dx = playerX - door.posX;
-                    const dy = playerY - visualDoorY; // Use visual Y position
+                    if (door.isDestroyed) return;
+                    // Both door reducers measure range from the edge center stored on the door.
+                    const dx = localPlayer.positionX - door.posX;
+                    const dy = localPlayer.positionY - door.posY;
                     const distSq = dx * dx + dy * dy;
                     
-                    if (distSq < closestDoorDistSq) {
+                    if (distSq <= closestDoorDistSq) {
                         // Check shelter access control (use actual position for shelter check)
                         if (canPlayerInteractWithObjectInShelter(
-                            playerX, playerY, localPlayer.identity.toHexString(),
+                            localPlayer.positionX, localPlayer.positionY, localPlayer.identity.toHexString(),
                             door.posX, door.posY, shelters
                         )) {
                             closestDoorDistSq = distSq;

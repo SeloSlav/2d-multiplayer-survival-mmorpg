@@ -24,6 +24,8 @@ import { isSeedItemValid, requiresWaterPlacement, requiresBeachPlacement, requir
 import { renderFoundationPreview, renderWallPreview, renderFencePreview } from './foundationRenderingUtils';
 import { isWaterTileTag } from '../tileTypeGuards';
 import { getMonumentRestrictionRadiusForType } from './buildingRestrictionRulesUtils';
+import { getAdjacentDoorEdge, getDoorEdgeForCursor, getDoorEdgePosition, isDoorEdgeOnFoundation } from '../doorPlacementGeometry';
+import { renderSideDoorProfile } from './doorRenderingUtils';
 
 // Import interaction distance constants
 const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80.0 * 80.0; // Mirrors interaction target runtime.
@@ -1551,6 +1553,11 @@ function isWallPlacementValid(
             }
         }
     }
+    for (const door of connection.db.door.iter()) {
+        if (!door.isDestroyed && door.cellX === cellX && door.cellY === cellY && door.edge === edge) {
+            return false;
+        }
+    }
     
     // Check adjacent tiles for shared edges
     // North edge of (x, y) = South edge of (x, y-1)
@@ -1590,6 +1597,11 @@ function isWallPlacementValid(
         for (const wall of connection.db.wall_cell.iter()) {
             if (wall.cellX === adjacentCellX && wall.cellY === adjacentCellY && wall.edge === oppositeEdge && !wall.isDestroyed) {
                 return false; // Wall already exists on the shared edge with the adjacent tile
+            }
+        }
+        for (const door of connection.db.door.iter()) {
+            if (!door.isDestroyed && door.cellX === adjacentCellX && door.cellY === adjacentCellY && door.edge === oppositeEdge) {
+                return false;
             }
         }
     }
@@ -1950,6 +1962,7 @@ export function renderPlacementPreview({
         const mouseCellY = Math.floor(worldMouseY / FOUNDATION_TILE_SIZE);
         
         let nearestDistance = Infinity;
+        let nearestCellX: number | null = null;
         let nearestCellY: number | null = null;
         
         // Ensure spatial index is populated
@@ -1982,6 +1995,7 @@ export function renderPlacementPreview({
                         
                         if (distance < nearestDistance && distance < FOUNDATION_TILE_SIZE * 1.5) {
                             nearestDistance = distance;
+                            nearestCellX = checkCellX;
                             nearestCellY = checkCellY;
                         }
                     }
@@ -2004,14 +2018,14 @@ export function renderPlacementPreview({
                 
                 if (distance < nearestDistance && distance < FOUNDATION_TILE_SIZE * 1.5) {
                     nearestDistance = distance;
+                    nearestCellX = foundation.cellX;
                     nearestCellY = foundation.cellY;
                 }
             }
         }
         
-        if (nearestCellY !== null) {
-            const foundationCenterY = nearestCellY * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
-            doorEdgeForPreview = worldMouseY < foundationCenterY ? 0 : 2; // 0 = North, 2 = South
+        if (nearestCellX !== null && nearestCellY !== null) {
+            doorEdgeForPreview = getDoorEdgeForCursor(nearestCellX, nearestCellY, worldMouseX, worldMouseY);
         }
     }
     
@@ -2290,11 +2304,12 @@ export function renderPlacementPreview({
     // For backward compatibility, keep nearestCampfire reference
     const nearestCampfire = heatSourceType === 'campfire' ? nearestHeatSource : null;
 
-    // Special handling for door placement - snap to nearest foundation edge (N/S only)
+    // Special handling for door placement - snap to the nearest cardinal foundation edge.
     // Ensures the door preview shows exactly where the door will be placed
     let nearestDoorCellX: number | null = null;
     let nearestDoorCellY: number | null = null;
-    let doorEdge: number = 0; // 0 = North, 2 = South
+    let nearestDoorFoundationShape = 0;
+    let doorEdge: number = 0;
     
     if (isDoorPlacement && connection) {
         const FOUNDATION_TILE_SIZE = 96;
@@ -2321,7 +2336,8 @@ export function renderPlacementPreview({
                 const checkCellY = mouseCellY + dy;
                 const foundationsAtCell = foundationSpatialIndex.get(`${checkCellX},${checkCellY}`);
                 
-                if (foundationsAtCell?.some(f => !f.isDestroyed)) {
+                const foundation = foundationsAtCell?.find(f => !f.isDestroyed);
+                if (foundation) {
                     const foundationCenterX = checkCellX * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
                     const foundationCenterY = checkCellY * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
                     
@@ -2333,6 +2349,7 @@ export function renderPlacementPreview({
                         nearestDistance = distance;
                         nearestDoorCellX = checkCellX;
                         nearestDoorCellY = checkCellY;
+                        nearestDoorFoundationShape = foundation.shape;
                     }
                 }
             }
@@ -2356,21 +2373,16 @@ export function renderPlacementPreview({
                     nearestDistance = distance;
                     nearestDoorCellX = foundation.cellX;
                     nearestDoorCellY = foundation.cellY;
+                    nearestDoorFoundationShape = foundation.shape;
                 }
             }
         }
         
         if (nearestDoorCellX !== null && nearestDoorCellY !== null) {
-            // Determine which edge based on cursor Y relative to foundation center
-            const foundationCenterY = nearestDoorCellY * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
-            doorEdge = worldMouseY < foundationCenterY ? 0 : 2; // 0 = North, 2 = South
-            
-            // Snap to edge position - door preview snaps to exact edge of foundation
-            // This matches the server-side door placement position
-            snappedX = nearestDoorCellX * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
-            snappedY = doorEdge === 0 
-                ? nearestDoorCellY * FOUNDATION_TILE_SIZE // North edge (top of foundation)
-                : (nearestDoorCellY + 1) * FOUNDATION_TILE_SIZE; // South edge (bottom of foundation)
+            doorEdge = getDoorEdgeForCursor(nearestDoorCellX, nearestDoorCellY, worldMouseX, worldMouseY);
+            const doorPosition = getDoorEdgePosition(nearestDoorCellX, nearestDoorCellY, doorEdge);
+            snappedX = doorPosition.x;
+            snappedY = doorPosition.y;
         }
     }
 
@@ -2452,6 +2464,7 @@ export function renderPlacementPreview({
         if (nearestDoorCellX === null || nearestDoorCellY === null || !connection) {
             return true; // No foundation nearby
         }
+        if (!isDoorEdgeOnFoundation(nearestDoorFoundationShape, doorEdge)) return true;
         
         // Check for existing wall on this edge
         for (const wall of connection.db.wall_cell.iter()) {
@@ -2467,9 +2480,19 @@ export function renderPlacementPreview({
         for (const door of connection.db.door.iter()) {
             if (door.cellX === nearestDoorCellX && 
                 door.cellY === nearestDoorCellY && 
-                door.edge === doorEdge) {
+                door.edge === doorEdge && !door.isDestroyed) {
                 return true; // Door exists on this edge
             }
+        }
+
+        const adjacent = getAdjacentDoorEdge(nearestDoorCellX, nearestDoorCellY, doorEdge);
+        for (const wall of connection.db.wall_cell.iter()) {
+            if (wall.cellX === adjacent.cellX && wall.cellY === adjacent.cellY &&
+                wall.edge === adjacent.edge && !wall.isDestroyed) return true;
+        }
+        for (const door of connection.db.door.iter()) {
+            if (door.cellX === adjacent.cellX && door.cellY === adjacent.cellY &&
+                door.edge === adjacent.edge && !door.isDestroyed) return true;
         }
         
         return false; // Valid placement
@@ -2516,9 +2539,9 @@ export function renderPlacementPreview({
     let adjustedY: number;
     
     if (isDoorPlacement) {
-        // Apply 44px vertical offset for doors (matches door rendering offset)
-        adjustedX = snappedX - drawWidth / 2;
-        adjustedY = snappedY - drawHeight / 2 - 44;
+        const sideDoor = doorEdge === 1 || doorEdge === 3;
+        adjustedX = snappedX - (sideDoor ? 24 : drawWidth) / 2;
+        adjustedY = snappedY - drawHeight / 2 - (sideDoor ? 0 : 44);
     } else if (placementInfo.iconAssetName === 'barbecue.png') {
         // Use centralized visual config for barbecue
         const config = ENTITY_VISUAL_CONFIG.barbecue;
@@ -2665,7 +2688,9 @@ export function renderPlacementPreview({
     }
 
     // Draw the preview image or fallback
-    if (previewImg && previewImg.complete && previewImg.naturalHeight !== 0) {
+    if (isDoorPlacement && (doorEdge === 1 || doorEdge === 3)) {
+        renderSideDoorProfile(ctx, doorEdge, placementInfo.itemName === 'Metal Door' ? 1 : 0, snappedX, snappedY);
+    } else if (previewImg && previewImg.complete && previewImg.naturalHeight !== 0) {
         ctx.drawImage(previewImg, adjustedX, adjustedY, drawWidth, drawHeight);
     } else {
         // Fallback rectangle if image not loaded yet

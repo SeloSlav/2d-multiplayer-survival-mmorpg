@@ -27,6 +27,7 @@ use crate::MonumentType;
 use crate::reed_marsh as ReedMarshTableTrait;
 use crate::tide_pool as TidePoolTableTrait;
 use crate::planted_seeds::planted_seed as PlantedSeedTableTrait;
+use crate::door::door as DoorTableTrait;
 use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
 
 // Import table traits
@@ -423,6 +424,12 @@ pub fn is_wall_position_valid(
             return Err("A wall already exists at this edge.".to_string());
         }
     }
+    let doors = ctx.db.door();
+    for door in doors.idx_cell_coords().filter((cell_x, cell_y)) {
+        if !door.is_destroyed && door.edge == edge as u8 {
+            return Err("A door already exists at this edge.".to_string());
+        }
+    }
     
     // Check adjacent tiles for shared edges
     // North edge of (x, y) = South edge of (x, y-1)
@@ -444,6 +451,11 @@ pub fn is_wall_position_valid(
     for wall in walls.idx_cell_coords().filter((adjacent_cell_x, adjacent_cell_y)) {
         if !wall.is_destroyed && wall.edge == opposite_edge {
             return Err("A wall already exists on the shared edge with the adjacent tile.".to_string());
+        }
+    }
+    for door in doors.idx_cell_coords().filter((adjacent_cell_x, adjacent_cell_y)) {
+        if !door.is_destroyed && door.edge == opposite_edge {
+            return Err("A door already exists on the shared edge with the adjacent tile.".to_string());
         }
     }
     

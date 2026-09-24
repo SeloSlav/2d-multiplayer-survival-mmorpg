@@ -152,7 +152,7 @@ export function renderHealthBarOverlay(params: HealthBarOverlayParams): void {
           ctx,
           entityX: door.posX,
           entityY: door.posY,
-          entityWidth: DOOR_RENDER_WIDTH,
+          entityWidth: door.edge === 1 || door.edge === 3 ? 24 : DOOR_RENDER_WIDTH,
           entityHeight: DOOR_RENDER_HEIGHT,
           health: door.health,
           maxHealth: door.maxHealth,
@@ -160,7 +160,7 @@ export function renderHealthBarOverlay(params: HealthBarOverlayParams): void {
           nowMs,
           playerX,
           playerY,
-          entityDrawYOffset: -44,
+          entityDrawYOffset: door.edge === 1 || door.edge === 3 ? 0 : -44,
         });
       }
     }

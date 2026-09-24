@@ -11,7 +11,10 @@ export const DOOR_TYPE_METAL = 1;
 
 // Door edges (match server BuildingEdge enum)
 export const DOOR_EDGE_NORTH = 0;
+export const DOOR_EDGE_EAST = 1;
 export const DOOR_EDGE_SOUTH = 2;
+export const DOOR_EDGE_WEST = 3;
+export const SIDE_DOOR_WIDTH = 24;
 
 // Door interaction distance (matches server-side, same as other building objects)
 export const PLAYER_DOOR_INTERACTION_DISTANCE = 96.0; // Standard interaction distance (matches campfire, storage box, etc.)
@@ -52,6 +55,53 @@ export function getDoorImage(
   }
 }
 
+/** A profile view for doors set into east/west wall gaps. Shared by preview and placed doors. */
+export function renderSideDoorProfile(
+  ctx: CanvasRenderingContext2D,
+  edge: number,
+  doorType: number,
+  centerX: number,
+  centerY: number,
+): void {
+  const x = centerX - SIDE_DOOR_WIDTH / 2;
+  const y = centerY - FOUNDATION_TILE_SIZE / 2;
+  const metal = doorType === DOOR_TYPE_METAL;
+  const frame = metal ? '#273245' : '#352318';
+  const face = metal ? '#71879b' : '#81542f';
+  const shade = metal ? '#43586f' : '#55351f';
+  const light = metal ? '#a7bfce' : '#ae7a45';
+  const hardware = metal ? '#c6d2d6' : '#c4a875';
+  const hingeX = edge === DOOR_EDGE_EAST ? x + 3 : x + SIDE_DOOR_WIDTH - 5;
+  const latchX = edge === DOOR_EDGE_EAST ? x + SIDE_DOOR_WIDTH - 7 : x + 5;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+  ctx.fillRect(x + 3, y + 4, SIDE_DOOR_WIDTH, FOUNDATION_TILE_SIZE - 4);
+  ctx.fillStyle = frame;
+  ctx.fillRect(x, y, SIDE_DOOR_WIDTH, FOUNDATION_TILE_SIZE);
+  ctx.fillStyle = face;
+  ctx.fillRect(x + 3, y + 4, SIDE_DOOR_WIDTH - 6, FOUNDATION_TILE_SIZE - 8);
+  ctx.fillStyle = shade;
+  ctx.fillRect(x + 3, y + 4, 4, FOUNDATION_TILE_SIZE - 8);
+  ctx.fillStyle = light;
+  ctx.fillRect(x + SIDE_DOOR_WIDTH - 7, y + 5, 2, FOUNDATION_TILE_SIZE - 10);
+
+  // Panel seams read as a door rather than a plain side wall strip.
+  ctx.strokeStyle = shade;
+  ctx.lineWidth = 2;
+  for (const panelY of [y + 12, y + 45, y + 78]) {
+    ctx.strokeRect(x + 7, panelY, SIDE_DOOR_WIDTH - 14, 22);
+  }
+  ctx.fillStyle = hardware;
+  ctx.fillRect(hingeX, y + 18, 3, 8);
+  ctx.fillRect(hingeX, y + 70, 3, 8);
+  ctx.fillRect(latchX, y + 47, 3, 5);
+  ctx.strokeStyle = metal ? '#1d2736' : '#26180f';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, SIDE_DOOR_WIDTH - 2, FOUNDATION_TILE_SIZE - 2);
+  ctx.restore();
+}
+
 /**
  * Render a door entity
  */
@@ -68,18 +118,19 @@ export const renderDoor = ({
     return;
   }
 
+  const isSideDoor = door.edge === DOOR_EDGE_EAST || door.edge === DOOR_EDGE_WEST;
   const doorImage = getDoorImage(door, woodDoorImage, metalDoorImage);
-  if (!doorImage) {
+  if (!isSideDoor && !doorImage) {
     return;
   }
 
   // Calculate draw position - door is centered on the edge
-  const drawWidth = DOOR_RENDER_WIDTH; // Full foundation width (96px) to match walls
+  const drawWidth = isSideDoor ? SIDE_DOOR_WIDTH : DOOR_RENDER_WIDTH;
   const drawHeight = DOOR_RENDER_HEIGHT; // Full foundation height (96px)
   
   // Door position is at the edge center, but offset 64px up to align with foundation
   let drawX = door.posX - drawWidth / 2;
-  let drawY = door.posY - drawHeight / 2 - 44; // Offset 44px up to align with foundation
+  let drawY = door.posY - drawHeight / 2 - (isSideDoor ? 0 : 44);
 
   // Calculate transparency for SOUTH doors when player is behind them (similar to trees/walls)
   // South door: player is "behind" when NORTH of the door (player.y < door.y)
@@ -162,13 +213,11 @@ export const renderDoor = ({
   }
 
   // Closed door - draw normally
-  ctx.drawImage(
-    doorImage,
-    drawX,
-    drawY,
-    drawWidth,
-    drawHeight
-  );
+  if (isSideDoor) {
+    renderSideDoorProfile(ctx, door.edge, door.doorType, door.posX, door.posY);
+  } else if (doorImage) {
+    ctx.drawImage(doorImage, drawX, drawY, drawWidth, drawHeight);
+  }
 
   ctx.restore();
 
@@ -184,8 +233,8 @@ export function renderDoorInteractionLabel(
   isOwner: boolean
 ) {
   const labelY = door.posY - DOOR_RENDER_HEIGHT / 2 - 25;
-  const labelText = isOwner 
-    ? (door.isOpen ? '[E] Close' : '[E] Open / Hold [E] Pickup')
+  const labelText = isOwner
+    ? (door.isOpen ? 'E - Close Door' : 'E - Open Door')
     : (door.isOpen ? '' : 'Locked');
 
   if (!labelText) return;
