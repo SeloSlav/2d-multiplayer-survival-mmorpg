@@ -136,7 +136,11 @@ class AIService {
     };
 
     try {
-      const messages = this.buildSOVAMessages(request);
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...this.conversationHistory,
+        { role: 'user', content: userPrompt },
+      ];
       const procedures = (request.connection as any)?.procedures;
       const procedureAccessor = procedures?.askSova ?? procedures?.ask_sova;
       if (!procedureAccessor) {
