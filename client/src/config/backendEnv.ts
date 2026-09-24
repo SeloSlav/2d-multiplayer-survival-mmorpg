@@ -52,8 +52,18 @@ export const authServerUrl = resolveAuthServerUrl();
 export const spacetimeWsUrl = resolveSpacetimeWsUrl();
 export const spacetimeDatabaseName = resolveSpacetimeDatabaseName();
 
-/** True when connecting to the local SpacetimeDB process (short connection timeout). */
-export const useLocalSpacetimeSocket = spacetimeWsUrl === LOCAL_SPACETIME_WS_URL;
+function isLoopbackSpacetimeUrl(value: string): boolean {
+    try {
+        const url = new URL(value);
+        return (url.protocol === 'ws:' || url.protocol === 'wss:') &&
+            (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+    } catch {
+        return false;
+    }
+}
+
+/** True when connecting to a local SpacetimeDB process (short connection timeout). */
+export const useLocalSpacetimeSocket = isLoopbackSpacetimeUrl(spacetimeWsUrl);
 
 /** Localhost + dev server using production backends via env flag. */
 export const usedProductionBackendsFromEnv =
@@ -68,7 +78,7 @@ export function getAuthBackendLogLabel(): string {
 }
 
 export function getSpacetimeBackendLogLabel(): string {
-    const tier = spacetimeWsUrl === LOCAL_SPACETIME_WS_URL ? 'local' : 'production';
+    const tier = useLocalSpacetimeSocket ? 'local' : 'production';
     if (usedProductionBackendsFromEnv && tier === 'production') {
         return `${tier} (VITE_USE_PRODUCTION_BACKENDS)`;
     }

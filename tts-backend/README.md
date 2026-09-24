@@ -5,7 +5,8 @@ Python FastAPI service for local text-to-speech with Kokoro-82M and speech-to-te
 ## Prerequisites
 
 - **Python 3.10 - 3.12** (Python 3.13 is not yet supported by kokoro package)
-- **espeak-ng** system dependency (for phoneme conversion)
+- The Python packages include `espeakng-loader` on Windows. Install the standalone
+  **espeak-ng** program only if your platform reports a missing eSpeak library.
 
 ### Check Your Python Version
 
@@ -36,38 +37,23 @@ If you have Python 3.13, you can:
 
 **Windows (PowerShell):**
 ```powershell
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-.\venv\Scripts\Activate.ps1
-
-# If you get an execution policy error, run this first:
-# Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-# Install dependencies
-pip install -r requirements.txt
+cd tts-backend
+.\start.bat
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-# Create virtual environment
-python -m venv venv
-
-# Activate virtual environment
-venv\Scripts\activate.bat
-
-# Install dependencies
-pip install -r requirements.txt
+cd tts-backend
+start.bat
 ```
 
 **Linux/macOS:**
 ```bash
 # Create virtual environment
-python -m venv venv
+python3.12 -m venv .venv
 
 # Activate virtual environment
-source venv/bin/activate
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -83,8 +69,8 @@ brew install espeak-ng  # macOS
 ```
 
 **Windows:**
-- Download espeak-ng from: https://github.com/espeak-ng/espeak-ng/releases
-- Add to PATH or install via chocolatey: `choco install espeak-ng`
+- `espeakng-loader` is installed with Kokoro's Python dependencies. If Kokoro
+  reports a missing eSpeak library, install eSpeak NG from its official releases.
 
 ### 3. Run the Service
 
