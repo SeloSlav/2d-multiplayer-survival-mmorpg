@@ -131,7 +131,7 @@ class AIService {
 
       const model =
         this.currentProvider === 'openai'
-          ? 'gpt-4o'
+          ? 'gpt-6-luna'
           : this.currentProvider === 'gemini'
             ? 'gemini-2.0-flash'
             : 'grok-4-1-fast-reasoning';
@@ -141,7 +141,9 @@ class AIService {
         model,
         messages,
         max_completion_tokens: 300,
-        temperature: 0.4,
+        ...(this.currentProvider === 'openai'
+          ? { reasoning_effort: 'none' }
+          : { temperature: 0.4 }),
       });
 
       const procResult = await procedureAccessor({ requestBody });

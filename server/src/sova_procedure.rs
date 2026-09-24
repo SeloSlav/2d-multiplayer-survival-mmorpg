@@ -248,20 +248,25 @@ pub fn generate_brew_recipe(
         } else {
             let (url, api_key) = provider_url_and_key(&selected_provider, &cfg)?;
             let model = if selected_provider == "openai" {
-                "gpt-4o"
+                "gpt-6-luna"
             } else {
                 "grok-4-1-fast-reasoning"
             };
 
-            let request_json = serde_json::json!({
+            let mut request_json = serde_json::json!({
                 "model": model,
                 "messages": [
                     { "role": "system", "content": BREW_SYSTEM_PROMPT },
                     { "role": "user", "content": user_prompt }
                 ],
-                "max_completion_tokens": 1024,
-                "temperature": 0.7
+                "max_completion_tokens": 512
             });
+            if selected_provider == "openai" {
+                request_json["reasoning_effort"] = serde_json::json!("none");
+                request_json["response_format"] = serde_json::json!({ "type": "json_object" });
+            } else {
+                request_json["temperature"] = serde_json::json!(0.7);
+            }
 
             send_openai_compatible_request(ctx, &url, &api_key, request_json, 45)
                 .map_err(|e| format!("Brew {}", e))?
@@ -373,6 +378,16 @@ pub fn ask_sova(ctx: &mut ProcedureContext, request_body: String) -> Result<Stri
         .unwrap_or_else(|| cfg.active_provider.to_lowercase());
     // Internal control field; do not forward upstream.
     payload_obj.remove("provider");
+
+    if selected_provider == "openai" {
+        // Own the billable model and output cap on the server. Browser-supplied
+        // model settings are not trusted for this shared SOVA endpoint.
+        payload_obj.insert("model".to_string(), serde_json::json!("gpt-6-luna"));
+        payload_obj.insert("reasoning_effort".to_string(), serde_json::json!("none"));
+        payload_obj.insert("max_completion_tokens".to_string(), serde_json::json!(300));
+        payload_obj.remove("temperature");
+        payload_obj.remove("max_tokens");
+    }
 
     if selected_provider == "gemini" {
         let gemini_api_key = cfg.gemini_api_key.trim().to_string();

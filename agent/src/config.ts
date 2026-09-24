@@ -37,7 +37,7 @@ export function loadConfig(): AgentConfig {
     npcCount: parseInt(process.env.NPC_COUNT ?? '20', 10),
     plannerIntervalMs: parseInt(process.env.PLANNER_INTERVAL_MS ?? '30000', 10),
     fastLoopHz: parseInt(process.env.FAST_LOOP_HZ ?? '10', 10),
-    llmModel: process.env.LLM_MODEL ?? 'gpt-4o-mini',
+    llmModel: process.env.LLM_MODEL ?? 'gpt-6-luna',
     maxPlannerRetries: 2,
     tokenDir: process.env.TOKEN_DIR ?? './.npc-tokens',
   };

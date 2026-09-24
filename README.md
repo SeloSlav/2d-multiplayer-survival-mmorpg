@@ -150,8 +150,7 @@ copy .env.example .env   # Windows
 
 ```bash
 # Create .env file in project root first
-# OpenAI API key is REQUIRED for Whisper (speech-to-text)
-echo "OPENAI_API_KEY=sk-your-openai-api-key-here" > .env
+# Add OPENAI_API_KEY only if using OpenAI for SOVA replies or opting into hosted transcription.
 # Add at least one AI provider key for SOVA responses:
 echo "GROK_API_KEY=xai-your-grok-api-key-here" >> .env
 # OR echo "GEMINI_API_KEY=your-gemini-api-key-here" >> .env
@@ -163,11 +162,9 @@ echo "VITE_AI_PROVIDER=grok" >> .env
 
 ```bash
 cd tts-backend
-python -m venv venv
-.\venv\Scripts\Activate.ps1  # Windows PowerShell
-pip install -r requirements.txt
-python app.py
-# Kokoro TTS running on http://localhost:8001
+# Windows: creates/uses .venv with Python 3.12, installs missing packages, and starts the service.
+.\start.bat
+# Local transcription and Kokoro TTS running on http://localhost:8001
 ```
 
 **3) Client environment variables (for AI assistant):**
@@ -411,8 +408,7 @@ This project includes SOVA (Sentient Ocular Virtual Assistant), an intelligent A
 1. **Set server-side API keys in root `.env`:**
   ```bash
    # Create .env file in project root
-   # OpenAI API key is REQUIRED for Whisper (speech-to-text)
-   echo "OPENAI_API_KEY=sk-your-openai-api-key-here" > .env
+   # Add OPENAI_API_KEY only for OpenAI replies or hosted transcription.
    # Add at least one AI provider key for SOVA responses:
    echo "GROK_API_KEY=xai-your-grok-api-key-here" >> .env
    # OR echo "GEMINI_API_KEY=your-gemini-api-key-here" >> .env
@@ -431,19 +427,19 @@ This project includes SOVA (Sentient Ocular Virtual Assistant), an intelligent A
 ### Features
 
 - 🎤 **Voice Synthesis:** High-quality voice responses using Kokoro TTS (self-hosted, free)
-- 🎙️ **Voice Commands:** Hold V key for speech-to-text input (OpenAI Whisper)
+- 🎙️ **Voice Commands:** Hold V key for local faster-whisper speech-to-text input
 - 🧠 **AI Personality:** Intelligent responses powered by multiple providers (Grok/OpenAI/Gemini)
 - 🔄 **Provider Switching:** Easy switching between AI providers via `VITE_AI_PROVIDER` environment variable
 - 🔒 **Secure:** All API keys stay on server - never exposed to browser
 - 🎯 **Game Knowledge:** Contextual survival tips and tactical advice
 - 🎪 **Easter Eggs:** Special responses (try asking "What does SOVA stand for?")
-- 🔄 **Fallback System:** Works without API keys using predefined responses
+- 🔄 **Error Feedback:** SOVA reports provider failures in chat; AI replies require a configured provider
 
 ### Voice Interface
 
 - **Push-to-Talk:** Hold **V** key to activate voice recording
 - **Cyberpunk UI:** Animated recording interface with status indicators
-- **Speech-to-Text:** OpenAI Whisper converts speech to text
+- **Speech-to-Text:** Local faster-whisper converts speech to text by default; hosted OpenAI transcription is optional
 - **Chat Integration:** Voice messages appear in chat like typed messages
 - **AI Response:** SOVA responds intelligently with voice synthesis (Kokoro TTS)
 
@@ -451,7 +447,7 @@ This project includes SOVA (Sentient Ocular Virtual Assistant), an intelligent A
 
 You need **2 services running** for full voice functionality:
 
-1. **Kokoro TTS Backend** (`tts-backend/`) - Local text-to-speech synthesis
+1. **Voice Backend** (`tts-backend/`) - Local transcription and Kokoro speech synthesis
 2. **Game Client** (`npm run dev`) - React frontend
 
 ### Documentation

@@ -350,7 +350,7 @@ const Chat: React.FC<ChatProps> = ({ connection, onSOVAMessageAdderReady, isMobi
       // Add a message to SOVA chat confirming the copy
       const confirmMessage = {
         id: `sova-report-${Date.now()}`,
-        text: 'API performance report copied to clipboard! Contains data from OpenAI (GPT-4o & Whisper) and Kokoro TTS.',
+        text: 'SOVA performance report copied to clipboard! Contains AI response, transcription, and Kokoro TTS timings.',
         isUser: false,
         timestamp: new Date()
       };
@@ -1139,4 +1139,4 @@ const Chat: React.FC<ChatProps> = ({ connection, onSOVAMessageAdderReady, isMobi
   );
 };
 
-export default Chat; 
+export default Chat;

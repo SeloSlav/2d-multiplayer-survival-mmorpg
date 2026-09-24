@@ -2,7 +2,7 @@
  * Planner — slow LLM loop for high-level NPC decision-making.
  *
  * Schedule: ~every 30 seconds per NPC, OR on significant events.
- * Uses GPT-4o-mini via direct OpenAI API calls.
+ * Uses the configured OpenAI model via direct API calls.
  *
  * The planner:
  *   1. Receives a compact world-state summary (< 500 tokens)
@@ -166,6 +166,10 @@ async function callLLM(
     throw new Error('OPENAI_API_KEY is not configured');
   }
 
+  const modelSettings = config.llmModel.startsWith('gpt-6-')
+    ? { reasoning_effort: config.llmModel === 'gpt-6-astra' ? 'low' : 'none' }
+    : { temperature: 0.7 };
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -178,7 +182,7 @@ async function callLLM(
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.7,
+      ...modelSettings,
       max_completion_tokens: 300,
       response_format: { type: 'json_object' },
     }),

@@ -1,9 +1,9 @@
-// OpenAI Whisper Service for Speech-to-Text
-// Enhanced with audio processing and accuracy optimizations
-//
-// NOTE: Whisper is always OpenAI (regardless of VITE_AI_PROVIDER setting)
-// VITE_AI_PROVIDER only affects SOVA chat responses, not speech-to-text
+// SOVA speech-to-text. Local mode uses faster-whisper; cloud mode uses OpenAI.
+// VITE_STT_PROVIDER=openai opts into the hosted transcription procedure.
+// The default transcribes through the local faster-whisper backend.
 import type { DbConnection } from '../generated';
+const LOCAL_STT = import.meta.env.VITE_STT_PROVIDER !== 'openai';
+const VOICE_BACKEND_URL = import.meta.env.VITE_KOKORO_BASE_URL || 'http://localhost:8001';
 
 export interface WhisperTiming {
   requestStartTime: number;
@@ -284,7 +284,7 @@ class WhisperService {
   }
 
   /**
-   * Transcribe audio blob using OpenAI Whisper with enhanced parameters
+   * Transcribe audio with local faster-whisper or optional hosted OpenAI
    */
   async transcribeAudio(audioBlob: Blob): Promise<WhisperResponse> {
     const timing = {
@@ -304,6 +304,24 @@ class WhisperService {
     console.log(`[Whisper] Estimated audio duration: ~${estimatedDurationSeconds.toFixed(1)} seconds`);
 
     try {
+      if (LOCAL_STT) {
+        const form = new FormData();
+        form.append('audio', audioBlob, `speech.${this.getFileExtension(audioBlob.type)}`);
+        const response = await fetch(`${VOICE_BACKEND_URL}/transcribe`, {
+          method: 'POST',
+          body: form,
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || `Local transcription failed (${response.status})`);
+        const text = String(result.text || '').trim();
+        if (!text) throw new Error('No speech detected');
+        timing.responseReceivedTime = performance.now();
+        timing.totalLatencyMs = timing.responseReceivedTime - timing.requestStartTime;
+        timing.textLength = text.length;
+        this.recordTiming({ ...timing, success: true }, true);
+        return { success: true, text, timing };
+      }
+
       // Use original filename based on blob type
       const extension = this.getFileExtension(audioBlob.type);
 
@@ -525,10 +543,10 @@ class WhisperService {
   }
 
   /**
-   * Check if transcription is configured
-   * transcribe_speech must exist on the current connection.
+   * Check if transcription is configured. The local backend is checked on request.
    */
   isConfigured(): boolean {
+    if (LOCAL_STT) return true;
     return !!((this.connection as any)?.procedures?.transcribeSpeech || (this.connection as any)?.procedures?.transcribe_speech);
   }
 
@@ -592,4 +610,4 @@ class WhisperService {
 
 // Export singleton instance
 export const whisperService = new WhisperService();
-export default whisperService; 
+export default whisperService;

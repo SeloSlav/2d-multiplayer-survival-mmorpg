@@ -7,14 +7,14 @@ SOVA runs through SpacetimeDB HTTP procedures. The server module makes outbound 
 - API keys live only in the private `ai_http_config` table (`id=1` singleton).
 - Client only sends prompts and provider selection (`VITE_AI_PROVIDER`).
 - Client never sends `Authorization: Bearer <api-key>` to third-party AI endpoints.
-- Whisper transcription is hard-wired to OpenAI on the server (`transcribe_speech`).
+- Voice transcription defaults to local faster-whisper on the Kokoro backend. `VITE_STT_PROVIDER=openai` selects the hosted `transcribe_speech` procedure.
 - Text generation (`ask_sova`) and brew generation (`generate_brew_recipe`) use selected provider.
 
 ## How It Works
 
 1. `configure_sova` seeds/updates `ai_http_config` with provider and keys.
 2. `ask_sova` reads that row and calls the selected provider.
-3. `transcribe_speech` always uses `openai_api_key` (by design).
+3. The client sends microphone recordings to local `/transcribe` by default. The optional hosted `transcribe_speech` procedure uses `openai_api_key`.
 4. `generate_brew_recipe` uses provider selected by client (`VITE_AI_PROVIDER`) with fallback to `active_provider`.
 
 ## First-Time Setup (after publish)
@@ -67,8 +67,19 @@ Expected:
 - `VITE_AI_PROVIDER` controls client-selected provider for:
   - `ask_sova` (text generation)
   - `generate_brew_recipe` (AI brewing)
-- Whisper does **not** follow `VITE_AI_PROVIDER`; it always uses OpenAI.
+- Speech transcription follows `VITE_STT_PROVIDER`, independent of `VITE_AI_PROVIDER`.
 - If client does not send provider, server falls back to `active_provider`.
+
+## OpenAI model choices
+
+- SOVA's short chat replies use `gpt-6-luna` with `reasoning_effort: none` and a 300-token output cap. The server enforces these settings even if an older or modified client sends different OpenAI values.
+- Generated brew recipes use `gpt-6-luna` with `reasoning_effort: none`, JSON output mode, and a 512-token cap. Recipe fields are still validated and clamped by the server.
+- The separate NPC agent defaults to `gpt-6-luna` for JSON plans. Override it with `LLM_MODEL` in `agent/.env` if a different model is needed.
+- The optional hosted speech transcription model is separate from these text model choices. Local faster-whisper and Kokoro remain the default voice path.
+
+These defaults prioritize low per-token cost and short replies. Live latency and account access should be checked against the deployed provider; a source build does not prove either. See the [official OpenAI model catalog](https://developers.openai.com/api/docs/models) for current model details.
+
+[TypeSafe AI's Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) returns typed choices and scores. SOVA requires generated conversational text for replies. Its existing crafting intent routing runs locally in `craftIntentParser.ts`; adding a Jev request there would add network latency to the voice turn. No Jev credential is needed for this setup.
 
 ## Smoke Test
 

@@ -108,6 +108,8 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
 
   const recordingStartedRef = useRef(false);
   const processingRef = useRef(false);
+  const speakingRef = useRef(false);
+  const voiceTurnRef = useRef(0);
 
   // Keep Whisper bound to current DB connection for procedure calls.
   useEffect(() => {
@@ -121,6 +123,13 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       processing: processingRef.current
     });
     
+    if (processingRef.current && speakingRef.current) {
+      voiceTurnRef.current++;
+      kokoroService.stopStreamingPlayback();
+      processingRef.current = false;
+      speakingRef.current = false;
+      setVoiceState(prev => ({ ...prev, isSynthesizingVoice: false, isPlayingAudio: false }));
+    }
     if (recordingStartedRef.current || processingRef.current) {
       console.log('[VoiceInterface] ⚠️ Skipping startRecording - already in progress');
       return;
@@ -146,7 +155,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     console.log('[VoiceInterface] API key configured:', isConfigured);
     
     if (!isConfigured) {
-      const error = 'OpenAI API key not configured for voice transcription';
+      const error = 'Voice transcription is not configured';
       console.error('[VoiceInterface] ❌', error);
       setVoiceState(prev => ({ ...prev, error }));
       onError?.(error);
@@ -199,6 +208,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     if (!recordingStartedRef.current || processingRef.current) return;
 
     console.log('[VoiceInterface] Stopping recording and processing...');
+    const turn = ++voiceTurnRef.current;
     processingRef.current = true;
     recordingStartedRef.current = false;
 
@@ -211,6 +221,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
     try {
       // Transcribe the audio
       const transcriptionResult: WhisperResponse = await whisperService.recordAndTranscribe();
+      if (turn !== voiceTurnRef.current) return;
 
       if (!transcriptionResult.success || !transcriptionResult.text) {
         throw new Error(transcriptionResult.error || 'No speech detected');
@@ -357,9 +368,22 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         gameContext,
         connection,
       });
+      if (turn !== voiceTurnRef.current) return;
 
       if (aiResponse.success && aiResponse.response) {
         console.log('[VoiceInterface] ✅ AI response generated successfully');
+
+        // Preserve the answer in chat even if Kokoro cannot synthesize it.
+        try {
+          onAddSOVAMessage?.({
+            id: `sova-voice-${Date.now()}`,
+            text: aiResponse.response,
+            isUser: false,
+            timestamp: new Date(),
+          });
+        } catch (error) {
+          console.error('[VoiceInterface] Failed to add SOVA reply to chat:', error);
+        }
 
         setVoiceState(prev => ({
           ...prev,
@@ -371,7 +395,9 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         console.log('[VoiceInterface] 🎤 Generating voice synthesis...');
         
         // Use Kokoro TTS provider
+        speakingRef.current = true;
         const useKokoro = await shouldUseKokoro();
+        if (turn !== voiceTurnRef.current) return;
         if (!useKokoro) {
           throw new Error('Kokoro TTS service is not available. Please ensure the Kokoro backend is running.');
         }
@@ -381,83 +407,30 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         
         console.log(`[VoiceInterface] Using ${serviceName} TTS provider`);
         
-        // Check if TTS service is cold (first request) - play warmup audio while waiting
-        const isServiceCold = ttsService.isCold();
-        if (isServiceCold) {
-          console.log('[VoiceInterface] ❄️ TTS service is cold - playing warmup audio...');
-          // Fire and forget - don't await, let it play while TTS is processing
-          ttsService.playWarmupAudio().catch(() => {});
-        }
-        
-        const voiceResponse = await ttsService.synthesizeVoice({
+        const voiceResponse = await ttsService.synthesizeAndPlayStream({
           text: aiResponse.response,
           voiceStyle: 'sova'
-        });
-
-        // Update TTS service with complete pipeline timing
-        if (transcriptionResult.timing && aiResponse.timing && voiceResponse.timing) {
-          ttsService.updatePipelineTiming(
-            transcriptionResult.timing.totalLatencyMs,
-            aiResponse.timing.totalLatencyMs
-          );
-          
-          const ttsLatency = voiceResponse.timing.apiLatencyMs;
-          
-          console.log(`[VoiceInterface] 📊 Complete Pipeline Performance (${serviceName}):`, {
-            whisperLatency: `${transcriptionResult.timing.totalLatencyMs.toFixed(2)}ms`,
-            openaiLatency: `${aiResponse.timing.totalLatencyMs.toFixed(2)}ms`,
-            apiLatency: `${voiceResponse.timing.apiLatencyMs.toFixed(2)}ms`,
-            ttsLatency: `${ttsLatency.toFixed(2)}ms`,
-            totalPipeline: `${(transcriptionResult.timing.totalLatencyMs + aiResponse.timing.totalLatencyMs + voiceResponse.timing.totalLatencyMs).toFixed(2)}ms`
-          });
-        }
-
-        if (voiceResponse.success && voiceResponse.audioUrl) {
-          console.log('[VoiceInterface] ✅ Voice synthesis successful');
-
-          setVoiceState(prev => ({
-            ...prev,
-            isSynthesizingVoice: false,
-            isPlayingAudio: true,
-          }));
-
-          // Add SOVA response to chat
-          if (onAddSOVAMessage) {
-            const botResponse = {
-              id: `sova-voice-${Date.now()}`,
-              text: aiResponse.response,
-              isUser: false,
-              timestamp: new Date()
-            };
-            
-            try {
-              onAddSOVAMessage(botResponse);
-              console.log('[VoiceInterface] Successfully added SOVA response to chat:', aiResponse.response);
-            } catch (error) {
-              console.error('[VoiceInterface] Error adding SOVA response:', error);
-            }
-          } else {
-            console.warn('[VoiceInterface] Cannot add SOVA response - onAddSOVAMessage not available');
+        }, () => {
+          if (turn === voiceTurnRef.current) {
+            setVoiceState(prev => ({ ...prev, isSynthesizingVoice: false, isPlayingAudio: true }));
           }
-
-          // Play audio response
-          console.log('[VoiceInterface] 🔊 Playing audio response...');
-          await ttsService.playAudio(voiceResponse.audioUrl);
-          console.log('[VoiceInterface] ✅ Audio playback completed');
-          
-          setVoiceState(prev => ({
-            ...prev,
-            isPlayingAudio: false,
-          }));
-        } else {
+        });
+        if (turn !== voiceTurnRef.current || voiceResponse.interrupted) return;
+        speakingRef.current = false;
+        console.info('[VoiceInterface] Voice pipeline', {
+          sttMs: transcriptionResult.timing?.totalLatencyMs,
+          llmMs: aiResponse.timing?.totalLatencyMs,
+          firstAudioMs: voiceResponse.firstAudioMs,
+          audioChunks: voiceResponse.chunks,
+        });
+        if (!voiceResponse.success) {
           console.error('[VoiceInterface] ❌ Voice synthesis failed:', voiceResponse.error);
-          setVoiceState(prev => ({
-            ...prev,
-            isSynthesizingVoice: false,
-          }));
+          onError?.(`SOVA voice unavailable: ${voiceResponse.error || 'Kokoro failed'}`);
         }
+        setVoiceState(prev => ({ ...prev, isSynthesizingVoice: false, isPlayingAudio: false }));
       } else {
         console.error('[VoiceInterface] ❌ AI response generation failed:', aiResponse.error);
+        onError?.(`SOVA response unavailable: ${aiResponse.error || 'AI provider failed'}`);
         setVoiceState(prev => ({
           ...prev,
           isGeneratingResponse: false,
@@ -465,6 +438,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       }
 
     } catch (error) {
+      if (turn !== voiceTurnRef.current) return;
       console.error('[VoiceInterface] ❌ Error in voice processing pipeline:', error);
       const errorMessage = error instanceof Error ? error.message : 'Voice processing failed';
       setVoiceState(prev => ({
@@ -477,7 +451,10 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       }));
       onError?.(errorMessage);
     } finally {
-      processingRef.current = false;
+      if (turn === voiceTurnRef.current) {
+        processingRef.current = false;
+        speakingRef.current = false;
+      }
     }
   }, [onTranscriptionComplete, onError, onAddSOVAMessage, localPlayerIdentity, worldState, localPlayer, itemDefinitions, activeEquipments, inventoryItems, recipes, playerIdentity, connection]);
 
@@ -498,7 +475,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
       // Start recording if not already started
       // Use a small delay to ensure state is cleared first
       const timer = setTimeout(() => {
-        if (!recordingStartedRef.current && !processingRef.current) {
+        if (!recordingStartedRef.current) {
           console.log('[VoiceInterface] Calling startRecording()...');
           startRecording();
         } else {
@@ -544,6 +521,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      kokoroService.stopStreamingPlayback();
       whisperService.destroy();
     };
   }, []);
@@ -628,4 +606,4 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   );
 };
 
-export default VoiceInterface; 
+export default VoiceInterface;

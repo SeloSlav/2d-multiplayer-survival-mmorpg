@@ -55,6 +55,9 @@ export interface KokoroPerformanceReport {
 class KokoroService {
   private performanceData: KokoroTiming[] = [];
   private maxStoredTimings = 100;
+  private streamAbort?: AbortController;
+  private streamSession = 0;
+  private stopCurrentChunk?: () => void;
   
   // Cold start tracking - true after first successful TTS request
   private isWarmedUp = false;
@@ -73,6 +76,118 @@ class KokoroService {
   constructor() {
     console.log('[KokoroService] 🔧 Initializing service...');
     console.log('[KokoroService] ✅ Service initialized successfully');
+  }
+
+  stopStreamingPlayback(): void {
+    this.streamSession++;
+    this.streamAbort?.abort();
+    this.stopCurrentChunk?.();
+    this.streamAbort = undefined;
+  }
+
+  private playStreamChunk(wav: string, session: number, onFirstAudio: () => void): Promise<boolean> {
+    if (session !== this.streamSession) return Promise.resolve(false);
+    const binary = atob(wav);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+    const audio = new Audio(url);
+    audio.volume = 0.8;
+    return new Promise(resolve => {
+      let settled = false;
+      const finish = (played: boolean) => {
+        if (settled) return;
+        settled = true;
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+        URL.revokeObjectURL(url);
+        if (this.stopCurrentChunk === stop) this.stopCurrentChunk = undefined;
+        resolve(played);
+      };
+      const stop = () => finish(false);
+      this.stopCurrentChunk = stop;
+      audio.onplay = onFirstAudio;
+      audio.onended = () => finish(true);
+      audio.onerror = () => finish(false);
+      void audio.play().catch(() => finish(false));
+    });
+  }
+
+  /** Play Kokoro's sentence chunks as they arrive from the local backend. */
+  async synthesizeAndPlayStream(
+    request: VoiceSynthesisRequest,
+    onFirstAudio: () => void,
+  ): Promise<{ success: boolean; interrupted?: boolean; firstAudioMs?: number; chunks: number; error?: string }> {
+    this.stopStreamingPlayback();
+    const session = this.streamSession;
+    const controller = new AbortController();
+    this.streamAbort = controller;
+    const started = performance.now();
+    let firstAudioMs: number | undefined;
+    let chunks = 0;
+    let playback = Promise.resolve(true);
+    let finished = false;
+    try {
+      const response = await fetch(`${KOKORO_BASE_URL}/synthesize-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: request.text, voice: this.getVoiceId(request.voice || request.voiceStyle) }),
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) throw new Error(`Kokoro stream failed: HTTP ${response.status}`);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let pending = '';
+      const handleLine = (line: string) => {
+        if (!line.trim()) return;
+        const event = JSON.parse(line) as { type: string; wav?: string; message?: string; chunks?: number };
+        if (event.type === 'error') throw new Error(event.message || 'Kokoro stream failed');
+        if (event.type === 'done') {
+          finished = true;
+          if (event.chunks === 0) throw new Error('Kokoro generated no audio');
+        }
+        if (event.type === 'audio' && event.wav) {
+          chunks++;
+          const wav = event.wav;
+          playback = playback.then(played => {
+            if (!played || session !== this.streamSession) return false;
+            return this.playStreamChunk(wav, session, () => {
+              if (firstAudioMs === undefined) {
+                firstAudioMs = performance.now() - started;
+                onFirstAudio();
+              }
+            });
+          });
+        }
+      };
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        pending += decoder.decode(value, { stream: true });
+        let newline: number;
+        while ((newline = pending.indexOf('\n')) >= 0) {
+          handleLine(pending.slice(0, newline));
+          pending = pending.slice(newline + 1);
+        }
+      }
+      pending += decoder.decode();
+      if (pending.trim()) handleLine(pending);
+      if (!finished) throw new Error('Kokoro stream ended early');
+      const played = await playback;
+      if (session !== this.streamSession) return { success: false, interrupted: true, chunks };
+      this.isWarmedUp = true;
+      console.info('[KokoroService] Streaming playback', { firstAudioMs, chunks });
+      return { success: played && chunks > 0, firstAudioMs, chunks };
+    } catch (error) {
+      if (controller.signal.aborted || session !== this.streamSession) {
+        return { success: false, interrupted: true, chunks };
+      }
+      this.stopCurrentChunk?.();
+      return { success: false, chunks, error: error instanceof Error ? error.message : 'Voice stream failed' };
+    } finally {
+      if (this.streamAbort === controller) this.streamAbort = undefined;
+    }
   }
 
   /**
@@ -483,7 +598,9 @@ class KokoroService {
       if (response.ok) {
         const data = await response.json();
         console.log('[KokoroService] ✅ API connection test successful:', data);
-        return { success: true };
+        return data.pipeline_ready
+          ? { success: true }
+          : { success: false, error: 'Kokoro model has not loaded' };
       } else {
         return { success: false, error: `Health check failed: ${response.status}` };
       }

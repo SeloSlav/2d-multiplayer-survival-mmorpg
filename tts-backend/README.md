@@ -1,6 +1,6 @@
 # Kokoro TTS Backend Service
 
-Python FastAPI service for text-to-speech synthesis using Kokoro-82M model.
+Python FastAPI service for local text-to-speech with Kokoro-82M and speech-to-text with faster-whisper.
 
 ## Prerequisites
 
@@ -99,6 +99,18 @@ uvicorn app:app --host 0.0.0.0 --port 8001
 
 The service will be available at `http://localhost:8001`
 
+`POST /synthesize-stream` accepts the same JSON body as `/synthesize` and
+returns newline-delimited JSON. Each `audio` event contains one independently
+decodable 24 kHz WAV chunk (`wav` is base64); a final `done` event marks a
+complete stream. A midstream `error` event reports synthesis failure. The SOVA
+client plays each chunk as it arrives and can abort playback when a new turn
+starts. The full text reply is still available before synthesis begins.
+
+The first `/transcribe` request downloads the `base.en` faster-whisper model once. Set
+`SOVA_WHISPER_MODEL` to a different installed model if needed. The model runs on CPU
+with int8 inference. This voice path makes no metered speech API calls. SOVA's
+text replies still use the selected OpenAI, Gemini, or Grok provider.
+
 ---
 
 ## Production Deployment (Railway)
@@ -192,6 +204,12 @@ Synthesize speech from text.
 - WAV audio file (24kHz sample rate)
 - Content-Type: `audio/wav`
 
+### POST /transcribe
+
+Upload a recorded audio file as multipart form field `audio`. Returns JSON
+`{"text":"..."}`. The file limit is 10 MB. The first call loads the local
+faster-whisper model; it can take longer than later calls.
+
 ### GET /voices
 List available voices.
 
@@ -205,6 +223,7 @@ Health check endpoint. Returns `{"status": "healthy"}`.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `8001` | Server port (Railway auto-sets this) |
+| `SOVA_WHISPER_MODEL` | `base.en` | Local transcription model |
 
 ---
 

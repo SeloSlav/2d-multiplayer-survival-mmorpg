@@ -8,7 +8,7 @@
  *   - Each NPC has its own SpacetimeDB connection + Identity
  *   - NPCs call the SAME reducers as human players (zero server changes)
  *   - Fast loop (10 Hz): deterministic movement/combat/gather, NO LLM
- *   - Slow loop (~30s): GPT-4o-mini planner for goal setting
+ *   - Slow loop (~30s): configured OpenAI planner for goal setting
  *   - ElizaOS plugin wraps providers/actions/evaluators
  *
  * Usage:
