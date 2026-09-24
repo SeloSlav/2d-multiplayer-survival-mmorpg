@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import numpy as np
 import jwt
+import httpx
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 import app as voice_app
@@ -41,13 +42,26 @@ class StreamingTests(unittest.TestCase):
             def __exit__(self, *_):
                 pass
 
-            def __iter__(self):
+            def raise_for_status(self):
+                pass
+
+            def iter_lines(self):
                 for delta in ["Hello, Operative."]:
-                    yield b"data: " + json.dumps({"choices": [{"delta": {"content": delta}}]}).encode() + b"\n"
+                    yield "data: " + json.dumps({"choices": [{"delta": {"content": delta}}]})
                 if not first_audio_seen.wait(10):
                     raise AssertionError("No audio arrived while OpenAI was still streaming")
-                yield b"data: " + json.dumps({"choices": [{"delta": {"content": " Stay dry under a tree."}}]}).encode() + b"\n"
-                yield b"data: [DONE]\n"
+                yield "data: " + json.dumps({"choices": [{"delta": {"content": " Stay dry under a tree."}}]})
+                yield "data: [DONE]"
+
+        class FakeClient:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                pass
+
+            def stream(self, *_args, **_kwargs):
+                return FakeUpstream()
 
         def fake_pipeline(text, voice):
             self.assertTrue(text)
@@ -71,7 +85,7 @@ class StreamingTests(unittest.TestCase):
 
         with patch.object(voice_app, "authorize_voice_request"), \
              patch.object(voice_app, "pipeline", fake_pipeline), \
-             patch.object(voice_app.urllib.request, "urlopen", return_value=FakeUpstream()), \
+             patch.object(voice_app.httpx, "Client", return_value=FakeClient()), \
              patch.dict(os.environ, {"OPENAI_API_KEY": "local-mock-only"}):
             events = asyncio.run(collect())
 
@@ -79,6 +93,43 @@ class StreamingTests(unittest.TestCase):
         self.assertIn("text_done", events)
         self.assertLess(events.index("audio"), events.index("text_done"))
         self.assertEqual(events[-1], "done")
+
+    def test_model_connection_retries_before_first_text(self):
+        attempts = 0
+
+        class FakeUpstream:
+            def __enter__(self):
+                nonlocal attempts
+                attempts += 1
+                if attempts == 1:
+                    raise httpx.RemoteProtocolError("connection closed")
+                return self
+
+            def __exit__(self, *_):
+                pass
+
+            def raise_for_status(self):
+                pass
+
+            def iter_lines(self):
+                yield 'data: {"choices":[{"delta":{"content":"Ready."}}]}'
+                yield 'data: [DONE]'
+
+        class FakeClient:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                pass
+
+            def stream(self, *_args, **_kwargs):
+                return FakeUpstream()
+
+        with patch.object(voice_app.httpx, "Client", return_value=FakeClient()), \
+             patch.object(voice_app.time, "sleep"):
+            deltas = list(voice_app.stream_openai_text([{"role": "user", "content": "Hi"}], "mock-key"))
+        self.assertEqual(attempts, 2)
+        self.assertEqual(deltas, ["Ready."])
 
 
 if __name__ == "__main__":

@@ -390,6 +390,28 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         );
         if (turn !== voiceTurnRef.current || streamed.interrupted) return;
         speakingRef.current = false;
+        if (!streamed.success) {
+          console.warn('[VoiceInterface] Model voice stream failed; using local game-state response:', streamed.error);
+          const fallbackText = openaiService.buildLocalVoiceFallback(transcribedText, gameContext);
+          onAddSOVAMessage?.({
+            id: streamed.chunks > 0 ? `${responseId}-fallback` : responseId,
+            text: fallbackText,
+            isUser: false,
+            timestamp: new Date(),
+          });
+          setVoiceState(prev => ({ ...prev, isGeneratingResponse: false, isSynthesizingVoice: true }));
+          speakingRef.current = true;
+          const fallbackAudio = await kokoroService.synthesizeAndPlayStream({ text: fallbackText, voiceStyle: 'sova' }, () => {
+            if (turn === voiceTurnRef.current) {
+              setVoiceState(prev => ({ ...prev, isSynthesizingVoice: false, isPlayingAudio: true }));
+            }
+          });
+          if (turn !== voiceTurnRef.current || fallbackAudio.interrupted) return;
+          speakingRef.current = false;
+          setVoiceState(prev => ({ ...prev, isSynthesizingVoice: false, isPlayingAudio: false }));
+          if (!fallbackAudio.success) onError?.(`SOVA voice unavailable: ${fallbackAudio.error || streamed.error || 'Kokoro failed'}`);
+          return;
+        }
         if (streamed.text) {
           onAddSOVAMessage?.({ id: responseId, text: streamed.text, isUser: false, timestamp: responseTime });
           if (streamed.success) openaiService.rememberSOVAResponse(transcribedText, streamed.text);
@@ -401,7 +423,6 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
           audioChunks: streamed.chunks,
         });
         setVoiceState(prev => ({ ...prev, isGeneratingResponse: false, isSynthesizingVoice: false, isPlayingAudio: false }));
-        if (!streamed.success) onError?.(`SOVA voice unavailable: ${streamed.error || 'Kokoro failed'}`);
         return;
       }
       

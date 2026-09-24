@@ -97,6 +97,38 @@ class AIService {
     ];
   }
 
+  /** A small, truthful answer from game state when the model link is unavailable. */
+  buildLocalVoiceFallback(userMessage: string, ctx?: GameContext): string {
+    if (!ctx) return 'My tactical uplink is unavailable, Operative. Stay near shelter while I reconnect.';
+    const weather = ctx.currentWeather.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+    const time = ctx.timeOfDay.toLowerCase();
+    const conditions = `${time} and ${weather}`;
+    const near = ctx.nearbyItems.slice(0, 3);
+    const nearby = near.length ? ` Nearby resources include ${near.join(', ')}.` : ' I cannot confirm nearby resources or threats.';
+    const hotbar = ctx.hotbarSlots.filter(slot => !slot.isEmpty).map(slot => `${slot.itemName} in slot ${slot.slotIndex + 1}`);
+    const question = userMessage.toLowerCase();
+
+    if (/hotbar|equipped|holding/.test(question)) {
+      return `My model link is unstable, Operative. Your hotbar has ${hotbar.length ? hotbar.join(', ') : 'no confirmed items'}.`;
+    }
+    if (/surround|environment|what do you see|where am i/.test(question)) {
+      return `My model link is unstable, Operative. Local sensors show ${conditions}.${nearby}`;
+    }
+    if (/temperat|warm|cold|freez/.test(question)) {
+      const warmth = ctx.playerWarmth <= 20 ? 'freezing' : ctx.playerWarmth <= 40 ? 'very cold' : ctx.playerWarmth <= 60 ? 'chilly' : 'comfortable';
+      return `My model link is unstable, Operative. Local sensors show ${conditions}; you feel ${warmth}.`;
+    }
+
+    let action: string;
+    if (ctx.playerThirst < 50) action = 'Find fresh water and drink soon.';
+    else if (ctx.playerHunger < 50) action = 'Find food and eat soon.';
+    else if (ctx.playerWarmth <= 40) action = 'Seek shelter and equip a torch to warm up.';
+    else if (/HeavyRain|HeavyStorm/.test(ctx.currentWeather)) action = 'Move under trees or into shelter; exposed campfires will go out.';
+    else if (['Night', 'Midnight'].includes(ctx.timeOfDay)) action = 'Keep a torch ready and stay close to shelter.';
+    else action = 'Secure water, food, and shelter before exploring farther.';
+    return `My model link is unstable, Operative. Local sensors show ${conditions}. ${action}`;
+  }
+
   /** Keep spoken turns focused so a large game encyclopedia does not delay first audio. */
   private buildVoiceSystemPrompt(userMessage: string): string {
     const words = [...new Set((userMessage.toLowerCase().match(/[a-z]{4,}/g) || [])

@@ -19,8 +19,8 @@ import tempfile
 import threading
 import queue
 import re
-import urllib.request
-import urllib.error
+import httpx
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 import jwt
@@ -83,6 +83,45 @@ def pop_speech_segment(buffer: str, final: bool = False) -> tuple[str, str]:
     return "", buffer
 
 
+def stream_openai_text(messages: list[dict[str, str]], api_key: str):
+    """Yield model deltas; retry connection failures only before any text arrives."""
+    body = {
+        "model": "gpt-6-luna", "messages": messages,
+        "max_completion_tokens": 300, "reasoning_effort": "none", "stream": True,
+    }
+    headers = {"Authorization": f"Bearer {api_key}"}
+    for attempt in range(2):
+        emitted_text = False
+        try:
+            with httpx.Client(timeout=httpx.Timeout(18.0, connect=8.0)) as client:
+                with client.stream("POST", "https://api.openai.com/v1/chat/completions",
+                                   headers=headers, json=body) as upstream:
+                    upstream.raise_for_status()
+                    for raw in upstream.iter_lines():
+                        if not raw.startswith("data: "):
+                            continue
+                        payload = raw[6:].strip()
+                        if payload == "[DONE]":
+                            return
+                        chunk = json.loads(payload)
+                        choices = chunk.get("choices") or []
+                        if not choices:
+                            continue
+                        delta = choices[0].get("delta", {}).get("content")
+                        if delta:
+                            emitted_text = True
+                            yield delta
+                    raise httpx.RemoteProtocolError("OpenAI stream ended before completion")
+        except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+            retryable_status = isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in {429, 502, 503, 504}
+            retryable = isinstance(exc, httpx.TransportError) or retryable_status
+            if emitted_text or attempt == 1 or not retryable:
+                raise
+            logger.warning("OpenAI stream connection failed before text (%s); retry %s/1",
+                           type(exc).__name__, attempt + 1)
+            time.sleep(0.4 * (attempt + 1))
+
+
 def stream_sova_response(request: SOVAStreamRequest, authorization: str | None = Header(default=None)):
     """Stream OpenAI text and Kokoro WAV chunks concurrently as NDJSON."""
     authorize_voice_request(authorization)
@@ -122,44 +161,23 @@ def stream_sova_response(request: SOVAStreamRequest, authorization: str | None =
         def produce_text():
             pending = ""
             try:
-                body = json.dumps({
-                    "model": "gpt-6-luna", "messages": request.messages,
-                    "max_completion_tokens": 300, "reasoning_effort": "none", "stream": True,
-                }).encode("utf-8")
-                http_request = urllib.request.Request(
-                    "https://api.openai.com/v1/chat/completions", data=body,
-                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                    method="POST",
-                )
-                with urllib.request.urlopen(http_request, timeout=60) as upstream:
-                    for raw in upstream:
-                        if stopped.is_set():
+                for delta in stream_openai_text(request.messages, api_key):
+                    if stopped.is_set():
+                        break
+                    emit({"type": "text", "delta": delta})
+                    pending += delta
+                    while True:
+                        segment, pending = pop_speech_segment(pending)
+                        if not segment:
                             break
-                        if not raw.startswith(b"data: "):
-                            continue
-                        payload = raw[6:].strip()
-                        if payload == b"[DONE]":
-                            break
-                        chunk = json.loads(payload)
-                        choices = chunk.get("choices") or []
-                        if not choices:
-                            continue
-                        delta = choices[0].get("delta", {}).get("content")
-                        if not delta:
-                            continue
-                        emit({"type": "text", "delta": delta})
-                        pending += delta
-                        while True:
-                            segment, pending = pop_speech_segment(pending)
-                            if not segment:
-                                break
-                            enqueue_speech(segment)
-                    segment, _ = pop_speech_segment(pending, final=True)
-                    if segment:
                         enqueue_speech(segment)
-            except Exception:
+                segment, _ = pop_speech_segment(pending, final=True)
+                if segment:
+                    enqueue_speech(segment)
+            except Exception as exc:
                 logger.exception("OpenAI streaming response failed")
-                emit({"type": "error", "message": "SOVA response stream failed"})
+                message = "SOVA model connection interrupted" if isinstance(exc, httpx.TransportError) else "SOVA response stream failed"
+                emit({"type": "error", "message": message})
             finally:
                 enqueue_speech(None)
                 emit({"type": "text_done"})
