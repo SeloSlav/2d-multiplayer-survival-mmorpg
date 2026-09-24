@@ -15,7 +15,7 @@ if not exist ".venv\Scripts\python.exe" (
     )
 )
 
-".venv\Scripts\python.exe" -c "import fastapi, soundfile, kokoro, faster_whisper, dotenv, jwt" >nul 2>&1
+".venv\Scripts\python.exe" -c "import fastapi, soundfile, kokoro, faster_whisper, dotenv, jwt, cryptography" >nul 2>&1
 if errorlevel 1 (
     echo Installing local Kokoro and faster-whisper dependencies...
     ".venv\Scripts\python.exe" -m pip install torch --index-url https://download.pytorch.org/whl/cpu

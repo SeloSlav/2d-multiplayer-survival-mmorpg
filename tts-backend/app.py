@@ -57,9 +57,15 @@ def authorize_voice_request(authorization: str | None) -> None:
         signing_key = auth_jwks.get_signing_key_from_jwt(token)
         jwt.decode(token, signing_key.key, algorithms=["RS256"], issuer=AUTH_ISSUER,
                    audience="vibe-survival-game-client")
-    except Exception as exc:
+    except (jwt.exceptions.MissingCryptographyError, jwt.exceptions.PyJWKClientConnectionError) as exc:
+        logger.exception("SOVA voice authentication service unavailable")
+        raise HTTPException(status_code=503, detail="SOVA authentication service unavailable") from exc
+    except jwt.exceptions.InvalidTokenError as exc:
         logger.warning("SOVA voice authentication failed: %s", type(exc).__name__)
         raise HTTPException(status_code=401, detail="Invalid or expired login") from exc
+    except Exception as exc:
+        logger.exception("SOVA voice authentication service failed")
+        raise HTTPException(status_code=503, detail="SOVA authentication service failed") from exc
 
 
 def pop_speech_segment(buffer: str, final: bool = False) -> tuple[str, str]:
