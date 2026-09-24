@@ -145,6 +145,8 @@ copy .env.example .env   # Windows
 ### 🤖 Optional: SOVA AI Assistant Setup
 
 **Only needed if you want to use the in-game AI assistant (SOVA).**
+For a working local voice stack, including Kokoro, faster-whisper, the game
+database, and functional checks, see [SOVA runtime and verification](docs/audio/SOVA_RUNTIME.md).
 
 **1) Configure API keys in root `.env`:**
 

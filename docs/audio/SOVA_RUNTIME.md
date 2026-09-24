@@ -22,16 +22,17 @@ through the local Kokoro voice backend. SOVA also has a text chat tab.
 1. On Windows, run `tts-backend\start.bat`. It creates or reuses `tts-backend\.venv` with Python 3.12 and installs missing packages. The older `tts-backend\venv` from this checkout is damaged and is not used.
 2. Check `http://localhost:8001/health` for `pipeline_ready: true`. The first transcription downloads the local `base.en` model; later requests use the cache.
 3. Set `VITE_STT_PROVIDER=local` (the default) and `VITE_KOKORO_BASE_URL=http://localhost:8001`, then run the SpacetimeDB server, auth server, and React client according to the root README. `npm run dev` starts the React client only; Kokoro is a separate Python service.
-4. Publish the game module and seed `ai_http_config` from the root `.env` using `server/deploy-local.ps1`. Re-run `server/seed-sova-config.ps1` after changing an LLM key or provider. LLM calls can incur provider charges; the speech input and output do not.
+4. Publish the game module and seed `ai_http_config` from the root `.env` using `scripts/deploy-sova-database.ps1`. Re-run that script after changing an LLM key or provider. LLM calls can incur provider charges; the speech input and output do not.
 
 On this Windows machine, ports 3000 and 4001 were already used by another project.
 The ignored root `.env` now points the game to its own SpacetimeDB on port 3001
 and auth server on port 4002. The database data is stored in the ignored
-`.local-spacetimedb` directory. To restart that database, run the installed
-SpacetimeDB standalone binary with `--data-dir .local-spacetimedb`,
-`--listen-addr 127.0.0.1:3001`, and the local SpacetimeDB JWT public/private
-key paths. Start auth with the settings in `auth-server-openauth/.env`, the voice
-service with `tts-backend/start.bat`, and the client with `npm run dev`.
+`.local-spacetimedb` directory. From the project root, run
+`scripts/start-sova-database.ps1` in one terminal. Start auth with
+`npm run dev` from `auth-server-openauth` in another, voice with
+`tts-backend/start.bat` in a third, and the client with root `npm run dev` in
+a fourth. Run `scripts/deploy-sova-database.ps1` after changes to server code
+or the SOVA provider settings.
 
 ## Functional checks
 
