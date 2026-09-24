@@ -89,6 +89,24 @@ class AIService {
     this.currentProvider = provider;
   }
 
+  buildSOVAMessages(request: SOVAPromptRequest): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+    return [
+      { role: 'system', content: this.buildSOVASystemPrompt() },
+      ...this.conversationHistory,
+      { role: 'user', content: this.buildUserPrompt(request) },
+    ];
+  }
+
+  rememberSOVAResponse(userMessage: string, response: string): void {
+    this.conversationHistory.push(
+      { role: 'user', content: userMessage },
+      { role: 'assistant', content: response },
+    );
+    if (this.conversationHistory.length > this.maxHistoryTurns * 2) {
+      this.conversationHistory = this.conversationHistory.slice(-this.maxHistoryTurns * 2);
+    }
+  }
+
   /**
    * Convert rain intensity percentage to natural language
    */
@@ -118,11 +136,7 @@ class AIService {
     };
 
     try {
-      const messages = [
-        { role: 'system', content: systemPrompt },
-        ...this.conversationHistory,
-        { role: 'user', content: userPrompt }
-      ];
+      const messages = this.buildSOVAMessages(request);
       const procedures = (request.connection as any)?.procedures;
       const procedureAccessor = procedures?.askSova ?? procedures?.ask_sova;
       if (!procedureAccessor) {
@@ -172,13 +186,7 @@ class AIService {
 
       timing.responseLength = sovaResponse.length;
 
-      this.conversationHistory.push(
-        { role: 'user', content: request.userMessage },
-        { role: 'assistant', content: sovaResponse }
-      );
-      if (this.conversationHistory.length > this.maxHistoryTurns * 2) {
-        this.conversationHistory = this.conversationHistory.slice(-this.maxHistoryTurns * 2);
-      }
+      this.rememberSOVAResponse(request.userMessage, sovaResponse);
 
       this.recordTiming({ ...timing, success: true }, true);
 

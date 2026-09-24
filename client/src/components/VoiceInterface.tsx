@@ -9,6 +9,7 @@ import { parseCraftIntent, resolveRecipeByName, getCraftFeedback } from '../util
 import type { DbConnection } from '../generated';
 import type { Recipe } from '../generated/types';
 import type { Identity } from 'spacetimedb';
+import { useAuth } from '../contexts/AuthContext';
 
 // TTS Provider selection: 'kokoro' (default) | 'auto' (auto-detect)
 const TTS_PROVIDER = import.meta.env.VITE_TTS_PROVIDER || 'kokoro';
@@ -95,6 +96,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
   connection,
   onLoadingStateChange,
 }) => {
+  const { spacetimeToken } = useAuth();
   const [voiceState, setVoiceState] = useState<VoiceState>({
     isRecording: false,
     isTranscribing: false,
@@ -362,6 +364,46 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         inventoryItems,
         localPlayerIdentity,
       });
+
+      if (openaiService.getProvider() === 'openai') {
+        if (!spacetimeToken) throw new Error('Sign in to use SOVA voice.');
+        const responseId = `sova-voice-${Date.now()}`;
+        const responseTime = new Date();
+        let lastChatUpdate = 0;
+        const prompt = openaiService.buildSOVAMessages({ userMessage: transcribedText, gameContext });
+        speakingRef.current = true;
+        const streamed = await kokoroService.streamSOVAResponse(
+          prompt,
+          spacetimeToken,
+          text => {
+            if (turn !== voiceTurnRef.current) return;
+            const now = performance.now();
+            if (now - lastChatUpdate < 80) return;
+            lastChatUpdate = now;
+            onAddSOVAMessage?.({ id: responseId, text, isUser: false, timestamp: responseTime });
+          },
+          () => {
+            if (turn === voiceTurnRef.current) {
+              setVoiceState(prev => ({ ...prev, isGeneratingResponse: false, isSynthesizingVoice: false, isPlayingAudio: true }));
+            }
+          },
+        );
+        if (turn !== voiceTurnRef.current || streamed.interrupted) return;
+        speakingRef.current = false;
+        if (streamed.text) {
+          onAddSOVAMessage?.({ id: responseId, text: streamed.text, isUser: false, timestamp: responseTime });
+          if (streamed.success) openaiService.rememberSOVAResponse(transcribedText, streamed.text);
+        }
+        console.info('[VoiceInterface] Streamed voice pipeline', {
+          sttMs: transcriptionResult.timing?.totalLatencyMs,
+          firstAudioMs: streamed.firstAudioMs,
+          textDoneMs: streamed.textDoneMs,
+          audioChunks: streamed.chunks,
+        });
+        setVoiceState(prev => ({ ...prev, isGeneratingResponse: false, isSynthesizingVoice: false, isPlayingAudio: false }));
+        if (!streamed.success) onError?.(`SOVA voice unavailable: ${streamed.error || 'Kokoro failed'}`);
+        return;
+      }
       
       const aiResponse = await openaiService.generateSOVAResponse({
         userMessage: transcribedText,
@@ -456,7 +498,7 @@ const VoiceInterface: React.FC<VoiceInterfaceProps> = ({
         speakingRef.current = false;
       }
     }
-  }, [onTranscriptionComplete, onError, onAddSOVAMessage, localPlayerIdentity, worldState, localPlayer, itemDefinitions, activeEquipments, inventoryItems, recipes, playerIdentity, connection]);
+  }, [onTranscriptionComplete, onError, onAddSOVAMessage, localPlayerIdentity, worldState, localPlayer, itemDefinitions, activeEquipments, inventoryItems, recipes, playerIdentity, connection, spacetimeToken]);
 
   // NEW: Clear previous state when interface becomes visible (V key pressed) and start recording
   useEffect(() => {

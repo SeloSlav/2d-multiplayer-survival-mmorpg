@@ -90,7 +90,17 @@ returns newline-delimited JSON. Each `audio` event contains one independently
 decodable 24 kHz WAV chunk (`wav` is base64); a final `done` event marks a
 complete stream. A midstream `error` event reports synthesis failure. The SOVA
 client plays each chunk as it arrives and can abort playback when a new turn
-starts. The full text reply is still available before synthesis begins.
+starts.
+
+`POST /respond-stream` is the OpenAI voice path. It accepts SOVA messages plus
+the signed game login token, streams model text as it arrives, and starts Kokoro
+on the first complete phrase while OpenAI continues generating. The response is
+newline-delimited JSON with `text`, `audio`, `text_done`, and `done` events. It
+uses the same local `OPENAI_API_KEY` from the ignored root `.env`, or the voice
+service's own environment variables when hosted. Set `SOVA_AUTH_ISSUER` to the
+game auth server's issuer URL if it differs from `VITE_AUTH_SERVER_URL`. Hosted
+voice services must receive `OPENAI_API_KEY` and `SOVA_AUTH_ISSUER` in their
+private environment; never set either as a `VITE_` client secret.
 
 The first `/transcribe` request downloads the `base.en` faster-whisper model once. Set
 `SOVA_WHISPER_MODEL` to a different installed model if needed. The model runs on CPU

@@ -3,7 +3,7 @@ Kokoro TTS Backend Service
 Provides REST API for text-to-speech synthesis using Kokoro model
 """
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
@@ -17,6 +17,14 @@ import logging
 import os
 import tempfile
 import threading
+import queue
+import re
+import urllib.request
+import urllib.error
+from pathlib import Path
+from dotenv import load_dotenv
+import jwt
+from jwt import PyJWKClient
 from fastapi import UploadFile, File
 
 # Configure logging
@@ -27,6 +35,168 @@ logger = logging.getLogger(__name__)
 pipeline: KPipeline | None = None
 speech_model = None
 speech_model_lock = threading.Lock()
+pipeline_lock = threading.Lock()
+
+# Local development uses the existing ignored root .env. Hosted deployments use
+# their own environment variables; no model key is ever sent to the browser.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
+AUTH_ISSUER = os.getenv("SOVA_AUTH_ISSUER") or os.getenv("VITE_AUTH_SERVER_URL") or "https://broth-and-bullets-production.up.railway.app"
+auth_jwks = PyJWKClient(f"{AUTH_ISSUER.rstrip('/')}/.well-known/jwks.json", cache_jwk_set=True, lifespan=300)
+
+
+class SOVAStreamRequest(BaseModel):
+    messages: list[dict[str, str]]
+    voice: str = "af_heart"
+
+
+def authorize_voice_request(authorization: str | None) -> None:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Sign in to use SOVA voice")
+    try:
+        token = authorization[7:]
+        signing_key = auth_jwks.get_signing_key_from_jwt(token)
+        jwt.decode(token, signing_key.key, algorithms=["RS256"], issuer=AUTH_ISSUER,
+                   audience="vibe-survival-game-client")
+    except Exception as exc:
+        logger.warning("SOVA voice authentication failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=401, detail="Invalid or expired login") from exc
+
+
+def pop_speech_segment(buffer: str, final: bool = False) -> tuple[str, str]:
+    """Cut at a sentence boundary, or at a word boundary to cap first-audio wait."""
+    match = re.search(r"[.!?](?:[\"']?)(?=\s|$)", buffer)
+    if match and match.end() >= 10:
+        end = match.end()
+        return buffer[:end].strip(), buffer[end:].lstrip()
+    if len(buffer) >= 95:
+        end = buffer.rfind(" ", 45, 95)
+        if end > 0:
+            return buffer[:end].strip(), buffer[end:].lstrip()
+    if final and buffer.strip():
+        return buffer.strip(), ""
+    return "", buffer
+
+
+def stream_sova_response(request: SOVAStreamRequest, authorization: str | None = Header(default=None)):
+    """Stream OpenAI text and Kokoro WAV chunks concurrently as NDJSON."""
+    authorize_voice_request(authorization)
+    if pipeline is None:
+        raise HTTPException(status_code=503, detail="Kokoro pipeline is unavailable")
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is missing from the voice backend")
+    if not request.messages or len(request.messages) > 16 or sum(len(m.get("content", "")) for m in request.messages) > 25000:
+        raise HTTPException(status_code=400, detail="Invalid SOVA prompt size")
+    if any(m.get("role") not in {"system", "user", "assistant"} or not isinstance(m.get("content"), str) for m in request.messages):
+        raise HTTPException(status_code=400, detail="Invalid SOVA messages")
+
+    def events():
+        outgoing: queue.Queue[dict] = queue.Queue(maxsize=128)
+        speech: queue.Queue[str | None] = queue.Queue(maxsize=16)
+        stopped = threading.Event()
+
+        def emit(item: dict):
+            while not stopped.is_set():
+                try:
+                    outgoing.put(item, timeout=0.2)
+                    return
+                except queue.Full:
+                    pass
+
+        def enqueue_speech(segment: str | None):
+            while not stopped.is_set():
+                try:
+                    speech.put(segment, timeout=0.2)
+                    return
+                except queue.Full:
+                    pass
+
+        def produce_text():
+            pending = ""
+            try:
+                body = json.dumps({
+                    "model": "gpt-6-luna", "messages": request.messages,
+                    "max_completion_tokens": 300, "reasoning_effort": "none", "stream": True,
+                }).encode("utf-8")
+                http_request = urllib.request.Request(
+                    "https://api.openai.com/v1/chat/completions", data=body,
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(http_request, timeout=60) as upstream:
+                    for raw in upstream:
+                        if stopped.is_set():
+                            break
+                        if not raw.startswith(b"data: "):
+                            continue
+                        payload = raw[6:].strip()
+                        if payload == b"[DONE]":
+                            break
+                        chunk = json.loads(payload)
+                        choices = chunk.get("choices") or []
+                        if not choices:
+                            continue
+                        delta = choices[0].get("delta", {}).get("content")
+                        if not delta:
+                            continue
+                        emit({"type": "text", "delta": delta})
+                        pending += delta
+                        while True:
+                            segment, pending = pop_speech_segment(pending)
+                            if not segment:
+                                break
+                            enqueue_speech(segment)
+                    segment, _ = pop_speech_segment(pending, final=True)
+                    if segment:
+                        enqueue_speech(segment)
+            except Exception:
+                logger.exception("OpenAI streaming response failed")
+                emit({"type": "error", "message": "SOVA response stream failed"})
+            finally:
+                enqueue_speech(None)
+                emit({"type": "text_done"})
+
+        def produce_audio():
+            count = 0
+            try:
+                while not stopped.is_set():
+                    try:
+                        segment = speech.get(timeout=0.2)
+                    except queue.Empty:
+                        continue
+                    if segment is None:
+                        break
+                    assert pipeline is not None
+                    with pipeline_lock:
+                        for _, _, audio in pipeline(segment, voice=request.voice):
+                            if stopped.is_set():
+                                break
+                            if audio is None or len(audio) == 0:
+                                continue
+                            buffer = io.BytesIO()
+                            sf.write(buffer, audio, 24000, format="WAV")
+                            emit({"type": "audio", "sequence": count,
+                                  "wav": base64.b64encode(buffer.getvalue()).decode("ascii")})
+                            count += 1
+            except Exception:
+                logger.exception("Kokoro streaming response failed")
+                emit({"type": "error", "message": "SOVA voice synthesis failed"})
+            finally:
+                emit({"type": "done", "chunks": count})
+
+        threading.Thread(target=produce_text, daemon=True).start()
+        threading.Thread(target=produce_audio, daemon=True).start()
+        try:
+            while True:
+                item = outgoing.get()
+                yield json.dumps(item) + "\n"
+                if item["type"] == "done":
+                    break
+        finally:
+            stopped.set()
+
+    return StreamingResponse(events(), media_type="application/x-ndjson",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -64,6 +234,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+app.post("/respond-stream")(stream_sova_response)
 
 class TTSRequest(BaseModel):
     text: str

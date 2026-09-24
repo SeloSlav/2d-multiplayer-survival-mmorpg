@@ -114,11 +114,14 @@ class KokoroService {
     });
   }
 
-  /** Play Kokoro's sentence chunks as they arrive from the local backend. */
-  async synthesizeAndPlayStream(
-    request: VoiceSynthesisRequest,
+  /** Play Kokoro chunks and optionally collect OpenAI text from the same stream. */
+  private async playNdjsonStream(
+    path: string,
+    body: object,
     onFirstAudio: () => void,
-  ): Promise<{ success: boolean; interrupted?: boolean; firstAudioMs?: number; chunks: number; error?: string }> {
+    onText?: (text: string) => void,
+    authToken?: string,
+  ): Promise<{ success: boolean; interrupted?: boolean; firstAudioMs?: number; textDoneMs?: number; chunks: number; text: string; error?: string }> {
     this.stopStreamingPlayback();
     const session = this.streamSession;
     const controller = new AbortController();
@@ -126,26 +129,40 @@ class KokoroService {
     const started = performance.now();
     let firstAudioMs: number | undefined;
     let chunks = 0;
+    let text = '';
+    let textDoneMs: number | undefined;
+    let streamError: string | undefined;
     let playback = Promise.resolve(true);
     let finished = false;
     try {
-      const response = await fetch(`${KOKORO_BASE_URL}/synthesize-stream`, {
+      const response = await fetch(`${KOKORO_BASE_URL}${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: request.text, voice: this.getVoiceId(request.voice || request.voiceStyle) }),
+        headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
-      if (!response.ok || !response.body) throw new Error(`Kokoro stream failed: HTTP ${response.status}`);
+      if (!response.ok || !response.body) {
+        const detail = await response.json().catch(() => null) as { detail?: string } | null;
+        throw new Error(detail?.detail || `SOVA stream failed: HTTP ${response.status}`);
+      }
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let pending = '';
       const handleLine = (line: string) => {
         if (!line.trim()) return;
-        const event = JSON.parse(line) as { type: string; wav?: string; message?: string; chunks?: number };
-        if (event.type === 'error') throw new Error(event.message || 'Kokoro stream failed');
+        const event = JSON.parse(line) as { type: string; wav?: string; message?: string; chunks?: number; delta?: string };
+        if (event.type === 'error') {
+          streamError = event.message || 'SOVA stream failed';
+          return;
+        }
+        if (event.type === 'text' && event.delta) {
+          text += event.delta;
+          onText?.(text);
+        }
+        if (event.type === 'text_done') textDoneMs = performance.now() - started;
         if (event.type === 'done') {
           finished = true;
-          if (event.chunks === 0) throw new Error('Kokoro generated no audio');
+          if (event.chunks === 0 && !streamError) throw new Error('Kokoro generated no audio');
         }
         if (event.type === 'audio' && event.wav) {
           chunks++;
@@ -173,21 +190,36 @@ class KokoroService {
       }
       pending += decoder.decode();
       if (pending.trim()) handleLine(pending);
-      if (!finished) throw new Error('Kokoro stream ended early');
+      if (!finished) throw new Error('SOVA stream ended early');
       const played = await playback;
-      if (session !== this.streamSession) return { success: false, interrupted: true, chunks };
+      if (session !== this.streamSession) return { success: false, interrupted: true, chunks, text };
       this.isWarmedUp = true;
-      console.info('[KokoroService] Streaming playback', { firstAudioMs, chunks });
-      return { success: played && chunks > 0, firstAudioMs, chunks };
+      console.info('[KokoroService] Streaming playback', { firstAudioMs, textDoneMs, chunks });
+      return { success: played && chunks > 0 && !streamError, firstAudioMs, textDoneMs, chunks, text, error: streamError };
     } catch (error) {
       if (controller.signal.aborted || session !== this.streamSession) {
-        return { success: false, interrupted: true, chunks };
+        return { success: false, interrupted: true, chunks, text };
       }
       this.stopCurrentChunk?.();
-      return { success: false, chunks, error: error instanceof Error ? error.message : 'Voice stream failed' };
+      return { success: false, chunks, text, error: error instanceof Error ? error.message : 'Voice stream failed' };
     } finally {
       if (this.streamAbort === controller) this.streamAbort = undefined;
     }
+  }
+
+  async synthesizeAndPlayStream(request: VoiceSynthesisRequest, onFirstAudio: () => void) {
+    return this.playNdjsonStream('/synthesize-stream',
+      { text: request.text, voice: this.getVoiceId(request.voice || request.voiceStyle) }, onFirstAudio);
+  }
+
+  async streamSOVAResponse(
+    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+    authToken: string,
+    onText: (text: string) => void,
+    onFirstAudio: () => void,
+  ) {
+    return this.playNdjsonStream('/respond-stream', { messages, voice: this.getVoiceId('sova') },
+      onFirstAudio, onText, authToken);
   }
 
   /**

@@ -547,10 +547,9 @@ const Chat: React.FC<ChatProps> = ({ connection, onSOVAMessageAdderReady, isMobi
     
     console.log('[Chat] Adding SOVA message:', message.id, message.isUser ? '(user)' : '(bot)', message.flashTab ? '(with flash)' : '');
     setSovaMessages(prev => {
-      // Check for duplicate message ID to prevent React key conflicts
+      // Streaming replies update the same bubble as new text arrives.
       if (prev.some(m => m.id === message.id)) {
-        console.log('[Chat] Skipping duplicate SOVA message:', message.id);
-        return prev;
+        return prev.map(m => m.id === message.id ? { ...m, text: message.text } : m);
       }
       const updated = [...prev, { id: message.id, text: message.text, isUser: message.isUser, timestamp: message.timestamp }];
       // Cap messages to prevent unbounded memory growth
