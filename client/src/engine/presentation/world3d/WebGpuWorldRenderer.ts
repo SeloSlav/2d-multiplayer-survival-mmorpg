@@ -11,6 +11,9 @@ import { BUILDING, pointOnFoundation } from './buildingPlan';
 import { groundPosition, isCompoundBuilding } from './groundAnchor';
 import { createFoundationModel, createWallModel, createFenceModel, DoorRig } from './buildingModels';
 import { createStorageModel } from './storageModels';
+import { createAlkBuilding, createAlkTurret } from './alkModels';
+import type { AlkAsset } from './alkModels';
+import { COMPOUND_BUILDINGS, getBuildingWorldPosition } from '../../../config/compoundBuildings';
 import { createFurnace, createBarbecue, createLantern, createHearth, createBrothPot, createSleepingBag, createStash, createShelter, createRainCollector, CAMP_MODEL_TABLES } from './campModels';
 import { ModelKit } from './modelKit';
 import { SurvivorRig } from './survivor';
@@ -20,6 +23,10 @@ import type { PlacementPreviewPlan } from '../../placement/placementValidation';
 import { pixelCameraPlan } from './pixelCamera';
 import { SwimmingEffects3d } from './SwimmingEffects3d';
 import { TreeFallEffects3d } from './TreeFallEffects3d';
+import { CombatEffects3d, COMBAT_FEEDBACK_KINDS } from './CombatEffects3d';
+import { MemoryShardGlow3d } from './MemoryShardGlow3d';
+import { CollectibleGlitter3d } from './CollectibleGlitter3d';
+import { PLANT_PROFILES } from './plantCatalog';
 import { UnderwaterView3d } from './UnderwaterView3d';
 import { NATURAL_OBJECT_TABLES, createRuneStone, createCairn, createCoral, createGeologicalObject, createKelp } from './naturalObjects';
 import { WaterWorld3d, seabedAnchor } from './WaterWorld3d';
@@ -82,17 +89,17 @@ interface EntityVisual {
   treeAudio?: TreeFallPlayback & { fallStartedAt:number };
 }
 
-interface LocalLight { position: Vector3; color: number; intensity: number }
+interface LocalLight { position: Vector3; color: number; intensity: number; priority?: number }
 
 const STATIC_TABLES = [
   'trees', 'stones', 'campfires', 'woodenStorageBoxes', 'barrels', 'foundationCells',
   'wallCells', 'harvestableResources', 'fences', 'doors', ...CAMP_MODEL_TABLES, ...NATURAL_OBJECT_TABLES,
-  'droppedItems', 'monumentParts',
+  'droppedItems', 'monumentParts', 'alkStations', 'turrets',
 ] as const;
 const UNFINISHED_TABLES = [
-  'turrets', 'playerCorpses',
+  'playerCorpses',
   'plantedSeeds', 'waterPatches',
-  'fertilizerPatches', 'firePatches', 'placedExplosives', 'alkStations', 'projectiles',
+  'fertilizerPatches', 'firePatches', 'placedExplosives', 'projectiles',
 ] as const;
 
 function rows(value: unknown): Iterable<[string, Row]> {
@@ -121,6 +128,10 @@ export class WebGpuWorldRenderer {
   readonly camera = new OrthographicCamera(-10, 10, 7, -7, 0.1, 160);
   readonly kit = new ModelKit();
   readonly unfinished = new Set<string>();
+  private readonly compoundLandmarks = new Map(COMPOUND_BUILDINGS.map(building=>{
+    const position=getBuildingWorldPosition(building);
+    return [building.id,{worldX:position.x,worldY:position.y+(building.collisionAabb?.centerYOffset??-building.collisionYOffset),name:building.id}] as const;
+  }));
   private renderer: Renderer | null = null;
   private initializing = false;
   private initialization: Promise<void> | null = null;
@@ -133,6 +144,9 @@ export class WebGpuWorldRenderer {
   private readonly placementPreview = new PlacementPreview3d(this.kit);
   private readonly swimmingEffects = new SwimmingEffects3d();
   private readonly treeFallEffects = new TreeFallEffects3d(this.kit);
+  private readonly combatEffects = new CombatEffects3d(this.kit);
+  private readonly shardGlow = new MemoryShardGlow3d();
+  private readonly collectibleGlitter = new CollectibleGlitter3d();
   private readonly underwater = new UnderwaterView3d(this.camera);
   private diving = false;
   private readonly terrainMaterials = new TerrainMaterials3d();
@@ -176,6 +190,9 @@ export class WebGpuWorldRenderer {
     this.scene.add(this.placementPreview.root);
     this.scene.add(this.swimmingEffects.root);
     this.scene.add(this.treeFallEffects.root);
+    this.scene.add(this.combatEffects.root);
+    this.scene.add(this.shardGlow.root);
+    this.scene.add(this.collectibleGlitter.root);
     this.scene.add(this.water.root);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.setScalar(WORLD_3D.shadowMapSize);
@@ -284,9 +301,12 @@ export class WebGpuWorldRenderer {
     this.batches.beginFrame();
     this.swimmingEffects.beginFrame();
     this.treeFallEffects.beginFrame();
+    this.shardGlow.beginFrame(time);
+    this.collectibleGlitter.beginFrame(time, cycle, this.camera.quaternion);
     this.prepareBuildings(frame);
     this.shelterVisibility.prepare(frame.tables.shelters instanceof Map?frame.tables.shelters.values():[],frame.localPlayerId,frame.predictedPosition);
     for (const kind of STATIC_TABLES) this.syncTable(kind, frame, dt, time, seen, fires);
+    this.syncTable('compoundLandmarks', {...frame,tables:{...frame.tables,compoundLandmarks:this.compoundLandmarks}},dt,time,seen,fires);
     this.syncTable('players', frame, dt, time, seen, fires);
     this.syncTable('wildAnimals', frame, dt, time, seen, fires);
     this.syncTable('animalCorpses', frame, dt, time, seen, fires);
@@ -309,6 +329,9 @@ export class WebGpuWorldRenderer {
     }, (x, y) => this.floorAt(x, y));
     this.swimmingEffects.endFrame(time);
     this.treeFallEffects.endFrame();
+    this.combatEffects.update(frame.nowMs??Date.now());
+    this.shardGlow.endFrame();
+    this.collectibleGlitter.endFrame();
     this.underwater.endFrame();
     const entitiesEnd = performance.now();
     this.batches.flush();
@@ -323,6 +346,9 @@ export class WebGpuWorldRenderer {
     const lightingEnd = performance.now();
     if(!this.diving)this.dormantLightEffects.push(this.underwater.overlay);
     if(!this.treeFallEffects.root.visible)this.dormantLightEffects.push(this.treeFallEffects.root);
+    if(!this.combatEffects.root.visible)this.dormantLightEffects.push(this.combatEffects.root);
+    if(!this.shardGlow.root.visible)this.dormantLightEffects.push(this.shardGlow.root);
+    if(!this.collectibleGlitter.root.visible)this.dormantLightEffects.push(this.collectibleGlitter.root);
     const restorePrepared = this.pipelineWarmup.prepare(this.scene,this.camera,this.renderer,this.scene,`${mode}:${this.renderer.shadowMap.enabled}`,message=>this.fail(message),this.dormantLightEffects);
     const warmupEnd = performance.now();
     try {
@@ -465,12 +491,9 @@ export class WebGpuWorldRenderer {
 
   private syncTable(kind: string, frame: World3dFrame, dt: number, time: number, seen: Set<string>, fires: LocalLight[]): void {
     for (const [mapId, row] of rows(frame.tables[kind])) {
+      if(kind==='alkStations'&&row.isActive===false)continue;
       if(kind==='monumentParts'&&!row.imagePath)continue;
       const isTreeFalling=kind==='trees'&&typeof frame.tables.isTreeFalling==='function'&&Boolean((frame.tables.isTreeFalling as (id:string)=>boolean)(String(mapId)));
-      if (row.isDestroyed && !isTreeFalling || row.isDead && kind !== 'players' || row.health === 0 && (kind === 'trees' && !isTreeFalling || kind === 'stones' || kind === 'barrels')) continue;
-      if ((kind === 'barrels' || kind === 'harvestableResources' || kind === 'livingCorals') && row.respawnAt && row.respawnAt.microsSinceUnixEpoch !== 0n) continue;
-      if (kind === 'animalCorpses' && row.health === 0) continue;
-      if ((kind === 'foundationCells' || kind === 'ceilings') && row.shape === 0) continue;
       const id = kind === 'players' ? identity(row.identity) || mapId : String(mapId);
       const isLocal = kind === 'players' && id === frame.localPlayerId;
       const position = isLocal && frame.predictedPosition ? frame.predictedPosition
@@ -480,8 +503,28 @@ export class WebGpuWorldRenderer {
       const zoom = Math.max(0.5, Math.min(2, frame.zoom ?? 1));
       const screenX = (position.x + frame.cameraOffset.x - frame.width / 2) * zoom + frame.width / 2;
       const screenY = (position.y + frame.cameraOffset.y - frame.height / 2) * zoom + frame.height / 2;
-      const margin = kind==='monumentParts'?Math.max(WORLD_3D.cullMarginPixels,villageCullMargin(row)):WORLD_3D.cullMarginPixels;
-      if (screenX < -margin || screenY < -margin || screenX > frame.width + margin || screenY > frame.height + margin) continue;
+      const margin = kind==='monumentParts'?Math.max(WORLD_3D.cullMarginPixels,villageCullMargin(row))
+        : kind==='alkStations'||kind==='compoundLandmarks'||isCompoundBuilding(kind,row)?Math.max(500,WORLD_3D.cullMarginPixels):WORLD_3D.cullMarginPixels;
+      // Tall crowns can still occupy the viewport with their roots well below
+      // it. Falling trees need the same allowance along their landing axis.
+      const treeMargin = kind==='trees' ? Math.max(margin, 12 * WORLD_3D.tilePixels * zoom) : margin;
+      const horizontalMargin = isTreeFalling ? treeMargin : margin;
+      if (screenX < -horizontalMargin || screenY < -margin || screenX > frame.width + horizontalMargin || screenY > frame.height + treeMargin) continue;
+      const waterKind = this.waterTiles.get(`${Math.floor(position.x / 48)},${Math.floor(position.y / 48)}`);
+      const subtype=tag(row.species??row.animalSpecies??row.oreType);
+      const visibleHit=!this.diving||kind==='livingCorals'||kind==='animalCorpses'||kind==='players'&&(isLocal||Boolean(row.isSnorkeling))
+        ||kind==='wildAnimals'&&['SalmonShark','Jellyfish'].includes(subtype);
+      let reaction=0;
+      if(visibleHit&&COMBAT_FEEDBACK_KINDS.has(kind)){
+        let hitGround=this.floorAt(position.x,position.y);
+        if(kind==='livingCorals'&&waterKind)hitGround=-this.terrainMaterials.depthAt(position.x,position.y)+.02;
+        if(kind==='players'&&row.isSnorkeling)hitGround=-Math.min(.9,Math.max(.35,this.terrainMaterials.depthAt(position.x,position.y)*.65));
+        reaction=this.combatEffects.observe(kind,id,row.lastHitTime?.microsSinceUnixEpoch??0n,position.x,position.y,hitGround,subtype,frame.nowMs??Date.now());
+      }
+      if (row.isDestroyed && !isTreeFalling || row.isDead && kind !== 'players' || row.health === 0 && (kind === 'trees' && !isTreeFalling || kind === 'stones' || kind === 'barrels')) continue;
+      if ((kind === 'barrels' || kind === 'harvestableResources' || kind === 'livingCorals') && row.respawnAt && row.respawnAt.microsSinceUnixEpoch !== 0n) continue;
+      if (kind === 'animalCorpses' && row.health === 0) continue;
+      if ((kind === 'foundationCells' || kind === 'ceilings') && row.shape === 0) continue;
       const key = `${kind}:${id}`;
       seen.add(key);
       const item=kind==='droppedItems'&&frame.tables.itemDefinitions instanceof Map?frame.tables.itemDefinitions.get(String(row.itemDefId)):null;
@@ -490,7 +533,8 @@ export class WebGpuWorldRenderer {
         row.furnaceType ?? 0, row.lanternType ?? 0, row.doorType ?? 0, row.terrainVariant ?? 0, isCompoundBuilding(kind, row), row.loreId ?? '', kind === 'livingCorals' ? coralVariant(id) : '',
         kind==='droppedItems'?`${row.itemDefId}:${item?.name??''}`:'',
         kind==='monumentParts'?`${row.imagePath}:${row.partType}:${tag(row.monumentType)}:${row.rotationRad??0}`:'',
-        kind==='fumaroles'?Boolean(row.isSubmerged):''].join(':');
+        kind==='fumaroles'?Boolean(row.isSubmerged):'',kind==='turrets'?Boolean(row.isMonument):'',
+        kind==='alkStations'?row.stationId===0?'central':'station':'',kind==='compoundLandmarks'?row.name:''].join(':');
       let visual = this.visuals.get(key);
       if (!visual || visual.signature !== signature) {
         this.frameNewVisuals++;
@@ -508,7 +552,7 @@ export class WebGpuWorldRenderer {
       visual.lastY = displayY;
       const boundary = ['foundationCells', 'wallCells', 'ceilings', 'doors', 'fences'].includes(kind);
       visual.root.position.set(p.x, boundary ? 0 : this.floorAt(position.x, position.y), p.z);
-      const waterKind = this.waterTiles.get(`${Math.floor(position.x / 48)},${Math.floor(position.y / 48)}`);
+      if(COMBAT_FEEDBACK_KINDS.has(kind)&&kind!=='shelters')visual.root.rotation.z=0;
       const kelp = kind === 'harvestableResources' && ['Seaweed','SeaweedBed'].includes(tag(row.plantType));
       const submergedVent = kind === 'fumaroles' && Boolean(row.isSubmerged);
       if (kind === 'livingCorals' || kelp && waterKind || submergedVent) {
@@ -531,6 +575,19 @@ export class WebGpuWorldRenderer {
       const underwaterEntity=kind==='livingCorals'||kelp||submergedVent||kind==='droppedItems'||underwaterAnimal||kind==='players'&&(isLocal||Boolean(row.isSnorkeling));
       const hiddenBySurface=this.diving&&!underwaterEntity;
       visual.root.visible=!hiddenBySurface;
+      if (!hiddenBySurface && (kind === 'harvestableResources' || kind === 'droppedItems')) {
+        const profile = kind === 'harvestableResources' ? PLANT_PROFILES[tag(row.plantType) as keyof typeof PLANT_PROFILES] : undefined;
+        const anchor = visual.root.position;
+        this.collectibleGlitter.add(key, anchor.x, anchor.y, anchor.z,
+          (profile?.height ?? .3) * visual.root.scale.y, profile?.spread ?? .4);
+      }
+      const isShard=kind==='harvestableResources'&&tag(row.plantType)==='MemoryShard'
+        ||kind==='droppedItems'&&item?.name==='Memory Shard'||kind==='stones'&&tag(row.oreType)==='Memory';
+      if(isShard&&!hiddenBySurface){
+        const ore=kind==='stones';
+        this.shardGlow.add(p.x,visual.root.position.y,p.z,ore?3.1:2.2);
+        fires.push({position:new Vector3(p.x,visual.root.position.y+(ore ? .7 : .45),p.z),color:ore?0x5da8ee:0xb67cf6,intensity:ore?1.6:1.1,priority:1});
+      }
       if(kind==='trees'){
         const tree=visual.root.children[0];
         const fall=frame.tables.fallingTrees instanceof Map ? frame.tables.fallingTrees.get(id) : null;
@@ -564,7 +621,8 @@ export class WebGpuWorldRenderer {
       if (!hiddenBySurface && kind === 'roadLampposts' && isNightTime(cycleOf(frame))) fires.push({ position: new Vector3(p.x + .6, 3.75, p.z), color: 0xffd299, intensity: 4 });
       if (kind === 'barrels' && (waterKind || row.variant === 6 || (row.variant ?? 0) >= 3)) {
         const bob = floatingPose(time, row.posX ?? position.x, row.posY ?? position.y);
-        visual.root.position.y = -.1 + bob.height; visual.root.rotation.set(bob.pitch, 0, bob.roll);
+        // Center the 1.06-unit barrel body on the waterline, keeping its gentle bob.
+        visual.root.position.y = (row.variant === 6 ? -.1 : -.52) + bob.height; visual.root.rotation.set(bob.pitch, 0, bob.roll);
         const beacon = visual.root.getObjectByName('buoy-led');
         if (beacon) {
           beacon.visible = isNightTime(cycleOf(frame));
@@ -646,6 +704,11 @@ export class WebGpuWorldRenderer {
           fires.push({ position, color: visual.fire.userData.lightColor ?? 0xffac63, intensity: kind === 'lanterns' ? 3.5 : 7 });
         } else this.dormantLightEffects.push(visual.fire);
       }
+      if(reaction&&kind!=='shelters'){
+        const strength=kind==='trees' ? .035 : kind==='stones' ? .045 : kind==='players' ? .07 : .06;
+        visual.root.rotation.z+=reaction*strength;
+        visual.root.position.x+=reaction*(kind==='trees' ? .025 : .045);
+      }
       if (visual.root.userData.staticBatch && !hiddenBySurface) this.batches.submit(visual.root);
     }
   }
@@ -688,8 +751,14 @@ export class WebGpuWorldRenderer {
       let prototype = this.prototypes.get(prototypeKey);
       if (!prototype) {
         try {
-        if (isCompoundBuilding(kind, row)) throw new Error(`Unfinished compound architecture ${kind}:${row.boxType ?? row.furnaceType ?? 0}`);
-        if (kind === 'trees') prototype = createTree(this.kit, tag(row.treeType), seed % 8);
+        if (isCompoundBuilding(kind, row)) {
+          const asset:AlkAsset=kind==='rainCollectors'?'water':kind==='furnaces'?'furnace':row.boxType===3?'compost':row.boxType===5?'weapons':'food';
+          prototype=createAlkBuilding(this.kit,asset);
+        }
+        else if(kind==='alkStations')prototype=createAlkBuilding(this.kit,row.stationId===0?'central':'station');
+        else if(kind==='compoundLandmarks')prototype=createAlkBuilding(this.kit,row.name as AlkAsset);
+        else if(kind==='turrets')prototype=createAlkTurret(this.kit,Boolean(row.isMonument));
+        else if (kind === 'trees') prototype = createTree(this.kit, tag(row.treeType), seed % 8);
         else if (kind === 'stones') prototype = createRock(this.kit, tag(row.oreType), seed % 8);
         else if (kind === 'woodenStorageBoxes') prototype = createStorageModel(this.kit, row.boxType ?? 0);
         else if (kind === 'barrels') prototype = row.variant === 6 ? createBuoy(this.kit) : createBarrel(this.kit, row.variant ?? 0);
@@ -745,7 +814,7 @@ export class WebGpuWorldRenderer {
     this.sun.intensity = 0.18 + daylight * 2.7;
     this.sun.color.setHex(daylight < 0.25 ? 0xe6ac79 : 0xffe3b2);
     this.sky.intensity = 0.48 + daylight * 1.6;
-    fires.sort((a, b) => a.position.distanceToSquared(this.camera.position) - b.position.distanceToSquared(this.camera.position));
+    fires.sort((a, b) => (a.priority??0)-(b.priority??0) || a.position.distanceToSquared(this.camera.position) - b.position.distanceToSquared(this.camera.position));
     this.lights.forEach((light, i) => {
       // Visibility changes alter the lights-node cache key and synchronously
       // rebuild pipelines for the entire scene. Keep a fixed shader light list;
@@ -766,7 +835,7 @@ export class WebGpuWorldRenderer {
     this.terrainWorker?.dispose(); this.readyTerrain = null;
     const warmupRelease = this.pipelineWarmup.dispose();
     // Renderer releases GPU resources before their shared CPU owners are disposed.
-    const release = () => { this.device?.destroy(); this.device = null; this.water.dispose(); this.terrainMaterials.dispose(); this.swimmingEffects.dispose(); this.treeFallEffects.dispose(); this.underwater.dispose(); this.placementPreview.dispose(); this.batches.dispose(); this.terrain.geometry.dispose(); this.kit.dispose(); this.scene.clear(); this.visuals.clear(); this.prototypes.clear(); };
+    const release = () => { this.device?.destroy(); this.device = null; this.water.dispose(); this.terrainMaterials.dispose(); this.swimmingEffects.dispose(); this.treeFallEffects.dispose(); this.combatEffects.dispose(); this.shardGlow.dispose(); this.collectibleGlitter.dispose(); this.underwater.dispose(); this.placementPreview.dispose(); this.batches.dispose(); this.terrain.geometry.dispose(); this.kit.dispose(); this.scene.clear(); this.visuals.clear(); this.prototypes.clear(); };
     this.disposal = (async () => {
       // A pending init may still own the canvas context. Finish its release before
       // a remount or seed reset is allowed to configure this same canvas again.

@@ -37,7 +37,7 @@ type UiContext = Partial<Extras & Late & Parameters<typeof renderScreenSpaceWeat
 };
 
 /** Reuse original UI painters verbatim on the original full-resolution canvas. */
-export function renderGameCanvasUiFrame(context: GameCanvasRuntimeRenderContext, runtime?: {frameStartMs:number; frameGapMs:number; world:World3dProfile | null; occludes?:(x:number,y:number)=>boolean}): void {
+export function renderGameCanvasUiFrame(context: GameCanvasRuntimeRenderContext, runtime?: {frameStartMs:number; frameGapMs:number; world:World3dProfile | null; cameraOffset?:{x:number;y:number}; occludes?:(x:number,y:number)=>boolean}): void {
   const args = context as unknown as UiContext;
   const canvas = args.gameCanvasRef.current;
   const ctx = canvas?.getContext('2d');
@@ -48,7 +48,7 @@ export function renderGameCanvasUiFrame(context: GameCanvasRuntimeRenderContext,
   const width = args.canvasSize.width, height = args.canvasSize.height;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, width, height);
-  const camera = args.cameraOffsetRef.current;
+  const camera = runtime?.cameraOffset ?? args.cameraOffsetRef.current;
   const position = args.predictedPositionRef.current;
   const pointer = args.worldMousePosRef.current;
   const deps = args.renderGameDepsRef.current;

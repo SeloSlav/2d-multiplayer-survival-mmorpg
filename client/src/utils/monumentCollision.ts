@@ -4,6 +4,8 @@
  */
 import type { MonumentPart } from '../generated/types';
 import type { CollisionShape } from './clientCollision';
+import { isVillageCampfire, villageWallSegments, VILLAGE_CAMPFIRE_RADIUS, VILLAGE_CAMPFIRE_Y_OFFSET, VILLAGE_WALL_THICKNESS } from '../config/villageGeometry';
+import { VILLAGE_BUILDINGS, villageAsset } from '../engine/presentation/world3d/villagePlans';
 
 // --- Monument scarecrow collision (matches wooden storage box - 20px radius, same position) ---
 const MONUMENT_SCARECROW_CULL_DISTANCE_SQ = 200 * 200; // Only check within 200px
@@ -80,17 +82,9 @@ export function getMonumentScarecrowCollisionShapes(
 }
 
 // --- Village campfire collision ---
-const VILLAGE_CAMPFIRE_COLLISION_RADIUS = 70;
 const VILLAGE_CAMPFIRE_CULL_DISTANCE_SQ = 250 * 250; // Only check within 250px
 const MAX_VILLAGE_CAMPFIRES_TO_CHECK = 5;
 // fv_campfire.png is 256x256, anchor at bottom; collision center at fire pit (half-height up)
-const VILLAGE_CAMPFIRE_COLLISION_Y_OFFSET = -128;
-
-function isVillageCampfirePart(part: MonumentPart): boolean {
-  const isFishingVillage = part.monumentType?.tag === 'FishingVillage' && part.isCenter;
-  const isHuntingVillage = part.monumentType?.tag === 'HuntingVillage' && part.partType === 'campfire';
-  return Boolean(isFishingVillage || isHuntingVillage);
-}
 
 /**
  * Returns collision shapes for fishing/hunting village campfires (70px radius circle).
@@ -109,16 +103,16 @@ export function getVillageCampfireCollisionShapes(
 
   for (const part of monumentParts.values()) {
     if (!collisionDebugViewport && count >= MAX_VILLAGE_CAMPFIRES_TO_CHECK) break;
-    if (!isVillageCampfirePart(part)) continue;
+    if (!isVillageCampfire(part)) continue;
 
     const shapeCenterX = part.worldX;
-    const shapeCenterY = part.worldY + VILLAGE_CAMPFIRE_COLLISION_Y_OFFSET;
+    const shapeCenterY = part.worldY + VILLAGE_CAMPFIRE_Y_OFFSET;
 
     if (collisionDebugViewport) {
       if (!pointInDebugViewport(shapeCenterX, shapeCenterY, collisionDebugViewport)) continue;
     } else {
-      const dx = part.worldX - playerX;
-      const dy = part.worldY - playerY;
+      const dx = shapeCenterX - playerX;
+      const dy = shapeCenterY - playerY;
       const distSq = dx * dx + dy * dy;
       if (distSq > VILLAGE_CAMPFIRE_CULL_DISTANCE_SQ) continue;
     }
@@ -128,10 +122,33 @@ export function getVillageCampfireCollisionShapes(
       type: `monument_campfire-${part.id}`,
       x: shapeCenterX,
       y: shapeCenterY,
-      radius: VILLAGE_CAMPFIRE_COLLISION_RADIUS,
+      radius: VILLAGE_CAMPFIRE_RADIUS,
     });
     if (!collisionDebugViewport) count++;
   }
 
+  return shapes;
+}
+
+/** Hollow village structures: collision follows the 3D wall segments, with
+ * a real doorway. Unrelated monument decorations remain unchanged. */
+export function getVillageBuildingCollisionShapes(
+  monumentParts:Map<string,MonumentPart>|undefined,playerX:number,playerY:number,collisionDebugViewport?:CollisionDebugViewportBounds
+):CollisionShape[]{
+  if(!monumentParts)return [];
+  const shapes:CollisionShape[]=[];
+  for(const part of monumentParts.values()){
+    const plan=VILLAGE_BUILDINGS[villageAsset(part)];if(!plan)continue;
+    if(collisionDebugViewport){if(!pointInDebugViewport(part.worldX,part.worldY,collisionDebugViewport))continue;}
+    else{
+      const reach=Math.hypot(plan.width/2,plan.depth)*48+250;
+      if((part.worldX-playerX)**2+(part.worldY-playerY)**2>reach*reach)continue;
+    }
+    villageWallSegments(part).forEach((wall,index)=>shapes.push({
+      id:`village_wall_${part.id}_${index}`,type:`village_wall-${part.id}-${index}`,
+      x:(wall.ax+wall.bx)/2,y:(wall.ay+wall.by)/2,
+      lineStartX:wall.ax,lineStartY:wall.ay,lineEndX:wall.bx,lineEndY:wall.by,lineThickness:VILLAGE_WALL_THICKNESS,
+    }));
+  }
   return shapes;
 }

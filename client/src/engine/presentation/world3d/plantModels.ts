@@ -3,6 +3,7 @@ import { ModelKit } from './modelKit';
 import { PLANT_PROFILES } from './plantCatalog';
 import type { PlantProfile, PlantSpecies } from './plantCatalog';
 import { seededRandom } from './visualContract';
+import { createMemoryShard } from './memoryShardModels';
 
 const UP = new Vector3(0, 1, 0);
 const FORWARD = new Vector3(0, 0, 1);
@@ -376,6 +377,10 @@ function seaweed(w: PlantWriter): void {
 
 export function createPlant(kit: ModelKit, type: string, seed: number): Group {
   if (!Object.prototype.hasOwnProperty.call(PLANT_PROFILES, type)) throw new Error(`Unfinished plant species ${type}`);
+  if(type==='MemoryShard'){
+    const shard=createMemoryShard(kit);shard.name='plant:MemoryShard';
+    shard.userData.plantSpecies=type;shard.userData.growthForm=PLANT_PROFILES.MemoryShard.detail;return shard;
+  }
   const species = type as PlantSpecies;
   const profile: PlantProfile = PLANT_PROFILES[species];
   const writer = new PlantWriter(kit, profile, seed);

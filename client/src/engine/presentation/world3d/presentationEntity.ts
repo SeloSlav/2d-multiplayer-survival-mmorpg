@@ -4,7 +4,8 @@ export interface PresentationEntity {
   placedBy?: unknown;
   imagePath?: string; partType?: string; monumentType?: unknown; rotationRad?: number; collisionRadius?: number; isCenter?: boolean;
   itemDefId?: bigint|number; quantity?: number;
-  positionX?: number; positionY?: number; posX?: number; posY?: number; worldX?: number; worldY?: number;
+  positionX?: number; positionY?: number; posX?: number; posY?: number; worldX?: number; worldY?: number; worldPosX?: number; worldPosY?: number;
+  stationId?: number; isActive?: boolean;
   cellX?: number; cellY?: number; edge?: number; tier?: number; variant?: number;
   shape?: number; boxType?: number;
   foundationShape?: number; doorType?: number; furnaceType?: number; lanternType?: number; terrainVariant?: number;

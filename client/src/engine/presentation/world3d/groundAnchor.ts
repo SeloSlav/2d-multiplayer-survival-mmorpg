@@ -1,6 +1,7 @@
 import { COLLISION_OFFSETS as O, MONUMENT_BUILDING_COLLISION, SHELTER_DIMS, getTreeCollisionOffset, getBarrelCollisionOffset } from '../../../config/entityGroundGeometry';
 import { isCompoundMonument } from '../../../config/compoundBuildings';
 import { BUILDING } from './buildingPlan';
+import { isVillageCampfire, VILLAGE_CAMPFIRE_Y_OFFSET } from '../../../config/villageGeometry';
 import type { PresentationEntity as Row } from './presentationEntity';
 
 const ORIGIN = { x: 0, y: 0 };
@@ -19,6 +20,9 @@ export function groundOffset(kind: string, row: Row, onSea = false): { x: number
     : kind === 'furnaces' ? MONUMENT_BUILDING_COLLISION.CENTER_Y_OFFSET - 60
     : MONUMENT_BUILDING_COLLISION.RAIN_COLLECTOR_CENTER_Y_OFFSET };
   switch (kind) {
+    case 'alkStations': return {x:0,y:row.stationId===0?MONUMENT_BUILDING_COLLISION.ALK_CENTER_Y_OFFSET:-80};
+    case 'turrets': return {x:0,y:row.isMonument?40:O.TURRET.y};
+    case 'monumentParts': return isVillageCampfire(row) ? {x:0,y:VILLAGE_CAMPFIRE_Y_OFFSET} : ORIGIN;
     case 'trees': return getTreeCollisionOffset(row);
     case 'stones': return O.STONE;
     case 'runeStones': return O.RUNE_STONE;
@@ -47,8 +51,8 @@ export function groundPosition(kind: string, row: Row, onSea = false): { x: numb
     y: ((row.cellY ?? 0) + 0.5) * BUILDING.cellPixels,
   };
   const offset = groundOffset(kind, row, onSea);
-  return { x: (row.positionX ?? row.posX ?? row.worldX ?? 0) + offset.x,
-    y: (row.positionY ?? row.posY ?? row.worldY ?? 0) + offset.y };
+  return { x: (row.positionX ?? row.posX ?? row.worldPosX ?? row.worldX ?? 0) + offset.x,
+    y: (row.positionY ?? row.posY ?? row.worldPosY ?? row.worldY ?? 0) + offset.y };
 }
 
 export function insideShelter(x: number, y: number, center: { x: number; y: number }): boolean {

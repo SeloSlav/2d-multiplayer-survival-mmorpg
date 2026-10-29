@@ -1,6 +1,6 @@
 // AAA-Quality Client-side Collision Detection System
 import { Player, Tree, Stone, RuneStone, Cairn, WoodenStorageBox, Shelter, RainCollector, WildAnimal, AnimalCorpse, Barrel, Furnace, Barbecue, WallCell, FoundationCell, HomesteadHearth, BasaltColumn, Door, AlkStation, LivingCoral, Lantern, Turret, Fence, RoadLamppost, MonumentPart } from '../generated/types';
-import { getVillageCampfireCollisionShapes, getMonumentScarecrowCollisionShapes } from './monumentCollision';
+import { getVillageCampfireCollisionShapes, getMonumentScarecrowCollisionShapes, getVillageBuildingCollisionShapes } from './monumentCollision';
 import { COLLISION_OFFSETS, SHELTER_DIMS, MONUMENT_BUILDING_COLLISION, getTreeCollisionOffset, getBarrelCollisionOffset } from '../config/entityGroundGeometry';
 export { COLLISION_OFFSETS, SHELTER_DIMS, MONUMENT_BUILDING_COLLISION } from '../config/entityGroundGeometry';
 // StormPile removed - storms now spawn HarvestableResources and DroppedItems directly
@@ -1235,7 +1235,8 @@ function getCollisionCandidates(
       playerY,
       collisionDebugViewport
     );
-    shapes.push(...campfireShapes, ...scarecrowShapes);
+    const buildingShapes = getVillageBuildingCollisionShapes(entities.monumentParts, playerX, playerY, collisionDebugViewport);
+    shapes.push(...campfireShapes, ...scarecrowShapes, ...buildingShapes);
   }
   
   return shapes;
@@ -1350,6 +1351,35 @@ export interface CollisionShape {
   lineEndX?: number;
   lineEndY?: number;
   lineThickness?: number; // Thickness of line segment collision
+}
+
+/** Sweep a circle against the village's wall segments, allowing tangential
+ * sliding and escape from a wall if the player was already overlapping it. */
+function resolveVillageWalls(from:{x:number;y:number},to:{x:number;y:number},walls:CollisionShape[]):CollisionResult {
+  if(!walls.length)return {x:to.x,y:to.y,collided:false,collidedWith:[]};
+  const dx=to.x-from.x,dy=to.y-from.y,steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/8));
+  let x=from.x,y=from.y;const collisions=new Set<string>();
+  for(let step=0;step<steps;step++){
+    let nx=x+dx/steps,ny=y+dy/steps;
+    for(const wall of walls){
+      const ax=wall.lineStartX!,ay=wall.lineStartY!,vx=wall.lineEndX!-ax,vy=wall.lineEndY!-ay,len2=vx*vx+vy*vy;
+      if(len2<.001)continue;
+      const closest=(px:number,py:number)=>{
+        const t=Math.max(0,Math.min(1,((px-ax)*vx+(py-ay)*vy)/len2));
+        return {x:ax+t*vx,y:ay+t*vy};
+      };
+      const point=closest(nx,ny),ox=nx-point.x,oy=ny-point.y,distance=Math.hypot(ox,oy);
+      const radius=PLAYER_RADIUS+(wall.lineThickness??0)/2;
+      if(distance>=radius)continue;
+      const previous=closest(x,y),px=x-previous.x,py=y-previous.y,previousDistance=Math.hypot(px,py);
+      if(previousDistance<radius&&distance>previousDistance+.0001)continue;
+      const normalX=previousDistance>.0001?px/previousDistance:distance>.0001?ox/distance:-dy/(Math.hypot(dx,dy)||1);
+      const normalY=previousDistance>.0001?py/previousDistance:distance>.0001?oy/distance:dx/(Math.hypot(dx,dy)||1);
+      nx=point.x+normalX*(radius+.02);ny=point.y+normalY*(radius+.02);collisions.add(wall.type);
+    }
+    x=nx;y=ny;
+  }
+  return {x,y,collided:collisions.size>0,collidedWith:[...collisions]};
 }
 
 interface CollisionHit {
@@ -1602,6 +1632,9 @@ export function resolveClientCollision(
   const nearbyShapes = collisionShapes.filter(shape =>
     shapeIntersectsBox(shape, queryMinX, queryMinY, queryMaxX, queryMaxY)
   );
+  const villageWalls=nearbyShapes.filter(shape=>shape.type.startsWith('village_wall-'));
+  const villageMove=resolveVillageWalls({x:fromX,y:fromY},{x:effectiveToX,y:effectiveToY},villageWalls);
+  effectiveToX=villageMove.x;effectiveToY=villageMove.y;
 
   // PERFORMANCE FIX: Remove console logging that causes frame drops
   // const totalEntities = entities.trees.size + entities.stones.size + entities.boxes.size + entities.players.size + entities.wildAnimals.size + entities.barrels.size;
@@ -1612,19 +1645,20 @@ export function resolveClientCollision(
     { x: fromX, y: fromY },
     { x: effectiveToX, y: effectiveToY },
     PLAYER_RADIUS,
-    nearbyShapes // Changed from collisionShapes
+    nearbyShapes.filter(shape=>!shape.type.startsWith('village_wall-'))
   );
+  const finalVillageMove=resolveVillageWalls({x:fromX,y:fromY},{x:result.x,y:result.y},villageWalls);
   
   // Step 5: Final world bounds check
-  const finalPos = clampToWorldBounds(result.x, result.y);
+  const finalPos = clampToWorldBounds(finalVillageMove.x, finalVillageMove.y);
   
   // Combine collision results (tunneling + normal collision)
-  const allCollidedWith = [...tunnelingCollidedWith, ...result.collidedWith];
+  const allCollidedWith = [...new Set([...tunnelingCollidedWith, ...result.collidedWith,...villageMove.collidedWith,...finalVillageMove.collidedWith])];
   
   return {
     x: finalPos.x,
     y: finalPos.y,
-    collided: result.collided || tunnelingCheck.blocked,
+    collided: result.collided || tunnelingCheck.blocked || villageMove.collided || finalVillageMove.collided,
     collidedWith: allCollidedWith
   };
 }

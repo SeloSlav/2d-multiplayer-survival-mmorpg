@@ -1,10 +1,12 @@
 import { Group, Vector3 } from 'three/webgpu';
 import { COLORS as C, ModelKit } from './modelKit';
 import { seededRandom } from './visualContract';
+import { createMemoryOre } from './memoryShardModels';
 
 export { createTree } from './treeModels';
 
 export function createRock(kit: ModelKit, type: string, seed: number): Group {
+  if(type==='Memory')return createMemoryOre(kit);
   const group = new Group();
   const random = seededRandom(seed);
   const color = /Sulfur/.test(type) ? 0xaca367 : /Metal|Iron/.test(type) ? 0x747976 : C.stone;

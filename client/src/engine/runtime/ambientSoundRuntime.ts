@@ -23,7 +23,8 @@ export interface AmbientSoundProps {
     isUnderwater?: boolean; // Whether the player is snorkeling/underwater - affects audio filtering
     currentSeason?: Season; // Current game season - affects ambient sounds (no crickets in winter)
     isIndoors?: boolean; // Whether player is inside a building - muffles outdoor sounds
-    distanceToShore?: number; // Distance in pixels to nearest shore/water - fades ocean sounds
+    distanceToShore?: number; // Distance to exposed ocean shore, excludes rivers and hot springs
+    shoreAmbienceGain?: number; // Ocean surf or quieter, shorter-range river lapping (0..1)
     distanceToMapEdge?: number; // Distance in pixels to nearest map boundary - for deep ocean (open water, no waves)
     wildAnimals?: Map<string, any>; // Wild animals for bee buzzing proximity sound
 }
@@ -1481,7 +1482,11 @@ export class AmbientSoundRuntime {
     }
 
     private get distanceToShore(): number {
-        return this.options.distanceToShore ?? 0;
+        return this.options.distanceToShore ?? Infinity;
+    }
+
+    private get shoreAmbienceGain(): number {
+        return this.options.shoreAmbienceGain ?? Math.max(0, Math.min(1, 1 - (this.distanceToShore - 50) / 750));
     }
 
     private get distanceToMapEdge(): number {
@@ -1570,14 +1575,12 @@ export class AmbientSoundRuntime {
             sounds.push('wind_light');
         }
 
-        const oceanDef = AMBIENT_SOUND_DEFINITIONS.ocean_ambience;
-        const oceanMaxDist = 'maxProximityDistance' in oceanDef ? oceanDef.maxProximityDistance : 800;
         const deepOceanDef = AMBIENT_SOUND_DEFINITIONS.deep_ocean_ambience;
         const deepOceanMaxDist = 'maxProximityDistance' in deepOceanDef ? deepOceanDef.maxProximityDistance : 600;
         const inDeepOcean = this.distanceToMapEdge < deepOceanMaxDist;
         if (inDeepOcean) {
             sounds.push('deep_ocean_ambience');
-        } else if (this.distanceToShore < oceanMaxDist) {
+        } else if (this.shoreAmbienceGain > 0) {
             sounds.push('ocean_ambience');
         }
 
@@ -1606,6 +1609,7 @@ export class AmbientSoundRuntime {
     }
 
     private getProximityVolumeModifier(soundType: AmbientSoundType): number {
+        if (soundType === 'ocean_ambience') return this.shoreAmbienceGain;
         const definition = AMBIENT_SOUND_DEFINITIONS[soundType];
 
         if ('beeProximityBased' in definition && (definition as any).beeProximityBased) {
@@ -1980,7 +1984,7 @@ export class AmbientSoundRuntime {
     }
 
     private updateProximityVolumesIfNeeded(): void {
-        const nextProximityKey = `${this.distanceToShore}|${this.distanceToMapEdge}|${this.effectiveEnvironmentalVolume}|${this.masterVolume}`;
+        const nextProximityKey = `${this.distanceToShore}|${this.shoreAmbienceGain}|${this.distanceToMapEdge}|${this.effectiveEnvironmentalVolume}|${this.masterVolume}`;
         const shoreChanged = this.lastDistanceToShore !== this.distanceToShore;
         const edgeChanged = this.lastDistanceToMapEdge !== this.distanceToMapEdge;
         if (!shoreChanged && !edgeChanged && nextProximityKey === this.proximityKey) {

@@ -7,6 +7,7 @@ import { VILLAGE_BUILDINGS } from './villagePlans';
 import type { VillageBuildingPlan } from './villagePlans';
 import type { GroundPoint } from './buildingPlan';
 import { CutawayEnvelope } from './CutawayEnvelope';
+import { VILLAGE_DOOR_HALF_WIDTH } from '../../../config/villageGeometry';
 
 const V=(x:number,y:number,z:number)=>new Vector3(x,y,z);
 function beam(kit:ModelKit,g:Group,c:number,a:number[],b:number[],r=.06):void{kit.beam(g,c,new Vector3(...a as [number,number,number]),new Vector3(...b as [number,number,number]),r);}
@@ -39,14 +40,13 @@ function floorAndFurniture(kit:ModelKit,g:Group,p:VillageBuildingPlan):void {
 }
 
 function plankWalls(kit:ModelKit,shell:Group,p:VillageBuildingPlan):void {
-  const front=p.depth/2,half=p.width/2,door=.63,top=p.eave;
+  const front=p.depth/2,half=p.width/2,door=VILLAGE_DOOR_HALF_WIDTH,top=p.eave;
   if(p.form==='round'){
     for(let i=0;i<28;i++){
-      const a=i/28*Math.PI*2;if(i<2||i>26)continue;
+      const a=i/28*Math.PI*2;if(i<3||i>25)continue;
       const panel=kit.part(shell,'box',i%4?p.wood:p.roofLight,[p.width*Math.PI/28+.02,p.eave,.13],[Math.sin(a)*half,p.eave/2,Math.cos(a)*front]);panel.rotation.y=a;
     }
-    for(const sign of [-1,1])beam(kit,shell,p.trim,[sign*.6,0,front],[sign*.6,1.25,front*.93],.1);
-    kit.part(shell,'rock',0xa48f73,[1.02,1.12,.07],[0,.57,front+.015]);
+    for(const sign of [-1,1])beam(kit,shell,p.trim,[sign*door,0,front],[sign*door,1.25,front*.93],.1);
     return;
   }
   for(const side of [-1,1]){
@@ -219,9 +219,13 @@ function mast(kit:ModelKit,g:Group,height=4):void {
   kit.part(g,'box',0x909c95,[.22,.32,.2],[.3,height*.6,0]);
 }
 
-function station(kit:ModelKit,shell:Group,fixtures:Group,p:VillageBuildingPlan):void {
-  kit.part(shell,'box',p.wood,[p.width,p.eave,p.depth],[0,p.eave/2,0]);
-  kit.part(shell,'box',p.trim,[p.width+.24,.18,p.depth+.2],[0,p.eave,0]);
+function station(kit:ModelKit,shell:Group,roof:Group,fixtures:Group,p:VillageBuildingPlan):void {
+  const door=VILLAGE_DOOR_HALF_WIDTH,half=p.width/2,front=p.depth/2,thickness=.13;
+  for(const side of [-1,1])kit.part(shell,'box',p.wood,[thickness,p.eave,p.depth],[side*half,p.eave/2,0]);
+  kit.part(shell,'box',p.wood,[p.width,p.eave,thickness],[0,p.eave/2,-front]);
+  for(const side of [-1,1])kit.part(shell,'box',p.wood,[half-door,p.eave,thickness],[side*(half+door)/2,p.eave/2,front]);
+  kit.part(shell,'box',p.wood,[door*2,p.eave-1.95,thickness],[0,(p.eave+1.95)/2,front]);
+  kit.part(roof,'box',p.trim,[p.width+.24,.18,p.depth+.2],[0,p.eave,0]);
   for(let x=-p.width/2+.5;x<p.width/2;x+=1.2){
     kit.part(shell,'box',0x3b4d54,[.78,.8,.08],[x,1.1,p.depth/2+.045]);
     for(const side of [-1,1])kit.part(shell,'box',p.trim,[.06,.9,.12],[x+side*.43,1.1,p.depth/2+.07]);
@@ -240,27 +244,28 @@ function station(kit:ModelKit,shell:Group,fixtures:Group,p:VillageBuildingPlan):
     kit.part(rotor,'rock',p.trim,[.28,.3,.3],[0,0,0]);
     for(let j=0;j<3;j++){const a=j/3*Math.PI*2;beam(kit,rotor,0xafbfbb,[0,0,0],[Math.sin(a)*.85,Math.cos(a)*.85,0],.045);}
   }
-  for(const side of [-1,1])kit.part(shell,'box',p.trim,[.17,2,.2],[side*.7,1,p.depth/2+.13]);
-  kit.part(shell,'box',0x243139,[1.2,1.9,.04],[0,.95,p.depth/2+.1]);
+  for(const side of [-1,1])kit.part(shell,'box',p.trim,[.17,2,.2],[side*door,1,p.depth/2+.13]);
 }
 
 export function createVillageModel(kit:ModelKit,asset:string):Group {
   const root=new Group(),p=VILLAGE_BUILDINGS[asset];root.userData.villageAsset=asset;
   if(p){
     const center=new Group();center.position.z=-p.depth/2;root.add(center);
-    const shell=new Group(),interior=new Group(),lamps=new Group(),fixtures=new Group();
+    const shell=new Group(),roof=new Group(),interior=new Group(),lamps=new Group(),fixtures=new Group();
     floorAndFurniture(kit,interior,p);
     if(p.form!=='round')kit.part(interior,'box',0x352f26,[p.width-.25,p.eave-.1,.02],[0,p.eave/2,-p.depth/2+.09]);
-    if(p.form==='station')station(kit,shell,fixtures,p);
-    else{plankWalls(kit,shell,p);roofAssembly(kit,shell,p);ornament(kit,shell,lamps,p);}
-    const skin=kit.compileColored(kit.compile(shell));skin.name='village-shell';center.add(skin,kit.compileColored(kit.compile(interior)));
+    if(p.form==='station')station(kit,shell,roof,fixtures,p);
+    else{plankWalls(kit,shell,p);roofAssembly(kit,roof,p);ornament(kit,shell,lamps,p);}
+    const skin=kit.compileColored(kit.compile(shell));skin.name='village-shell';
+    const roofMesh=kit.compileColored(kit.compile(roof));roofMesh.name='village-roof';
+    center.add(skin,roofMesh,kit.compileColored(kit.compile(interior)));
     const glow=kit.compile(lamps);glow.name='village-lamps';center.add(glow);
     if(glow.children.length)for(const side of [-1,1]){const anchor=new Group();anchor.name='village-window-anchor';anchor.position.set(side*p.width*.34,1.55,p.depth/2+.14);glow.add(anchor);}
     // Keep wind instruments as articulated groups; each fixed assembly is tiny.
-    center.add(compileFixtures(kit,fixtures));
+    const fixed=compileFixtures(kit,fixtures);fixed.name='village-rooftop-fixtures';center.add(fixed);
     root.userData.villagePlan=p;return root;
   }
-  if(asset.endsWith('campfire.png')){const fire=createCampfire(kit,391);fire.userData.villageAsset=asset;return fire;}
+  if(asset.endsWith('campfire.png')){const fire=createCampfire(kit,391);fire.scale.setScalar(2.2);fire.userData.villageAsset=asset;return fire;}
   const g=new Group();
   if(asset.includes('drying_rack')){
     for(const x of [-1.3,1.3])for(const z of [-.45,.45])beam(kit,g,C.bark,[x,0,z],[x*.9,2.1,0],.08);
@@ -292,18 +297,23 @@ export class VillageRig {
   readonly root:Group;
   private readonly cutaway:CutawayEnvelope|undefined;
   private readonly lamps:Group|undefined;
+  private readonly roof:Group|undefined;
+  private readonly fixtures:Group|undefined;
   private readonly rotors:Group[]=[];
   private faded=false;
   constructor(private kit:ModelKit,readonly asset:string,prototype:Group){
     this.root=prototype.clone(true);this.lamps=this.root.getObjectByName('village-lamps') as Group|undefined;
+    this.roof=this.root.getObjectByName('village-roof') as Group|undefined;
+    this.fixtures=this.root.getObjectByName('village-rooftop-fixtures') as Group|undefined;
     const shell=this.root.getObjectByName('village-shell') as Group|undefined;if(shell)this.cutaway=new CutawayEnvelope(kit,shell,.4);
     this.root.traverse(o=>{if(o.name==='village-turbine'||o.name==='village-wind-rotor')this.rotors.push(o as Group);});
   }
   update(local:{x:number;y:number}|null|undefined,anchor:{x:number;y:number},rotation:number,time:number):void {
     const p=VILLAGE_BUILDINGS[this.asset],dx=(local?.x??Infinity)-anchor.x,dy=(local?.y??Infinity)-anchor.y;
     const x=(dx*Math.cos(rotation)+dy*Math.sin(rotation))/48,z=(-dx*Math.sin(rotation)+dy*Math.cos(rotation))/48;
-    const inside=Boolean(p&&local&&Math.abs(x)<p.width*.44&&z<.15&&z>-p.depth);
-    if(this.faded!==inside){this.faded=inside;this.cutaway?.set(inside);}
+    const inside=Boolean(p&&local&&Math.abs(x)<p.width/2&&z<0&&z>-p.depth
+      && (p.form!=='round'||(x/(p.width/2))**2+((z+p.depth/2)/(p.depth/2))**2<1));
+    if(this.faded!==inside){this.faded=inside;this.cutaway?.set(inside);if(this.roof)this.roof.visible=!inside;if(this.fixtures)this.fixtures.visible=!inside;if(this.lamps)this.lamps.visible=!inside;}
     this.rotors.forEach(rotor=>{if(rotor.name==='village-turbine')rotor.rotation.z=time*1.4;else rotor.rotation.y=time*.9;});
     this.root.rotation.y=-rotation;this.root.userData.cutaway=inside;
   }

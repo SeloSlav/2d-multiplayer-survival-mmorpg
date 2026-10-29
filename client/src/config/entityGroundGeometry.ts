@@ -1,3 +1,5 @@
+import collisionGeometry from '../../../shared/config/collisionGeometry.json';
+
 /** Shared existing client collision anchors. These preserve current prediction behavior;
  * server disagreements are recorded in docs/webgpu-migration.md, not corrected here.
  * Pure data only: the WebGPU renderer must not import the legacy sprite graph. */
@@ -54,11 +56,11 @@ export function getTreeCollisionOffset(tree: { treeType?: unknown }): { x: numbe
 // collide with as a non-owner.
 // Exported for debug rendering
 export const SHELTER_DIMS = {
-  WIDTH: 300,          // SHELTER_COLLISION_WIDTH
-  HEIGHT: 125,         // SHELTER_COLLISION_HEIGHT
-  HALF_WIDTH: 150,     // SHELTER_AABB_HALF_WIDTH
-  HALF_HEIGHT: 62.5,   // SHELTER_AABB_HALF_HEIGHT
-  AABB_CENTER_Y_OFFSET_FROM_POS_Y: 200, // SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y
+  WIDTH: collisionGeometry.shelter.width,
+  HEIGHT: collisionGeometry.shelter.height,
+  HALF_WIDTH: collisionGeometry.shelter.width / 2,
+  HALF_HEIGHT: collisionGeometry.shelter.height / 2,
+  AABB_CENTER_Y_OFFSET_FROM_POS_Y: -collisionGeometry.shelter.centerOffsetY,
 } as const;
 
 

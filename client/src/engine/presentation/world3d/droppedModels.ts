@@ -2,12 +2,15 @@ import { Group, Vector3 } from 'three/webgpu';
 import { ModelKit, COLORS as C } from './modelKit';
 import { createWeapon, resolveWeaponName } from './weaponModels';
 import { seededRandom } from './visualContract';
+import { createMemoryShard } from './memoryShardModels';
 
 export const COASTAL_DROP_MODELS=['Coral Fragments','Sea Glass','Shell','Shell Fragment','Aleut Charm','Rusty Hook','Reed Water Bottle','Old Boot'] as const;
 export function droppedModelCacheKey(name:string,seed:number):string {
+  if(name==='Memory Shard')return 'Memory Shard';
   return COASTAL_DROP_MODELS.includes(name as typeof COASTAL_DROP_MODELS[number])?`${name}:${seed%4}`:resolveWeaponName(name)||'loot-sack';
 }
 export function createDroppedModel(kit:ModelKit,name:string,seed:number):Group {
+  if(name==='Memory Shard'){const shard=createMemoryShard(kit,true);shard.userData.itemName=name;return shard;}
   const g=new Group(),random=seededRandom(seed+137);
   if(name==='Coral Fragments'){
     for(let i=0;i<5;i++){

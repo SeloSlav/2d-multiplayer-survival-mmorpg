@@ -19,6 +19,7 @@ use crate::MonumentType;
 use crate::items::item_definition as ItemDefinitionTableTrait;
 use crate::harvestable_resource::harvestable_resource as HarvestableResourceTableTrait;
 use crate::barrel::barrel as BarrelTableTrait;
+use crate::player as PlayerTableTrait;
 use noise::{NoiseFn, Perlin};
 use std::collections::HashSet;
 use rand::Rng;
@@ -63,6 +64,47 @@ pub mod clearance {
 pub const MONUMENT_SPAWN_MIN_DISTANCE: f32 = 50.0;
 pub const MONUMENT_SPAWN_MIN_DISTANCE_SQ: f32 = MONUMENT_SPAWN_MIN_DISTANCE * MONUMENT_SPAWN_MIN_DISTANCE;
 const VILLAGE_QUARRY_CLEARANCE_TILES: i32 = 24;
+
+// Village campfire artwork is bottom-anchored; its collision and 3D fire pit
+// are 128 pixels north of the stored part position. Keep the alpine pit well
+// south of the lodge entrance, with room for a player to pass around it.
+const ALPINE_FIRE_LEGACY_OFFSET_Y: f32 = 150.0;
+const ALPINE_FIRE_OFFSET_Y: f32 = 400.0;
+const VILLAGE_FIRE_ANCHOR_Y: f32 = -crate::shared_config::VILLAGE_CAMPFIRE_OFFSET_Y;
+
+/// Repair the original alpine layout once, without regenerating the world.
+/// Only the exact old lodge/fire relationship is eligible, so intentionally
+/// moved fires and unrelated monuments are left alone.
+pub fn repair_alpine_fire_entrance(ctx: &ReducerContext) {
+    let parts: Vec<_> = ctx.db.monument_part().iter()
+        .filter(|part| part.monument_type == MonumentType::AlpineVillage)
+        .collect();
+    for mut fire in parts.iter().filter(|part| part.part_type == "campfire").cloned() {
+        let Some(lodge) = parts.iter().find(|part| part.part_type == "lodge" && part.is_center
+            && (fire.world_x - part.world_x).abs() < 0.5
+            && (fire.world_y - part.world_y - ALPINE_FIRE_LEGACY_OFFSET_Y).abs() < 0.5)
+        else { continue };
+        // Existing worlds may have spawned barrels or players in the new
+        // courtyard. Prefer the standard location, then nearby clear spots.
+        let candidates = [(0.0, ALPINE_FIRE_OFFSET_Y), (100.0, ALPINE_FIRE_OFFSET_Y),
+            (0.0, 450.0), (100.0, 450.0), (0.0, 500.0), (100.0, 500.0)];
+        let Some((dx, dy)) = candidates.into_iter().find(|(dx, dy)| {
+            let x = lodge.world_x + dx;
+            let y = lodge.world_y + dy - VILLAGE_FIRE_ANCHOR_Y;
+            !ctx.db.barrel().iter().any(|barrel| barrel.health > 0.0
+                && (barrel.pos_x - x).powi(2) + (barrel.pos_y - y).powi(2) < 160.0_f32.powi(2))
+                && !ctx.db.player().iter().any(|player| !player.is_dead
+                    && (player.position_x - x).powi(2) + (player.position_y - y).powi(2) < 120.0_f32.powi(2))
+        }) else {
+            log::warn!("[AlpineVillage] No clear courtyard spot for the communal fire; will retry on the next connection");
+            continue;
+        };
+        fire.world_x = lodge.world_x + dx;
+        fire.world_y = lodge.world_y + dy;
+        ctx.db.monument_part().id().update(fire);
+        log::info!("[AlpineVillage] Moved the original communal fire clear of the lodge entrance");
+    }
+}
 
 /// Represents an occupied position at a monument
 #[derive(Clone, Debug)]
@@ -2103,7 +2145,7 @@ pub fn generate_alpine_village(
         village_parts.push((center_world_x,            center_world_y,            "av_lodge.png".to_string(),             "lodge".to_string()));
         village_parts.push((center_world_x - 280.0,    center_world_y + 420.0,    "av_hut.png".to_string(),               "av_hut".to_string()));
         village_parts.push((center_world_x + 380.0,    center_world_y + 320.0,    "av_banya.png".to_string(),             "av_banya".to_string()));
-        village_parts.push((center_world_x,            center_world_y + 150.0,    "av_campfire.png".to_string(),          "campfire".to_string()));
+        village_parts.push((center_world_x,            center_world_y + ALPINE_FIRE_OFFSET_Y, "av_campfire.png".to_string(), "campfire".to_string()));
 
         // Scatter decoratives
         village_parts.push((center_world_x - 480.0,    center_world_y - 120.0,    "av_drying_rack.png".to_string(),    "av_drying_rack".to_string()));
@@ -2125,7 +2167,10 @@ pub fn spawn_alpine_village_all(
     part_positions: &[(f32, f32)],
 ) -> Result<(u32, u32), String> {
     let harvestable_configs = get_alpine_village_harvestables();
-    let mut occupied_positions: Vec<OccupiedPosition> = Vec::new();
+    // Include the actual fire-pit anchor so village loot cannot spawn on it.
+    let mut occupied_positions: Vec<OccupiedPosition> = vec![OccupiedPosition {
+        x: center_x, y: center_y + ALPINE_FIRE_OFFSET_Y - VILLAGE_FIRE_ANCHOR_Y, radius: 70.0,
+    }];
     
     // Spawn memory shards (harvestables) with collision avoidance
     let harvestable_count = spawn_monument_harvestables_with_collision(

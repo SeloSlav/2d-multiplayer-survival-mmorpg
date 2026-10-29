@@ -5,6 +5,7 @@ import { createCoral, createKelp } from './naturalObjects';
 import { ModelKit } from './modelKit';
 import { TerrainMaterials3d, WATER_DEPTH } from './terrainMaterials';
 import { StaticWorldBatches } from './StaticWorldBatches';
+import { HotSpringEffects3d } from './HotSpringEffects3d';
 
 export type WaterKind = 'Sea' | 'DeepSea' | 'HotSpringWater';
 export { WATER_DEPTH } from './terrainMaterials';
@@ -41,10 +42,12 @@ export class WaterWorld3d {
   private readonly prototypes = new Map<string, Group>();
   private readonly terrain: TerrainMaterials3d;
   private readonly ownsTerrain: boolean;
+  private readonly hotSpringEffects = new HotSpringEffects3d();
 
   constructor(private readonly kit: ModelKit, terrain?: TerrainMaterials3d) {
     this.terrain = terrain ?? new TerrainMaterials3d(); this.ownsTerrain = !terrain;
     this.root.name = 'water-and-seabed';
+    this.root.add(this.hotSpringEffects.root);
     let gx = float(0).add(0), gz = float(0).add(0), crest = float(0).add(0);
     const footprint = max(dFdx(positionWorld.xz).length(), dFdy(positionWorld.xz).length());
     for (const [dx, dz, amplitude, wavelength] of WAVES) {
@@ -87,10 +90,10 @@ export class WaterWorld3d {
       const hot = kind === 'HotSpringWater';
       const material = new MeshStandardNodeMaterial({ transparent: true, depthWrite: false, roughness: .35, metalness: .12 });
       material.colorNode = mix(mix(hot ? color(0x76aaa0) : mix(color(0x4b8b94), color(0x285e76), shelf), color(0x99c0b5), smoothstep(.1, .48, crest).mul(.16)), color(0xa6c0bc), fresnel.mul(.5));
-      material.colorNode = mix(material.colorNode, color(0xd0daca), foam.mul(float(1).sub(this.dive)));
+      material.colorNode = mix(material.colorNode, color(0xd0daca), foam.mul(hot ? .08 : 1).mul(float(1).sub(this.dive)));
       material.normalNode = cameraViewMatrix.mul(vec4(normal, 0)).xyz.normalize();
       // Reduced opacity while snorkeling restores the seabed's readability.
-      material.opacityNode = mix(hot ? float(.3) : mix(.33, .57, shelf), mix(.14, .26, shelf), this.dive).add(fresnel.mul(.25)).add(foam.mul(.45).mul(float(1).sub(this.dive))).mul(coverage);
+      material.opacityNode = mix(hot ? float(.3) : mix(.33, .57, shelf), mix(.14, .26, shelf), this.dive).add(fresnel.mul(.25)).add(foam.mul(hot ? .036 : .45).mul(float(1).sub(this.dive))).mul(coverage);
       const surface = new InstancedMesh(this.geometry, material, 8192);
       surface.name = `${kind}-surface`; surface.renderOrder = 1; surface.frustumCulled = false;
       surface.receiveShadow = false; surface.count = 0;
@@ -99,6 +102,7 @@ export class WaterWorld3d {
   }
   rebuild(tiles: Iterable<{ worldX?: number; worldY?: number; tileType?: unknown }>): void {
     const tileRows = [...tiles];
+    this.hotSpringEffects.rebuild(tileRows);
     if (this.ownsTerrain) this.terrain.rebuild(tileRows);
     this.layers.forEach(layer => { layer.surfaceCount = 0; });
     const seenDecorations = new Set<string>();
@@ -149,9 +153,10 @@ export class WaterWorld3d {
     }
     for (const [key, model] of this.decorationTiles) if (!seenDecorations.has(key)) { this.decorations.remove(model); this.decorationTiles.delete(key); }
   }
-  setDebug(mode: string): void { for (const layer of this.layers) layer.material.wireframe = mode === 'wireframe'; }
+  setDebug(mode: string): void { for (const layer of this.layers) layer.material.wireframe = mode === 'wireframe'; this.hotSpringEffects.setDebug(mode); }
   beginFrame(time: number, daylight: number, diving: boolean): void {
     this.clock.value = time; this.daylight.value = daylight; this.dive.value = Number(diving);
+    this.hotSpringEffects.update(time, daylight, diving);
     this.decorationBatches.beginFrame();
     this.decorations.children.forEach(object => {
       // Root stays on the seabed. Only the fronds lean with the current.
@@ -162,6 +167,7 @@ export class WaterWorld3d {
     this.decorationBatches.flush();
   }
   dispose(): void {
+    this.hotSpringEffects.dispose();
     this.layers.forEach(layer => { layer.surface.dispose(); layer.material.dispose(); });
     this.geometry.dispose(); this.root.clear(); this.prototypes.clear();
     this.decorationBatches.dispose(); this.decorations.clear(); this.decorationTiles.clear();

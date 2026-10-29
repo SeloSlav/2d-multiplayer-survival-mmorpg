@@ -2,6 +2,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { runtimeEngine } from '../runtimeEngine';
 import { renderGameCanvasFrame } from '../frame/renderGameCanvasFrame';
 import { WebGpuWorldSurface } from '../presentation/world3d/WebGpuWorldSurface';
+import { combatCameraOffset } from '../presentation/world3d/combatCamera';
 import { evaluateGameCanvasPlacement } from '../placement/gameCanvasPlacement';
 import { isWebGpuWorldEnabled } from '../presentation/world3d/rendererRollout';
 import { renderGameCanvasUiFrame } from '../frame/renderGameCanvasUiFrame';
@@ -1269,7 +1270,8 @@ export class GameCanvasRuntimeHost {
       isUnderwater: ambientEffectsSnapshot?.localPlayer?.isSnorkeling ?? false,
       currentSeason: sceneSnapshot?.worldState?.currentSeason,
       isIndoors: ambientEffectsSnapshot?.localPlayer?.isInsideBuilding ?? false,
-      distanceToShore: sceneSnapshot?.distanceToShore ?? 0,
+      distanceToShore: sceneSnapshot?.distanceToShore ?? Infinity,
+      shoreAmbienceGain: sceneSnapshot?.shoreAmbienceGain ?? 0,
       distanceToMapEdge: sceneSnapshot?.distanceToMapEdge ?? Infinity,
       wildAnimals: sceneSnapshot?.visibleWildAnimalsMap ?? EMPTY_RUNTIME_MAP,
     });
@@ -1550,10 +1552,12 @@ export class GameCanvasRuntimeHost {
         });
       }
       const refs = this.controllerRefsState;
+      const damageRefs=this.renderContext as {shakeOffsetXRef?:{current:number};shakeOffsetYRef?:{current:number}};
+      const presentationCamera=combatCameraOffset(refs.cameraOffsetRef.current,damageRefs.shakeOffsetXRef?.current??0,damageRefs.shakeOffsetYRef?.current??0);
       this.worldPresentation.render({
         width: this.frameBindings.canvasWidth,
         height: this.frameBindings.canvasHeight,
-        cameraOffset: refs.cameraOffsetRef.current,
+        cameraOffset: presentationCamera,
         tables: { ...this.sceneSnapshot, projectiles: this.sceneSnapshot.renderableProjectiles ?? this.sceneSnapshot.projectiles },
         localPlayerId: options.localPlayerId,
         predictedPosition: refs.predictedPositionRef.current,
@@ -1565,7 +1569,7 @@ export class GameCanvasRuntimeHost {
         placement: evaluateGameCanvasPlacement(this.renderContext),
         getRemotePlayerPosition: (player) => remotePlayerInterpolationRuntime.updateAndGetSmoothedPosition(player as SpacetimeDBPlayer, options.localPlayerId),
       });
-      renderGameCanvasUiFrame(this.renderContext, {frameStartMs, frameGapMs, world:this.worldPresentation.renderer.lastProfile,
+      renderGameCanvasUiFrame(this.renderContext, {frameStartMs, frameGapMs, world:this.worldPresentation.renderer.lastProfile, cameraOffset:presentationCamera,
         occludes:(x,y)=>this.worldPresentation!.renderer.shelterVisibility.occludes(x,y)});
       this.checkRenderPerformance(frameStartMs);
       return;

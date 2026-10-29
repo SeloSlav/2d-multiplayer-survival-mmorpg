@@ -70,6 +70,7 @@ export class SurvivorRig {
   private swimBlend = 0;
   private swimPhase = 0;
   private swimKickPhase = 0;
+  private swimKickSprint = 0;
   private yawInitialized = false;
   private readonly anchorCorrection = new Vector3();
   readonly waterAnchor = new Object3D();
@@ -171,9 +172,13 @@ export class SurvivorRig {
     const fastSwim = pose.sprinting ? 1 : Math.min(1, Math.max(0, (pose.speed - 2.1) / 2.5));
     const swimRate = 3.4 + this.stride * (2.8 + fastSwim * 3.6);
     this.swimPhase += dt * swimRate;
-    // Keep a continuous, independent leg phase: regular swimming needs a
-    // slower kick, while sprinting retains its original cadence and range.
-    this.swimKickPhase += dt * swimRate * (1 - this.stride * (1 - fastSwim) * .45);
+    // Normal kicks stay gentle even when measured movement speed fluctuates.
+    // Ease sprint cadence and range together without resetting the leg cycle.
+    this.swimKickSprint += (Number(pose.sprinting) - this.swimKickSprint) * (1 - Math.exp(-dt * 5));
+    const normalKickRate = 1.6 + this.stride * .6;
+    const normalKickRange = .12 + this.stride * .06;
+    this.swimKickPhase += dt * (normalKickRate + (swimRate - normalKickRate) * this.swimKickSprint);
+    const kickRange = normalKickRange + (.7 - normalKickRange) * this.swimKickSprint;
     if(!pose.swimming && this.swimBlend < .001)this.swimKickPhase = this.swimPhase;
     const swimPitch = 0.08 + this.stride * (0.92 + fastSwim * 0.32);
     const landPitch = pose.crouching ? 0.27 : this.stride * 0.06;
@@ -200,8 +205,8 @@ export class SurvivorRig {
       this.rightArm.rotation.z = (0.42 + tread + recovery * (0.1 + this.stride * 0.27)) * amount;
       this.leftArm.rotation.y = recovery * 0.3 * amount;
       this.rightArm.rotation.y = -recovery * 0.3 * amount;
-      this.leftLeg.rotation.x = (-0.2 + kick * (0.25 + fastSwim * 0.45)) * amount + swing * (1 - amount);
-      this.rightLeg.rotation.x = (-0.2 - kick * (0.25 + fastSwim * 0.45)) * amount - swing * (1 - amount);
+      this.leftLeg.rotation.x = (-0.2 + kick * kickRange) * amount + swing * (1 - amount);
+      this.rightLeg.rotation.x = (-0.2 - kick * kickRange) * amount - swing * (1 - amount);
     }
     if (pose.attack > 0 && !aimed) {
       const windup = Math.sin(Math.PI * pose.attack);

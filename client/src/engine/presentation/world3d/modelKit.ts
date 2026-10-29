@@ -15,6 +15,9 @@ export class ModelKit {
   private readonly assemblies = new Map<string, Group>();
   private debugMode: 'lit' | 'unlit' | 'wireframe' = 'lit';
 
+  /** Register a derived, shared geometry for disposal with this kit. */
+  ownGeometry(geometry:BufferGeometry):BufferGeometry { this.compiled.add(geometry); return geometry; }
+
   material(color: number, emissive = false): MeshStandardMaterial {
     const key = `${color}:${emissive}`;
     let material = this.materials.get(key);

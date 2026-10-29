@@ -6,9 +6,14 @@ import { FpsProfiler } from '../client/src/utils/profiler/FpsProfiler.ts';
 import { TerrainBuildQueue } from '../client/src/engine/presentation/world3d/TerrainBuildQueue.ts';
 import { buildTerrain } from '../client/src/engine/presentation/world3d/terrainBuild.ts';
 import { PipelineWarmup3d } from '../client/src/engine/presentation/world3d/PipelineWarmup3d.ts';
+import { CombatEffects3d } from '../client/src/engine/presentation/world3d/CombatEffects3d.ts';
+import { combatCameraOffset } from '../client/src/engine/presentation/world3d/combatCamera.ts';
+import { recordPredictedCombatHit, predictedImpactCameraShake } from '../client/src/utils/combatFeedbackEvents.ts';
 import { TREE_IMPACT_MS } from '../client/src/engine/presentation/world3d/TreeFallEffects3d.ts';
 import { recordTreeFallPlayback, treeFallPlayback } from '../client/src/utils/treeFallAudioSync.ts';
 import './placement.test.mjs';
+import './hot-springs.test.mjs';
+import './collectible-glitter.test.mjs';
 import assert from 'node:assert/strict';
 
 function streamingChunks() {
@@ -28,6 +33,40 @@ test('local fire and torch changes keep exactly the same shader light list and i
     assert.deepEqual(lightIds(),initial);
     assert.equal(renderer.lights.filter(l=>l.intensity>0).length,count);
   }
+  await renderer.dispose();
+});
+
+test('combat impacts use fresh damage events, deduplicate prediction confirmations and expire pooled effects',()=>{
+  const kit=new ModelKit(),fx=new CombatEffects3d(kit),base=1000000;
+  const hit=(kind,id,stamp,now,subtype='')=>fx.observe(kind,id,BigInt(stamp)*1000n,400,400,0,subtype,now);
+  hit('players','target-test',0,base);
+  recordPredictedCombatHit('players','target-test',base+20);
+  hit('players','target-test',0,base+20);assert.equal(fx.impacts.length,1);assert.equal(fx.impacts[0].material,'blood');
+  hit('players','target-test',base+70,base+110);assert.equal(fx.impacts.length,1,'confirmation must not repeat the predicted burst');
+  hit('players','target-test',base+70,base+140);assert.equal(fx.impacts.length,1);
+  hit('players','target-test',base+800,base+800);assert.equal(fx.impacts.length,2,'a later hit still produces feedback');
+  hit('trees','tree-test',0,base+800);hit('trees','tree-test',base+810,base+810);assert.equal(fx.impacts.at(-1).material,'wood');
+  hit('stones','stone-test',base+810,base+810);assert.equal(fx.impacts.at(-1).material,'stone');
+  hit('wildAnimals','ghost-test',base+810,base+810,'Shardkin');assert.equal(fx.impacts.at(-1).material,'ethereal');
+  const count=fx.impacts.length;hit('wildAnimals','stale-test',base-3000,base+810);assert.equal(fx.impacts.length,count,'old hits do not replay when entering view');
+  fx.update(base+850);assert.ok(fx.root.visible&&fx.debris.count>0);fx.update(base+2000);assert.equal(fx.debris.count,0);assert.equal(fx.root.visible,false);
+  fx.dispose();kit.dispose();
+});
+
+test('combat camera shake is bounded, temporary and never mutates the logical camera offset',()=>{
+  const base={x:100,y:-50};recordPredictedCombatHit('barrels','camera-test',2000000);
+  const shake=predictedImpactCameraShake(2000040),shown=combatCameraOffset(base,4,-3,2000040);
+  assert.ok(Math.hypot(shake.x,shake.y)>0&&Math.hypot(shake.x,shake.y)<4);
+  assert.deepEqual(shown,{x:104+shake.x,y:-53+shake.y});assert.deepEqual(base,{x:100,y:-50});
+  assert.deepEqual(combatCameraOffset(base,0,0,2000200),base);
+});
+
+test('a destroyed target still emits its final impact before its model disappears',async()=>{
+  const renderer=new WebGpuWorldRenderer({dataset:{},style:{}}),now=3000000;
+  const row={posX:400,posY:400,health:0,lastHitTime:{microsSinceUnixEpoch:BigInt(now)*1000n}};
+  const frame={width:1280,height:720,cameraOffset:{x:0,y:0},nowMs:now,tables:{barrels:new Map([['destroyed-feedback-test',row]])}};
+  const seen=new Set();renderer.syncTable('barrels',frame,.016,0,seen,[]);
+  assert.equal(seen.size,0);assert.equal(renderer.combatEffects.impacts.length,1);assert.equal(renderer.combatEffects.impacts[0].material,'wood');
   await renderer.dispose();
 });
 
@@ -212,6 +251,8 @@ import { createTree, createRock, createCampfire } from '../client/src/engine/pre
 import { createFoundationModel as createFoundation, createWallModel, createFenceModel, DoorRig } from '../client/src/engine/presentation/world3d/buildingModels.ts';
 import { planFoundation, planBoundary, pointOnFoundation, polygonArea, BUILDING } from '../client/src/engine/presentation/world3d/buildingPlan.ts';
 import { createStorageModel, STORAGE_MODELS } from '../client/src/engine/presentation/world3d/storageModels.ts';
+import { createAlkBuilding, createAlkTurret, ALK_PLANS } from '../client/src/engine/presentation/world3d/alkModels.ts';
+import { COMPOUND_BUILDINGS, getWorldCenter } from '../client/src/config/compoundBuildings.ts';
 import { createFurnace, createBarbecue, createLantern, createHearth, createBrothPot, createSleepingBag, createStash, createShelter, createRainCollector } from '../client/src/engine/presentation/world3d/campModels.ts';
 import { SurvivorRig } from '../client/src/engine/presentation/world3d/survivor.ts';
 import { AnimalRig, AUTHORED_ANIMAL_SPECIES } from '../client/src/engine/presentation/world3d/animals.ts';
@@ -236,6 +277,8 @@ import { TERRAIN_KINDS, TerrainMaterials3d, createPaintedAtlases, createTerrainF
 import { createTerrainGround } from '../client/src/engine/presentation/world3d/terrainGround.ts';
 import { createBuoy, floatingPose } from '../client/src/engine/presentation/world3d/buoy.ts';
 import { resolveClientCollision, getCollisionShapesForDebug } from '../client/src/utils/clientCollision.ts';
+import { getVillageCampfireCollisionShapes } from '../client/src/utils/monumentCollision.ts';
+import { villageWallSegments } from '../client/src/config/villageGeometry.ts';
 
 test('surface swimmers pass over coral; only the local diver collides, including after surfacing and harvest', () => {
   const localId = 'coral-swimmer';
@@ -352,7 +395,7 @@ test('all 14 authoritative tree species retain distinct seeded growth and solid 
   for (const type of species) {
     const model = createTree(kit, type, 73021); auditMeshes(model);
     const bounds = new Box3().setFromObject(model), size = bounds.getSize(new Vector3());
-    assert.ok(size.y > 1 && size.y < 7.5 && size.x < 7, `${type}: growth bounds`);
+    assert.ok(size.y > 1 && size.y < 12 && size.x < 7, `${type}: growth bounds`);
     assert.equal(model.userData.treeSpecies, type); assert.ok(model.userData.growth.branchCount >= 20);
     let triangles = 0, signature = '';
     model.traverse(o => { if (o instanceof Mesh) { triangles += o.geometry.attributes.position.count / 3; signature += Array.from(o.geometry.attributes.position.array).slice(0, 120).join(','); assert.ok(signedVolume(o) > 0, type); } });
@@ -360,6 +403,64 @@ test('all 14 authoritative tree species retain distinct seeded growth and solid 
     assert.ok(!signatures.has(signature), `${type} shares a species silhouette`); signatures.add(signature);
   }
   assert.throws(() => createTree(kit, 'FutureTree', 0), /Unfinished tree/); kit.dispose();
+});
+
+test('every tree variant exposes a substantial trunk through the production depth transform and camera', () => {
+  const elevation = WORLD_3D.elevationRadians, vertex = new Vector3(), zoom = .7;
+  const camera = new OrthographicCamera(-1280 / 96, 1280 / 96, 720 / 96, -720 / 96, .1, 160);
+  camera.position.set(0, Math.sin(elevation) * 50, Math.cos(elevation) * 50);
+  camera.lookAt(0, 0, 0); camera.zoom = zoom; camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+  const prominentTrunks = new Set(['DwarfPine', 'MountainHemlockSnow', 'KrummholzSpruce', 'CrabAppleTree', 'HazelnutTree', 'RowanberryTree', 'OliveTree']);
+  for (const [type, profile] of Object.entries(TREE_PROFILES)) {
+    const kit = new ModelKit();
+    for (const seed of [0, 1, 2, 3, 4, 5, 6, 7, 73021, 0xffffffff]) {
+      const tree = createTree(kit, type, seed);
+      const presentation = new Group(); presentation.scale.z = GROUND_Y_SCALE; presentation.add(tree);
+      let crownFloorPixels = Infinity;
+      for (const yaw of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+        tree.rotation.y = yaw; presentation.updateMatrixWorld(true);
+        tree.traverse(mesh => {
+          if (!(mesh instanceof Mesh) || [profile.bark, 0x505954].includes(mesh.material.color.getHex())) return;
+          const positions = mesh.geometry.getAttribute('position');
+          for (let i = 0; i < positions.count; i++) {
+            vertex.fromBufferAttribute(positions, i).applyMatrix4(mesh.matrixWorld).project(camera);
+            crownFloorPixels = Math.min(crownFloorPixels, vertex.y * 720 / 2);
+          }
+        });
+      }
+      tree.rotation.y = 0; presentation.updateMatrixWorld(true);
+      const label = `${type}, seed ${seed}`;
+      assert.ok(crownFloorPixels >= profile.trunkClearance * Math.cos(elevation) * WORLD_3D.tilePixels * zoom - 1e-4, `${label}: actual camera projection leaves the trunk clear after depth compensation`);
+      assert.ok(crownFloorPixels >= (prominentTrunks.has(type) ? 45 : type === 'ArcticWillow' ? 30 : 40), `${label}: the trunk remains prominent even at far zoom (${crownFloorPixels.toFixed(1)}px)`);
+      const bounds = new Box3().setFromObject(presentation);
+      assert.ok(bounds.min.y < .02 && bounds.min.y > -.1, `${label}: roots remain on the ground`);
+      assert.ok(bounds.max.y <= 12, `${label}: fits the taller-tree culling budget`);
+      for (const height of [.3, profile.trunkClearance * .6]) {
+        const target = new Vector3(0, height, 0), direction = new Vector3(0, -Math.sin(elevation), -Math.cos(elevation));
+        const hit = new Raycaster(target.clone().addScaledVector(direction, -20), direction).intersectObject(presentation, true)[0];
+        assert.ok(hit, `${label}: trunk is solid at ${height}`);
+        assert.ok([profile.bark, 0x505954].includes(hit.object.material.color.getHex()), `${label}: camera sees bark below the canopy`);
+      }
+      const batched = kit.compileColored(tree);
+      const batchedBounds = new Box3().setFromObject(batched);
+      assert.ok(batchedBounds.min.distanceTo(bounds.min) < 1e-5 && batchedBounds.max.distanceTo(bounds.max) < 1e-5, `${label}: production batching preserves the extended trunk`);
+      assert.equal(batched.userData.treeHeight, tree.userData.treeHeight);
+    }
+    kit.dispose();
+  }
+});
+
+test('taller tree crowns remain visible when their roots are below the viewport at every supported zoom', async () => {
+  for (const zoom of [.5, .7, 1, 1.6, 2]) {
+    const renderer = new WebGpuWorldRenderer({ dataset: {}, style: {} });
+    const groundY = 720 + 300 * zoom;
+    const tree = { posX: 640, posY: groundY + 68, health: 100, treeType: { tag: 'MountainHemlock2' } };
+    const frame = { width: 1280, height: 720, zoom, cameraOffset: { x: 0, y: 360 - groundY + (groundY - 360) / zoom }, tables: { trees: new Map([['tall-tree', tree]]) } };
+    const seen = new Set();
+    renderer.syncTable('trees', frame, .016, 0, seen, []);
+    assert.ok(seen.has('trees:tall-tree'), `zoom ${zoom}: visible crown is not culled with its offscreen roots`);
+    await renderer.dispose();
+  }
 });
 
 test('all authoritative animals have walk/run, event attacks and grounded terminal corpse poses', async () => {
@@ -399,6 +500,29 @@ test('natural world objects have solid geometry and living corals obey depletion
   assert.ok(seen.has('livingCorals:3')); assert.equal(renderer.unfinished.size, 0);
   row.respawnAt.microsSinceUnixEpoch = 100n; seen = new Set(); renderer.syncTable('livingCorals', frame, .016, 1, seen, []); assert.equal(seen.size, 0);
   assert.ok(NATURAL_OBJECT_TABLES.includes('runeStones')); await renderer.dispose();
+});
+
+test('memory shard resources, dropped shards and ore use distinct emissive models and pooled light',async()=>{
+  const kit=new ModelKit(),resource=createPlant(kit,'MemoryShard',1),drop=createDroppedModel(kit,'Memory Shard',1),ore=createRock(kit,'Memory',1);
+  for(const model of [resource,drop,ore]){
+    auditMeshes(model);let emissive=false;
+    model.traverse(o=>{if(o instanceof Mesh && o.material.emissive?.getHex())emissive=true;});
+    assert.ok(emissive,'each model has luminous geometry');
+  }
+  assert.equal(resource.userData.memoryShardKind,'resource');assert.equal(drop.userData.memoryShardKind,'pickup');assert.equal(ore.userData.memoryOre,true);
+  assert.ok(new Box3().setFromObject(resource).getSize(new Vector3()).y>1,'harvestable shard is much larger than the old .36-unit bars');
+  const renderer=new WebGpuWorldRenderer({dataset:{},style:{}});
+  const plant={posX:400,posY:400,plantType:{tag:'MemoryShard'},respawnAt:{microsSinceUnixEpoch:0n}};
+  const frame={width:1280,height:720,cameraOffset:{x:0,y:0},tables:{harvestableResources:new Map([['p',plant]]),
+    droppedItems:new Map([['d',{posX:460,posY:400,itemDefId:7n}]]),itemDefinitions:new Map([['7',{name:'Memory Shard'}]]),
+    stones:new Map([['s',{posX:520,posY:400,oreType:{tag:'Memory'},health:100}]]),worldState:{cycleProgress:.5}}};
+  const render=()=>{const lights=[];renderer.shardGlow.beginFrame(0);for(const kind of ['harvestableResources','droppedItems','stones'])renderer.syncTable(kind,frame,.016,0,new Set(),lights);renderer.shardGlow.endFrame();return lights;};
+  const lights=render();assert.equal(lights.length,3);assert.equal(renderer.shardGlow.halos.count,3);
+  assert.equal(renderer.visuals.get('droppedItems:d').root.children[0].userData.itemName,'Memory Shard');
+  plant.respawnAt.microsSinceUnixEpoch=1n;assert.equal(render().length,2);assert.equal(renderer.shardGlow.halos.count,2);
+  const fire={position:new Vector3(100,0,0),color:0xffaa33,intensity:7};
+  renderer.updateLighting(frame,0,[...lights,fire]);assert.equal(renderer.lights[0].intensity,7,'ordinary fire keeps priority when the fixed light pool is busy');
+  await renderer.dispose();kit.dispose();
 });
 
 test('destroyed trees follow the existing fall timeline and scatter species-colored debris at the sound impact',async()=>{
@@ -597,21 +721,40 @@ test('swimming pivots stay at one world center through cardinal turns, bobbing, 
   kit.dispose();
 });
 
-test('regular swimming kicks more slowly while sprint swimming keeps its original kick cadence',()=>{
-  const kit=new ModelKit(),regular=new SurvivorRig(kit),sprint=new SurvivorRig(kit);
-  const pose={speed:2,sprinting:false,swimming:true,crouching:false,dead:false,jump:0,roll:0,attack:0,yaw:0,weapon:''};
-  for(let i=0;i<300;i++){
-    regular.update(pose,1/60,i/60);
-    sprint.update({...pose,sprinting:true},1/60,i/60);
+test('normal swimming keeps a gentle continuous kick across speeds and eases into sprinting', () => {
+  const kit = new ModelKit();
+  const pose = { speed: 2, sprinting: false, swimming: true, crouching: false, dead: false, jump: 0, roll: 0, attack: 0, yaw: 0, weapon: '' };
+  for (const speed of [0, 2, 2.7, 4.5, 8]) {
+    const regular = new SurvivorRig(kit);
+    for (let i = 0; i < 300; i++) regular.update({ ...pose, speed }, 1 / 60, i / 60);
+    const start = regular.swimKickPhase;
+    let previous = regular.leftLeg.rotation.x;
+    for (let i = 0; i < 360; i++) {
+      regular.update({ ...pose, speed }, 1 / 60, 5 + i / 60);
+      assert.ok(Math.abs(regular.leftLeg.rotation.x + .2) <= .181, 'normal kicks stay small even above the former fast-swim speed threshold');
+      assert.ok(Math.abs(regular.leftLeg.rotation.x - previous) < .007, 'normal kicks move smoothly between rendered frames');
+      assert.ok(Math.abs(regular.leftLeg.rotation.x + regular.rightLeg.rotation.x + .4) < 1e-7, 'legs keep alternating through the same continuous stroke');
+      previous = regular.leftLeg.rotation.x;
+    }
+    assert.ok(regular.swimKickPhase - start <= 2.2 * 6 + 1e-7, 'normal kick cycles take at least 2.8 seconds, regardless of travel speed');
   }
-  assert.ok(regular.swimKickPhase < regular.swimPhase*.6,'regular kicks run at roughly half the arm stroke rate');
-  assert.ok(Math.abs(sprint.swimKickPhase-sprint.swimPhase)<1e-9,'sprinting retains the previous phase and cadence');
-  assert.ok(Math.abs(sprint.leftLeg.rotation.x-(-.2+Math.sin(sprint.swimPhase)*.7))<1e-7,'sprinting retains the previous kick range');
-  let previous=regular.swimKickPhase;
-  for(let i=0;i<60;i++){
-    regular.update({...pose,sprinting:true},1/60,5+i/60);
-    assert.ok(regular.swimKickPhase>previous&&regular.swimKickPhase-previous<.18,'changing speed keeps the kick phase continuous');
-    previous=regular.swimKickPhase;
+  const rig = new SurvivorRig(kit);
+  for (let i = 0; i < 300; i++) rig.update(pose, 1 / 60, i / 60);
+  const beforeSprint = rig.leftLeg.rotation.x;
+  rig.update({ ...pose, sprinting: true }, 1 / 60, 5);
+  assert.ok(Math.abs(rig.leftLeg.rotation.x - beforeSprint) < .06, 'starting a sprint eases the range instead of snapping the leg outward');
+  for (let i = 1; i < 300; i++) rig.update({ ...pose, sprinting: true }, 1 / 60, 5 + i / 60);
+  const sprintPhase = rig.swimKickPhase;
+  rig.update({ ...pose, sprinting: true }, 1 / 60, 10);
+  assert.ok(Math.abs((rig.swimKickPhase - sprintPhase) * 60 - 9.8) < 1e-7, 'settled sprinting keeps its original cadence');
+  assert.ok(Math.abs(rig.leftLeg.rotation.x - (-.2 + Math.sin(rig.swimKickPhase) * .7)) < 1e-7, 'settled sprinting keeps its original kick range');
+  let previous = rig.leftLeg.rotation.x;
+  for (let i = 0; i < 180; i++) {
+    const phase = rig.swimKickPhase;
+    rig.update({ ...pose, speed: [0, 2.7, 8][i % 3] }, 1 / 60, 10 + (i + 1) / 60);
+    assert.ok(rig.swimKickPhase > phase && rig.swimKickPhase - phase < .17, 'releasing sprint and changing speed never resets the leg cycle');
+    assert.ok(Math.abs(rig.leftLeg.rotation.x - previous) < .13, 'releasing sprint eases the leg motion without a pose jump');
+    previous = rig.leftLeg.rotation.x;
   }
   kit.dispose();
 });
@@ -757,30 +900,43 @@ test('all biome shelters cover every protected corner with solid canopy and reta
     const model=createShelter(kit,variant),roof=model.getObjectByName('shelter-roof');model.updateMatrixWorld(true);
     assert.equal(model.userData.shelterBiome,profile.name);
     let triangles=0;const colors=[];
-    model.traverse(o=>{if(o instanceof Mesh){triangles+=o.geometry.attributes.position.count/3;assert.ok(signedVolume(o)>0,'closed, outward solids');const a=o.geometry.getAttribute('color');if(a)colors.push(...Array.from(a.array).slice(0,120));}});
+    model.getObjectByName('shelter-opaque').traverse(o=>{if(o instanceof Mesh){triangles+=o.geometry.attributes.position.count/3;assert.ok(signedVolume(o)>0,'closed, outward solids');const a=o.geometry.getAttribute('color');if(a)colors.push(...Array.from(a.array).slice(0,120));}});
     assert.ok(triangles>1000&&triangles<18000,`${profile.name}: ${triangles} triangles`);signatures.add(colors.join(','));
     for(const x of [-150,-80,0,80,150])for(const z of [-62.5,0,62.5]){
       const ray=new Raycaster(new Vector3(x/48,8,z/48),new Vector3(0,-1,0));
       const hits=ray.intersectObject(roof,true);assert.ok(hits.length&&hits[0].point.y>1.25,`protected roof gap at ${x},${z} for ${profile.name}`);
     }
+    const front=new Raycaster(new Vector3(0,.23,62.5/48+.35),new Vector3(0,0,-1),0,.6);
+    assert.ok(front.intersectObject(model.getObjectByName('shelter-frame'),true).length,`${profile.name}: sticks cover the middle of the front`);
   });
   assert.equal(signatures.size,4);kit.dispose();
 });
 
-test('only an owner inside gets the 30% shelter view and exact ground border; other shelters and occupants stay concealed',()=>{
-  const kit=new ModelKit(),first=new ShelterRig(kit,0),other=new ShelterRig(kit,0);
+test('shelter cutaway leaves an opaque rim outside the protected screen area and keeps visitors concealed',()=>{
+  const kit=new ModelKit(),other=new ShelterRig(kit,0);
   const row={posX:1000,posY:1200,placedBy:{toHexString:()=> 'owner'}},inside={x:1000,y:1000},outside={x:1000,y:1070};
   assert.equal(shelterOwnerInside(row,'owner',inside),true);assert.equal(shelterOwnerInside(row,'visitor',inside),false);assert.equal(shelterOwnerInside(row,'owner',outside),false);
-  first.update(true,1050,1000);let faded=0;
-  first.root.getObjectByName('shelter-shell').traverse(o=>{if(o instanceof Mesh&&!o.userData.cutawayDepth){assert.equal(o.material.opacity,.3);assert.equal(o.material.depthWrite,false);assert.equal(o.castShadow,false);faded++;}});
-  assert.ok(faded);other.root.traverse(o=>{if(o instanceof Mesh)assert.equal(o.material.opacity,1,'shared source materials must remain opaque');});
-  const depthPass=first.root.getObjectByName('cutaway-depth-envelope');assert.equal(depthPass.visible,true);
-  depthPass.traverse(o=>{if(o instanceof Mesh){assert.equal(o.material.colorWrite,false);assert.equal(o.material.depthWrite,true);assert.equal(o.renderOrder,12);}});
-  const border=first.root.getObjectByName('shelter-protected-border');assert.equal(border.visible,true);border.updateMatrixWorld(true);
-  const bounds=new Box3().setFromObject(border);assert.ok(Math.abs(bounds.max.x-150/48)<.035&&Math.abs(bounds.max.z-62.5/48)<.035);
-  first.update(false,1250,1000);assert.equal(border.visible,false);assert.equal(first.root.getObjectByName('shelter-shell').position.x,0);
-  assert.equal(depthPass.visible,false);
-  first.root.getObjectByName('shelter-shell').traverse(o=>{if(o instanceof Mesh&&!o.userData.cutawayDepth){assert.equal(o.material.opacity,1);assert.equal(o.castShadow,true);}});
+  for(let variant=0;variant<4;variant++){
+    const first=new ShelterRig(kit,variant),shell=first.root.getObjectByName('shelter-shell');
+    const opaque=first.root.getObjectByName('shelter-opaque'),rim=first.root.getObjectByName('shelter-rim');
+    first.update(true,1050,1000);assert.equal(shell.visible,true);assert.equal(opaque.visible,false);assert.equal(rim.visible,true);
+    let triangles=0;
+    rim.traverse(o=>{if(!(o instanceof Mesh))return;const p=o.geometry.getAttribute('position');
+      for(let i=0;i<p.count;i+=3){
+        const x=(p.getX(i)+p.getX(i+1)+p.getX(i+2))/3;
+        const y=(p.getY(i)+p.getY(i+1)+p.getY(i+2))/3;
+        const z=(p.getZ(i)+p.getZ(i+1)+p.getZ(i+2))/3-y/(Math.tan(WORLD_3D.elevationRadians)*GROUND_Y_SCALE);
+        assert.ok(Math.abs(x)>=150/48-1e-5||Math.abs(z)>=62.5/48-1e-5,'cutaway triangles stay outside the projected protected rectangle');triangles++;
+      }
+    });
+    assert.ok(triangles>100,'the visible rim is retained');
+    assert.equal(first.root.getObjectByName('cutaway-depth-envelope'),undefined);
+    const border=first.root.getObjectByName('shelter-protected-border');assert.equal(border.visible,true);border.updateMatrixWorld(true);
+    const bounds=new Box3().setFromObject(border);assert.ok(Math.abs(bounds.max.x-150/48)<.035&&Math.abs(bounds.max.z-62.5/48)<.035);
+    first.update(false,1250,1000);assert.equal(border.visible,false);assert.equal(shell.visible,true);assert.equal(opaque.visible,true);assert.equal(rim.visible,false);assert.equal(shell.position.x,0);
+    shell.traverse(o=>{if(o instanceof Mesh){assert.equal(o.material.opacity,1);assert.equal(o.castShadow,true);}});
+  }
+  other.root.traverse(o=>{if(o instanceof Mesh)assert.equal(o.material.opacity,1,'shared source materials must remain opaque');});
   const view=new ShelterVisibility();view.prepare([row],'visitor',outside);assert.equal(view.occludes(1000,1000),true);assert.equal(view.occludes(1151,1000),false);
   view.prepare([row],'owner',inside);assert.equal(view.occludes(1000,1000),false);
   view.prepare([row],'owner',outside);assert.equal(view.occludes(1000,1000),true);
@@ -841,14 +997,30 @@ test('village assembly and cutaway construction never submit missing scene objec
   }finally{console.error=original;kit.dispose();}
 });
 
+test('every village roof is fully hidden inside and restored on exit without hiding the interior',()=>{
+  const kit=new ModelKit();
+  for(const [asset,plan] of Object.entries(VILLAGE_BUILDINGS)){
+    const rig=new VillageRig(kit,asset,createVillageModel(kit,asset)),roof=rig.root.getObjectByName('village-roof');
+    assert.ok(roof&&roof.children.length>0,`${asset}: an independent roof exists`);
+    rig.update({x:1000,y:1000-plan.depth*24},{x:1000,y:1000},0,1);
+    assert.equal(rig.root.userData.cutaway,true);assert.equal(roof.visible,false,`${asset}: roof never obscures the interior`);
+    assert.equal(rig.root.getObjectByName('village-shell').visible,true,`${asset}: the wall silhouette remains`);
+    rig.update({x:1000,y:1100},{x:1000,y:1000},0,2);assert.equal(roof.visible,true,`${asset}: roof returns after exit`);
+  }
+  kit.dispose();
+});
+
 test('village cutaways preserve open movement anchors, rotate in ground space and do not fade neighboring copies',async()=>{
   const kit=new ModelKit(),asset='hv_lodge.png',prototype=createVillageModel(kit,asset),a=new VillageRig(kit,asset,prototype),b=new VillageRig(kit,asset,prototype);
   const anchor={x:1000,y:1000},plan=VILLAGE_BUILDINGS[asset];
   a.update({x:1000,y:1000-plan.depth*24},anchor,0,1);
   assert.equal(a.root.userData.cutaway,true);a.root.getObjectByName('village-shell').traverse(o=>{if(o instanceof Mesh&&!o.userData.cutawayDepth)assert.equal(o.material.opacity,.4);});
+  assert.equal(a.root.getObjectByName('village-roof').visible,false,'the roof is completely removed while inside');
+  assert.equal(b.root.getObjectByName('village-roof').visible,true,'neighboring roofs stay opaque');
   b.root.getObjectByName('village-shell').traverse(o=>{if(o instanceof Mesh)assert.equal(o.material.opacity,1);});
   a.update({x:1000+plan.depth*24,y:1000},anchor,Math.PI/2,2);assert.equal(a.root.userData.cutaway,true);assert.equal(a.root.rotation.y,-Math.PI/2);
   a.update({x:2000,y:2000},anchor,0,3);assert.equal(a.root.userData.cutaway,false);
+  assert.equal(a.root.getObjectByName('village-roof').visible,true,'the roof returns when leaving');
   const weatherAsset='ws_station.png',weatherModel=createVillageModel(kit,weatherAsset),weatherRig=new VillageRig(kit,weatherAsset,weatherModel),rotors=[];
   weatherRig.root.traverse(o=>{if(o.name==='village-turbine')rotors.push(o);});assert.equal(rotors.length,3);
   const pivots=rotors.map(o=>o.position.toArray());weatherRig.update(null,anchor,0,2);assert.deepEqual(rotors.map(o=>o.position.toArray()),pivots);assert.ok(rotors.every(o=>o.rotation.z===2.8));
@@ -857,6 +1029,145 @@ test('village cutaways preserve open movement anchors, rotate in ground space an
   renderer.syncTable('monumentParts',frame,.016,0,new Set(),[]);const visual=renderer.visuals.get('monumentParts:village');
   assert.ok(visual.village);assert.equal(visual.root.position.x,1000/48);assert.equal(visual.root.position.z,1000/48*GROUND_Y_SCALE);assert.equal(row.collisionRadius,0);assert.equal(renderer.unfinished.has('table:monumentParts'),false);
   await renderer.dispose();kit.dispose();
+});
+
+test('ALK landmarks, facilities, stations and both turret types produce solid 3D models at collision anchors',async()=>{
+  const kit=new ModelKit();
+  for(const [asset,plan] of Object.entries(ALK_PLANS)){
+    const model=createAlkBuilding(kit,asset),bounds=new Box3().setFromObject(model),size=bounds.getSize(new Vector3());
+    assert.ok(size.x>=plan.width&&size.y>=plan.height&&size.z>=plan.depth,`${asset} has full architectural mass`);
+    let triangles=0;model.traverse(part=>{if(part.isMesh){const position=part.geometry.getAttribute('position');triangles+=(part.geometry.index?.count??position.count)/3;}});
+    assert.ok(triangles>100&&triangles<15000,`${asset} has bounded 3D detail`);
+    if(asset==='furnace')assert.ok(model.getObjectByName('fire'),'furnace retains a controllable fire');
+  }
+  for(const monument of [true,false]){
+    const model=createAlkTurret(kit,monument);assert.ok(new Box3().setFromObject(model).getSize(new Vector3()).x>1);
+  }
+  const renderer=new WebGpuWorldRenderer({dataset:{},style:{}}),center=getWorldCenter(),worldX=center.x,worldY=center.y;
+  assert.equal(renderer.compoundLandmarks.size,COMPOUND_BUILDINGS.length);
+  const tables={compoundLandmarks:renderer.compoundLandmarks,
+    alkStations:new Map([['0',{stationId:0,worldPosX:worldX,worldPosY:worldY,isActive:true}],['1',{stationId:1,worldPosX:worldX+500,worldPosY:worldY,isActive:true}],['2',{stationId:2,worldPosX:worldX,worldPosY:worldY,isActive:false}]]),
+    turrets:new Map([['monument',{posX:worldX+400,posY:worldY,isMonument:true}],['player',{posX:worldX+500,posY:worldY,isMonument:false}]]),
+    woodenStorageBoxes:new Map([3,5,6].map(t=>[String(t),{posX:worldX+t*10,posY:worldY,isMonument:true,boxType:t}])),
+    furnaces:new Map([['furnace',{posX:worldX,posY:worldY,isMonument:true,furnaceType:1,isBurning:true}]]),
+    rainCollectors:new Map([['water',{posX:worldX,posY:worldY,isMonument:true}]])};
+  const frame={width:4000,height:3000,cameraOffset:{x:2000-worldX,y:1500-worldY},tables},seen=new Set();
+  for(const kind of Object.keys(tables))renderer.syncTable(kind,frame,.016,0,seen,[]);
+  for(const building of COMPOUND_BUILDINGS)assert.ok(seen.has(`compoundLandmarks:${building.id}`),building.id);
+  assert.ok(seen.has('alkStations:0')&&seen.has('alkStations:1'));assert.ok(!seen.has('alkStations:2'));
+  for(const key of ['turrets:monument','turrets:player','woodenStorageBoxes:3','woodenStorageBoxes:5','woodenStorageBoxes:6','furnaces:furnace','rainCollectors:water'])assert.ok(seen.has(key),key);
+  assert.equal(renderer.unfinished.size,0);
+  assert.deepEqual(groundPosition('alkStations',tables.alkStations.get('1')),{x:worldX+500,y:worldY-80});
+  assert.deepEqual(groundPosition('turrets',tables.turrets.get('monument')),{x:worldX+400,y:worldY+40});
+  assert.ok(renderer.visuals.get('furnaces:furnace').fire.visible);
+  await renderer.dispose();kit.dispose();
+});
+
+test('village campfire graphics use the larger communal collision circle and its true anchor',()=>{
+  const kit=new ModelKit(),model=createVillageModel(kit,'fv_campfire.png'),bounds=new Box3().setFromObject(model),size=bounds.getSize(new Vector3());
+  assert.ok(size.x*48>120&&size.x*48<165,'the fire ring should fit the 140px collision circle');
+  for(const type of ['FishingVillage','HuntingVillage','AlpineVillage']){
+    const part={id:1n,worldX:1000,worldY:1000,partType:'campfire',imagePath:'fv_campfire.png',monumentType:{tag:type},isCenter:type==='FishingVillage',collisionRadius:70,rotationRad:0};
+    const shapes=getVillageCampfireCollisionShapes(new Map([['1',part]]),1000,872);
+    assert.equal(shapes.length,1);assert.deepEqual(groundPosition('monumentParts',part),{x:shapes[0].x,y:shapes[0].y});
+    assert.equal(shapes[0].radius,70);assert.equal(shapes[0].y,872);
+  }
+  kit.dispose();
+});
+
+test('shared authored collision geometry matches the model and server reference cases',async()=>{
+  const geometry=JSON.parse(await readFile('shared/config/collisionGeometry.json','utf8'));
+  assert.equal(geometry.version,1);
+  assert.deepEqual(Object.keys(VILLAGE_BUILDINGS).sort(),Object.keys(geometry.village.buildings).sort());
+  for(const [asset,plan] of Object.entries(geometry.village.buildings)){
+    assert.equal(VILLAGE_BUILDINGS[asset].form,plan.form);
+    assert.equal(VILLAGE_BUILDINGS[asset].width,plan.width);
+    assert.equal(VILLAGE_BUILDINGS[asset].depth,plan.depth);
+  }
+  const row={imagePath:'av_lodge.png',worldX:1000,worldY:1000,rotationRad:0};
+  const wall=villageWallSegments(row);assert.equal(wall.length,5);
+  assert.ok(Math.abs(wall[0].ax-841.6)<.001);assert.ok(Math.abs(wall[0].by-731.2)<.001);
+  row.rotationRad=Math.PI/2;const rotated=villageWallSegments(row);
+  assert.ok(Math.abs(rotated[0].ax-1000)<.001);assert.ok(Math.abs(rotated[0].ay-841.6)<.001);
+  const round=villageWallSegments({imagePath:'hv_hut2.png',worldX:0,worldY:0,rotationRad:0});
+  assert.equal(round.length,23);
+  for(const [actual,expected] of [[round[0].ax,58.773565],[round[0].ay,-12.398223],[round[0].bx,78.892983],[round[0].by,-28.442924]])assert.ok(Math.abs(actual-expected)<.001);
+  const expected=[[-48,-48,48,-48],[48,-48,48,48],[48,48,-48,48],[-48,48,-48,-48]];
+  for(let edge=0;edge<4;edge++){
+    const boundary=planBoundary(edge),actual=[...boundary.start,...boundary.end].map(value=>value*geometry.village.tilePixels);
+    assert.deepEqual(actual,expected[edge]);
+  }
+  for(const [shape,edge,expectedEndpoints] of [[2,5,[-48,48,48,-48]],[4,5,[-48,48,48,-48]],[3,4,[-48,-48,48,48]],[5,4,[-48,-48,48,48]]]){
+    const boundary=planBoundary(edge,shape);
+    assert.deepEqual([...boundary.start,...boundary.end].map(value=>value*geometry.village.tilePixels),expectedEndpoints);
+  }
+});
+
+test('generated village fires leave buildings and doorway approaches clear',async()=>{
+  const source=await readFile('server/src/monument.rs','utf8');
+  const alpineOffset=Number(source.match(/const ALPINE_FIRE_OFFSET_Y: f32 = ([\d.]+);/)?.[1]);
+  assert.ok(source.includes('center_world_y + ALPINE_FIRE_OFFSET_Y, "av_campfire.png"'));
+  assert.ok(source.includes('("campfire", "fv_campfire.png", 100.0, -250.0)'));
+  const distanceToSegment=(x,y,{ax,ay,bx,by})=>{
+    const dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy)));
+    return Math.hypot(x-ax-t*dx,y-ay-t*dy);
+  };
+  const verify=(type,fire,buildings)=>{
+    const parts=new Map();
+    parts.set('fire',{id:1n,worldX:fire[0],worldY:fire[1],partType:'campfire',imagePath:type==='AlpineVillage'?'av_campfire.png':'fv_campfire.png',monumentType:{tag:type},isCenter:type==='FishingVillage',collisionRadius:70,rotationRad:0});
+    const shape=getVillageCampfireCollisionShapes(parts,fire[0],fire[1]-128)[0];
+    for(const [asset,x,y] of buildings){
+      const building={id:2n,worldX:x,worldY:y,imagePath:asset,partType:'hut',monumentType:{tag:type},rotationRad:0};
+      for(const wall of villageWallSegments(building))assert.ok(distanceToSegment(shape.x,shape.y,wall)>shape.radius+32,`${type} ${asset}: fire intersects a wall`);
+      // The first 140 pixels directly outside the doorway must admit a player.
+      assert.ok(distanceToSegment(shape.x,shape.y,{ax:x,ay:y,bx:x,by:y+140})>shape.radius+32,`${type} ${asset}: fire blocks the doorway approach`);
+    }
+  };
+  verify('HuntingVillage',[100,-250],[['hv_lodge.png',-250,0],['hv_hut2.png',480,-320],['hv_hut3.png',0,-550]]);
+  for(const dx of [0,100])for(const dy of [alpineOffset,450,500])
+    verify('AlpineVillage',[dx,dy],[['av_lodge.png',0,0],['av_hut.png',-280,420],['av_banya.png',380,320]]);
+  for(let i=0;i<64;i++){
+    const a=i*Math.PI*2/64,wx=Math.cos(a),wy=Math.sin(a),sx=-wy,sy=wx;
+    const at=(along,toward)=>[wx*toward+sx*along,wy*toward+sy*along];
+    verify('FishingVillage',[0,0],[['fv_lodge.png',...at(-480,-500)],['fv_hut2.png',...at(480,-500)],['fv_hut3.png',...at(0,-700)]]);
+  }
+});
+
+test('all village buildings have solid walls, an accessible doorway and swept collision at every rotation',()=>{
+  const entities=Object.fromEntries(['trees','stones','runeStones','cairns','boxes','rainCollectors','furnaces','barbecues','shelters','players','wildAnimals','barrels','seaStacks','wallCells','foundationCells','homesteadHearths','basaltColumns','doors','livingCorals','monumentParts'].map(key=>[key,new Map()]));
+  const anchor={x:2000,y:2000};
+  for(const [asset,plan] of Object.entries(VILLAGE_BUILDINGS))for(const rotation of [0,Math.PI/2,Math.PI/4]){
+    const row={id:42n,worldX:anchor.x,worldY:anchor.y,imagePath:asset,partType:'hut',monumentType:{tag:'FishingVillage'},isCenter:false,collisionRadius:0,rotationRad:rotation};
+    entities.monumentParts.set('42',row);
+    const point=(x,y)=>({x:anchor.x+x*Math.cos(rotation)-y*Math.sin(rotation),y:anchor.y+x*Math.sin(rotation)+y*Math.cos(rotation)});
+    const move=(a,b)=>{const from=point(...a),to=point(...b);return resolveClientCollision(from.x,from.y,to.x,to.y,'local',entities);};
+    assert.ok(villageWallSegments(row).length>=5,`${asset}: walls exist`);
+    const entrance=move([0,100],[0,-plan.depth*24]);
+    assert.equal(entrance.collided,false,`${asset} ${rotation}: doorway must admit the player`);
+    const exit=move([0,-plan.depth*24],[0,100]);assert.equal(exit.collided,false,`${asset} ${rotation}: doorway must allow exit`);
+    const side=move([plan.width*24+100,-plan.depth*24],[0,-plan.depth*24]);
+    assert.equal(side.collided,true,`${asset} ${rotation}: side wall blocks movement`);
+    const sideX=(side.x-anchor.x)*Math.cos(rotation)+(side.y-anchor.y)*Math.sin(rotation);
+    assert.ok(sideX>plan.width*24+25,`${asset} ${rotation}: player stays outside the side wall`);
+    const back=move([0,-plan.depth*48-100],[0,-plan.depth*24]);
+    assert.equal(back.collided,true,`${asset} ${rotation}: rear wall blocks movement`);
+    const fast=move([plan.width*24+100,-plan.depth*24],[-plan.width*24-100,-plan.depth*24]);
+    assert.equal(fast.collided,true,`${asset} ${rotation}: a fast roll cannot tunnel through walls`);
+    const fastX=(fast.x-anchor.x)*Math.cos(rotation)+(fast.y-anchor.y)*Math.sin(rotation);
+    assert.ok(fastX>plan.width*24+25,`${asset} ${rotation}: fast movement remains on the near side`);
+  }
+});
+
+test('village walls allow sliding and let a player already overlapping move clear',()=>{
+  const entities=Object.fromEntries(['trees','stones','runeStones','cairns','boxes','rainCollectors','furnaces','barbecues','shelters','players','wildAnimals','barrels','seaStacks','wallCells','foundationCells','homesteadHearths','basaltColumns','doors','livingCorals','monumentParts'].map(key=>[key,new Map()]));
+  const plan=VILLAGE_BUILDINGS['hv_lodge.png'],half=plan.width*24;
+  entities.monumentParts.set('1',{id:1n,worldX:2000,worldY:2000,imagePath:'hv_lodge.png',partType:'lodge',monumentType:{tag:'HuntingVillage'},rotationRad:0,collisionRadius:0});
+  const start={x:2000+half+36,y:2000-plan.depth*36};
+  const slide=resolveClientCollision(start.x,start.y,start.x-20,start.y+plan.depth*12,'local',entities);
+  assert.equal(slide.collided,true);assert.ok(slide.x>2000+half+30);assert.ok(slide.y>start.y+plan.depth*10,'diagonal movement continues along the wall');
+  const overlapping={x:2000+half+10,y:2000-plan.depth*24};
+  const escape=resolveClientCollision(overlapping.x,overlapping.y,overlapping.x+45,overlapping.y,'local',entities);
+  assert.ok(escape.x>=overlapping.x+44,'a player already at a wall can move away');
 });
 
 test('presentation scale matches the authoritative world config', async () => {

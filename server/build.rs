@@ -137,7 +137,7 @@ fn main() {
     let config: SharedGameConfig = serde_json::from_str(&config_contents)
         .unwrap_or_else(|err| panic!("failed to parse {}: {err}", config_path.display()));
 
-    let generated = format!(
+    let mut generated = format!(
         "\
 pub const TILE_SIZE_PX: u32 = {tile_size_px};
 pub const FOUNDATION_TILE_SIZE_PX: u32 = {foundation_tile_size_px};
@@ -255,6 +255,17 @@ pub const CYCLE_END_PROGRESS: f32 = {cycle_end_progress};
         cycle_end_progress = rust_f32(config.day_night.cycle_end_progress),
     );
 
+    let collision_path = manifest_dir.join("..").join("shared").join("config").join("collisionGeometry.json");
+    println!("cargo:rerun-if-changed={}", collision_path.display());
+    let collision: serde_json::Value = serde_json::from_str(&fs::read_to_string(&collision_path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", collision_path.display())))
+        .unwrap_or_else(|err| panic!("failed to parse {}: {err}", collision_path.display()));
+    let shelter = &collision["shelter"];
+    let number = |name: &str| shelter[name].as_f64().unwrap_or_else(|| panic!("missing shelter {name}")) as f32;
+    generated.push_str(&format!("\npub const SHELTER_COLLISION_WIDTH: f32 = {};\npub const SHELTER_COLLISION_HEIGHT: f32 = {};\npub const SHELTER_CENTER_OFFSET_Y: f32 = {};\n",
+        rust_f32(number("width")), rust_f32(number("height")), rust_f32(number("centerOffsetY"))));
+    let fire_offset = collision["village"]["campfireOffsetY"].as_f64().expect("missing village campfireOffsetY") as f32;
+    generated.push_str(&format!("pub const VILLAGE_CAMPFIRE_OFFSET_Y: f32 = {};\n", rust_f32(fire_offset)));
     let out_path = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR missing")).join("shared_game_config.rs");
     fs::write(&out_path, generated)
         .unwrap_or_else(|err| panic!("failed to write {}: {err}", out_path.display()));

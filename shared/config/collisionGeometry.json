@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "village": {
+    "tilePixels": 48,
+    "doorHalfWidth": 0.95,
+    "wallThickness": 0.13,
+    "campfireRadius": 70,
+    "campfireOffsetY": -128,
+    "buildings": {
+      "fv_lodge.png": { "form": "gable", "width": 7, "depth": 4.7 },
+      "fv_hut2.png": { "form": "vault", "width": 4.5, "depth": 5.1 },
+      "fv_hut3.png": { "form": "vault", "width": 5.6, "depth": 4.8 },
+      "hv_lodge.png": { "form": "gable", "width": 6.4, "depth": 4.7 },
+      "hv_hut2.png": { "form": "round", "width": 4.6, "depth": 3.9 },
+      "hv_hut3.png": { "form": "gable", "width": 4.5, "depth": 3.7 },
+      "hv_hut1.png": { "form": "gable", "width": 4.2, "depth": 3.6 },
+      "av_lodge.png": { "form": "vault", "width": 6.6, "depth": 5.6 },
+      "av_hut.png": { "form": "vault", "width": 4.3, "depth": 4.7 },
+      "av_banya.png": { "form": "gable", "width": 4.8, "depth": 4.5 },
+      "wbg_hermit_hut.png": { "form": "gable", "width": 4.5, "depth": 4 },
+      "hs_shack.png": { "form": "gable", "width": 5.7, "depth": 4.2 },
+      "ws_station.png": { "form": "station", "width": 8, "depth": 5.9 }
+    }
+  },
+  "shelter": { "width": 300, "height": 125, "centerOffsetY": -200 }
+}

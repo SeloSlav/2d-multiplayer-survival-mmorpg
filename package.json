@@ -6,6 +6,7 @@
   "scripts": {
     "verify:ui-unchanged": "node scripts/verify-ui-unchanged.mjs",
     "test:world3d": "node scripts/test-world3d.mjs",
+    "test:audio": "node --test scripts/audio.test.mjs",
     "dev": "node scripts/vite-dev-pick-port.mjs",
     "prebuild": "npm run verify:ui-unchanged",
     "build": "tsc -b && vite build",

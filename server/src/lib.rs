@@ -55,6 +55,8 @@ macro_rules! try_insert_schedule {
 
 // Declare the module
 mod shared_config;
+#[allow(dead_code)]
+mod collision_geometry;
 mod environment;
 mod tree; // Add tree module
 mod stone; // Add stone module
@@ -1400,6 +1402,8 @@ pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
         log::error!("[Connect] Missing ConnectionId in client_connected context for {:?}", client_identity);
         "Internal error: Missing connection ID on connect".to_string()
     })?;
+
+    crate::monument::repair_alpine_fire_entrance(ctx);
 
     log::info!("[Connect] Tracking active connection for identity {:?} with connection ID {:?}", 
         client_identity, connection_id);

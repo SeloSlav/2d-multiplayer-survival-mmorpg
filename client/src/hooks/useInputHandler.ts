@@ -75,6 +75,7 @@ import { triggerBarrelShakeOptimistic } from '../utils/renderers/barrelRendering
 import { triggerAnimalCorpseShakeOptimistic } from '../utils/renderers/animalCorpseRenderingUtils';
 import { triggerPlayerCorpseShakeOptimistic } from '../utils/renderers/playerCorpseRenderingUtils';
 import { triggerPlayerShakeOptimistic } from '../utils/renderers/playerRenderingUtils';
+import { recordPredictedCombatHit } from '../utils/combatFeedbackEvents';
 import { triggerAnimalShakeOptimistic } from '../utils/renderers/wildAnimalRenderingUtils';
 import type {
     GameCanvasInputInteractionProgressState,
@@ -521,6 +522,7 @@ export const useInputHandler = ({
                                     const tid = tree.id.toString();
                                     triggerTreeShakeOptimistic(tid, tree.posX, tree.posY);
                                     triggerTreeHitEffect(tid, tree.posX, tree.posY);
+                                    recordPredictedCombatHit('trees',tid);
                                 },
                             };
                     });
@@ -538,6 +540,7 @@ export const useInputHandler = ({
                                     const ore = getStoneOreType(stone as any);
                                     triggerStoneShakeOptimistic(sid, stone.posX, stone.posY, ore);
                                     triggerStoneHitEffect(sid, stone.posX, stone.posY, ore);
+                                    recordPredictedCombatHit('stones',sid);
                                 },
                             };
                     });
@@ -555,6 +558,7 @@ export const useInputHandler = ({
                                         const v = Number(coral.id) % 4;
                                         triggerCoralShakeOptimistic(cid, coral.posX, coral.posY, v);
                                         triggerCoralHitEffect(cid, coral.posX, coral.posY, v);
+                                        recordPredictedCombatHit('livingCorals',cid);
                                     },
                                 };
                         });
@@ -572,6 +576,7 @@ export const useInputHandler = ({
                                 predictHarvestSound: barrelHarvestPredictSound(bvs),
                                 trigger: () => {
                                     triggerBarrelShakeOptimistic(barrel.id.toString());
+                                    recordPredictedCombatHit('barrels',barrel.id.toString());
                                 },
                             };
                         }
@@ -581,14 +586,14 @@ export const useInputHandler = ({
                     animalCorpsesRef.current?.forEach((corpse) => {
                         if (corpse.health === 0) return;
                         const { inCone, distSq } = isInAttackCone(px, py, dir, corpse.posX, corpse.posY, ANIMAL_CORPSE_COLLISION_Y_OFFSET, attackRange, attackAngle);
-                        if (inCone && (!best || distSq < best.d2)) best = { d2: distSq, trigger: () => triggerAnimalCorpseShakeOptimistic(corpse.id.toString()) };
+                        if (inCone && (!best || distSq < best.d2)) best = { d2: distSq, trigger: () => {triggerAnimalCorpseShakeOptimistic(corpse.id.toString());recordPredictedCombatHit('animalCorpses',corpse.id.toString());} };
                     });
                     // Player corpses - any weapon can hit
                     const PLAYER_CORPSE_COLLISION_Y_OFFSET = 10;
                     playerCorpsesRef.current?.forEach((corpse) => {
                         if (corpse.health === 0) return;
                         const { inCone, distSq } = isInAttackCone(px, py, dir, corpse.posX, corpse.posY, PLAYER_CORPSE_COLLISION_Y_OFFSET, attackRange, attackAngle);
-                        if (inCone && (!best || distSq < best.d2)) best = { d2: distSq, trigger: () => triggerPlayerCorpseShakeOptimistic(corpse.id.toString()) };
+                        if (inCone && (!best || distSq < best.d2)) best = { d2: distSq, trigger: () => {triggerPlayerCorpseShakeOptimistic(corpse.id.toString());recordPredictedCombatHit('playerCorpses',corpse.id.toString());} };
                     });
                     // Other players (PvP) - exclude local player
                     const PLAYER_COLLISION_Y_OFFSET = 0;
@@ -596,14 +601,14 @@ export const useInputHandler = ({
                         if (p.identity.toHexString() === localPlayerId) return;
                         if (p.isDead) return;
                         const { inCone, distSq } = isInAttackCone(px, py, dir, p.positionX, p.positionY, PLAYER_COLLISION_Y_OFFSET, attackRange, attackAngle);
-                        if (inCone && (!best || distSq < best.d2)) best = { d2: distSq, trigger: () => triggerPlayerShakeOptimistic(p.identity.toHexString()) };
+                        if (inCone && (!best || distSq < best.d2)) best = { d2: distSq, trigger: () => {const id=p.identity.toHexString();triggerPlayerShakeOptimistic(id);recordPredictedCombatHit('players',id);} };
                     });
                     // Wild animals
                     const WILD_ANIMAL_COLLISION_Y_OFFSET = 40;
                     wildAnimalsRef.current?.forEach((animal) => {
                         if (animal.health === 0) return;
                         const { inCone, distSq } = isInAttackCone(px, py, dir, animal.posX, animal.posY, WILD_ANIMAL_COLLISION_Y_OFFSET, attackRange, attackAngle);
-                        if (inCone && (!best || distSq < best.d2)) best = { d2: distSq, trigger: () => triggerAnimalShakeOptimistic(animal.id.toString()) };
+                        if (inCone && (!best || distSq < best.d2)) best = { d2: distSq, trigger: () => {const id=animal.id.toString();triggerAnimalShakeOptimistic(id);recordPredictedCombatHit('wildAnimals',id);} };
                     });
                     // forEach mutations aren't tracked — `best` stays `null` in control flow; cast for use below.
                     const harvestPick = best as OptimisticHarvestPick | null;

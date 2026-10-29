@@ -2,6 +2,7 @@ import { gameConfig } from '../../config/gameConfig';
 import { detectHotSprings } from '../../utils/hotSpringDetector';
 import { detectQuarries } from '../../utils/quarryDetector';
 import { isOceanTileTag, isWaterTileTag } from '../../utils/tileTypeGuards';
+import { ShoreAmbienceRuntime } from './shoreAmbience';
 
 const EMPTY_MAP = new Map<string, unknown>();
 const WORLD_TILE_RENDER_BUFFER_TILES = 4;
@@ -33,6 +34,7 @@ export interface WorldLookupRuntimeSnapshot {
   detectedHotSprings: ReturnType<typeof detectHotSprings>;
   detectedQuarries: ReturnType<typeof detectQuarries>;
   distanceToShore: number;
+  shoreAmbienceGain: number;
   distanceToMapEdge: number;
 }
 
@@ -64,8 +66,7 @@ function getWorldChunkSize(worldChunkDataMap: Map<string, WorldChunkData> | unde
 }
 
 export class WorldLookupRuntime {
-  private lastShoreCheckPos = { x: 0, y: 0 };
-  private cachedDistanceToShore = 9999;
+  private readonly shoreAmbience = new ShoreAmbienceRuntime();
 
   update({
     worldChunkDataMap,
@@ -100,18 +101,13 @@ export class WorldLookupRuntime {
       seaTransitionTileLookup,
       detectedHotSprings: detectHotSprings((worldChunkDataMap ?? EMPTY_MAP) as Map<string, never>),
       detectedQuarries: detectQuarries((worldChunkDataMap ?? EMPTY_MAP) as Map<string, never>),
-      distanceToShore: this.getDistanceToShore({
-        localPlayer,
-        waterTileLookup,
-        tileSize,
-      }),
+      ...this.shoreAmbience.update(worldChunkDataMap, localPlayer, tileSize),
       distanceToMapEdge: this.getDistanceToMapEdge(localPlayer),
     };
   }
 
   stop(): void {
-    this.lastShoreCheckPos = { x: 0, y: 0 };
-    this.cachedDistanceToShore = 9999;
+    this.shoreAmbience.stop();
   }
 
   private buildVisibleWorldTiles({
@@ -207,54 +203,6 @@ export class WorldLookupRuntime {
     });
 
     return lookup;
-  }
-
-  private getDistanceToShore({
-    localPlayer,
-    waterTileLookup,
-    tileSize,
-  }: {
-    localPlayer: WorldLookupPlayer | null | undefined;
-    waterTileLookup: Map<string, boolean>;
-    tileSize: number;
-  }): number {
-    if (!localPlayer || waterTileLookup.size === 0) {
-      return 9999;
-    }
-
-    const playerX = localPlayer.positionX ?? 0;
-    const playerY = localPlayer.positionY ?? 0;
-    const dx = playerX - this.lastShoreCheckPos.x;
-    const dy = playerY - this.lastShoreCheckPos.y;
-    if (dx * dx + dy * dy < 96 * 96) {
-      return this.cachedDistanceToShore;
-    }
-
-    this.lastShoreCheckPos = { x: playerX, y: playerY };
-    const playerTileX = Math.floor(playerX / tileSize);
-    const playerTileY = Math.floor(playerY / tileSize);
-    const maxSearchRadius = 17;
-
-    for (let radius = 0; radius <= maxSearchRadius; radius++) {
-      for (let offsetX = -radius; offsetX <= radius; offsetX++) {
-        for (let offsetY = -radius; offsetY <= radius; offsetY++) {
-          if (Math.abs(offsetX) !== radius && Math.abs(offsetY) !== radius) continue;
-          const tileKey = `${playerTileX + offsetX},${playerTileY + offsetY}`;
-          if (waterTileLookup.get(tileKey)) {
-            const tileWorldX = (playerTileX + offsetX) * tileSize + tileSize / 2;
-            const tileWorldY = (playerTileY + offsetY) * tileSize + tileSize / 2;
-            const distX = playerX - tileWorldX;
-            const distY = playerY - tileWorldY;
-            const distance = Math.sqrt(distX * distX + distY * distY);
-            this.cachedDistanceToShore = distance;
-            return distance;
-          }
-        }
-      }
-    }
-
-    this.cachedDistanceToShore = 9999;
-    return 9999;
   }
 
   private getDistanceToMapEdge(localPlayer: WorldLookupPlayer | null | undefined): number {

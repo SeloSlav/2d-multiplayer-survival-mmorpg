@@ -1,11 +1,11 @@
 import { Group, Mesh, Vector3 } from 'three/webgpu';
-import { ModelKit, COLORS as C } from './modelKit';
+import { ModelKit } from './modelKit';
 import { profileAcrossWidth } from './architecturePrimitives';
 import { SHELTER_DIMS } from '../../../config/entityGroundGeometry';
 import { WORLD_3D, seededRandom } from './visualContract';
 import { groundPosition, insideShelter } from './groundAnchor';
 import type { PresentationEntity as Row } from './presentationEntity';
-import { CutawayEnvelope } from './CutawayEnvelope';
+import { createShelterRim } from './shelterCutaway';
 
 export const SHELTER_PROFILES = [
   {name:'woodland',wood:0x795737,trim:0xa07a4c,cover:0x56743a,leaves:[0x78974b,0x526b34,0x94a65c],snow:0},
@@ -24,10 +24,10 @@ export function createBrushShelter(kit:ModelKit,variant:number):Group {
   profileAcrossWidth(kit,roof,p.cover,[...upper,...lower.reverse()],(W+OVERHANG)*2);
   // Bent log ribs, twig lattice and lashed posts retain a usable interior.
   for(let i=0;i<=12;i++){
-    const x=-W+W*2*i/12,door=Math.abs(x)<.6;
-    const points=[new Vector3(x,door?1.8:.04,D+.15),new Vector3(x*.84,1.25,D*.79),new Vector3(x*.7+.05,2.55,0),new Vector3(x*.85-.09,1.3,-D*.79),new Vector3(x+.04,.04,-D-.15)];
+    const x=-W+W*2*i/12;
+    const points=[new Vector3(x,.04,D+.15),new Vector3(x*.84,1.25,D*.79),new Vector3(x*.7+.05,2.55,0),new Vector3(x*.85-.09,1.3,-D*.79),new Vector3(x+.04,.04,-D-.15)];
     kit.branch(shell,i%3?p.wood:p.trim,points,[.22,.2,.13,.2,.23],7);
-    if(!door)for(const side of [-1,1]){
+    for(const side of [-1,1]){
       const foot=V3(x+(random()-.5)*.2,.04,side*(D+.13));
       const fork=V3(x*.76+(i%2?.14:-.14),1.55,side*D*.7);
       kit.branch(shell,i%2?p.wood:p.trim,[foot,V3(x*.9,.7,side*D*.9),fork],[.15,.13,.09],6);
@@ -38,16 +38,12 @@ export function createBrushShelter(kit:ModelKit,variant:number):Group {
   }
   for(const side of [-1,1])for(let level=0;level<4;level++){
     const y=.22+level*.32,z=side*(D-.1-level*.09);
-    if(side<0)kit.beam(shell,p.wood,new Vector3(-W,y,z),new Vector3(W,y+.025,z),.045);
-    else for(const sign of [-1,1])kit.beam(shell,p.trim,new Vector3(sign*.65,y,z),new Vector3(sign*W,y+.025,z),.045);
+    kit.beam(shell,side<0?p.wood:p.trim,new Vector3(-W,y,z),new Vector3(W,y+.025,z),.045);
   }
   for(const sign of [-1,1]){
-    kit.beam(shell,p.wood,new Vector3(sign*.62,0,D+.04),new Vector3(sign*.63,1.85,D*.78),.12);
-    for(let j=0;j<3;j++)kit.part(shell,'cylinder',C.leather,[.26,.035,.26],[sign*.63,1.55+j*.055,D*.8]);
     // Close the end walls with interwoven branches rather than a canvas panel.
     for(let j=0;j<8;j++)kit.beam(shell,j%2?p.wood:p.trim,new Vector3(sign*W,.06,-D+j*D/4),new Vector3(sign*(W-.17),1.4,-D+(j+.7)*D/4),.09);
   }
-  kit.beam(shell,p.trim,new Vector3(-.67,1.85,D*.78),new Vector3(.67,1.85,D*.78),.1);
   for(let x=-W;x<=W;x+=.45)for(let z=-depth+.13;z<depth;z+=.42){
     const jitterX=x+(random()-.5)*.32,jitterZ=z+(random()-.5)*.22;
     const y=height(jitterZ)+.06,shade=p.leaves[Math.floor(random()*3)];
@@ -72,7 +68,9 @@ export function createBrushShelter(kit:ModelKit,variant:number):Group {
   }
   const frame=kit.compileColored(kit.compile(shell));frame.name='shelter-frame';
   const canopy=kit.compileColored(kit.compile(roof));canopy.name='shelter-roof';
-  const envelope=new Group();envelope.name='shelter-shell';envelope.add(frame,canopy);root.add(envelope);
+  const opaque=new Group();opaque.name='shelter-opaque';opaque.add(frame,canopy);
+  const rim=createShelterRim(kit,opaque);
+  const envelope=new Group();envelope.name='shelter-shell';envelope.add(opaque,rim);root.add(envelope);
   const border=new Group();border.name='shelter-protected-border';
   for(const sign of [-1,1]){
     kit.part(border,'box',0x60462e,[W*2,.018,.06],[0,.018,sign*D]);
@@ -92,19 +90,20 @@ export function shelterOwnerInside(row:Row,viewerId:string|undefined,position:{x
 export class ShelterRig {
   readonly root:Group;
   private readonly shell:Group;
+  private readonly opaque:Group;
+  private readonly rim:Group;
   private readonly border:Group;
-  private readonly cutaway:CutawayEnvelope;
   private inside=false;
-  constructor(private kit:ModelKit,variant:number,prototype?:Group){
+  constructor(kit:ModelKit,variant:number,prototype?:Group){
     this.root=prototype?prototype.clone(true):createBrushShelter(kit,variant);
     this.shell=this.root.getObjectByName('shelter-shell') as Group;this.border=this.root.getObjectByName('shelter-protected-border') as Group;
-    this.cutaway=new CutawayEnvelope(kit,this.shell,.3);
+    this.opaque=this.root.getObjectByName('shelter-opaque') as Group;this.rim=this.root.getObjectByName('shelter-rim') as Group;
   }
   update(ownerInside:boolean,nowMs=0,lastHitMs=0):void {
     const age=nowMs-lastHitMs,strength=lastHitMs>0&&age>=0&&age<180?(1-age/180)**2:0;
     this.shell.position.x=strength?Math.sin(age*.09)*.125*strength:0;this.shell.position.z=strength?Math.cos(age*.11)*.06*strength:0;
     if(this.inside===ownerInside)return;this.inside=ownerInside;
-    this.cutaway.set(ownerInside);
+    this.opaque.visible=!ownerInside;this.rim.visible=ownerInside;
     this.border.visible=ownerInside;this.root.userData.ownerInside=ownerInside;
   }
 }
