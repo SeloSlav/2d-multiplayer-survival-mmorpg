@@ -6,7 +6,7 @@ import { isSeedItemValid, requiresWaterPlacement, requiresBeachPlacement, requir
 import { HEARTH_HEIGHT, HEARTH_RENDER_Y_OFFSET } from '../utils/renderers/hearthRenderingUtils'; // For Matron's Chest placement adjustment
 import { playImmediateSound } from './useSoundSystem';
 import { getPlacementConfig, snapToPlacementGrid, shouldUseGridSnapping } from '../config/placeablePlacementConfig';
-import { checkPlacementOverlap } from '../utils/renderers/placementRenderingUtils';
+import { checkPlacementOverlap } from '../engine/placement/placementValidation';
 import { getMonumentRestrictionRadiusForType } from '../utils/renderers/buildingRestrictionRulesUtils';
 import { isWaterTileTag } from '../utils/tileTypeGuards';
 import { getAdjacentDoorEdge, getDoorEdgeForCursor, getDoorEdgePosition, isDoorEdgeOnFoundation } from '../utils/doorPlacementGeometry';

@@ -3,6 +3,8 @@
  * Record → Stop → Copy to clipboard. Samples are stored in memory (capped).
  */
 
+import { buildWebGpuSummary, resetWebGpuRecording } from '../engine/presentation/world3d/world3dProfiler';
+
 export interface ProfilerSample {
   frameTime: number;
   entityCount: number;
@@ -82,6 +84,7 @@ const cameraSamples: CameraProfilerSample[] = [];
 let isRecording = false;
 
 export function startRecording(): void {
+  resetWebGpuRecording();
   samples.length = 0;
   cameraSamples.length = 0;
   isRecording = true;
@@ -196,7 +199,7 @@ export function copyToClipboard(): Promise<boolean> {
       ].join('\n');
 
   const cameraSummary = buildCameraSummary();
-  const summary = cameraSummary ? `${fpsSummary}\n\n${cameraSummary}` : fpsSummary;
+  const summary = [fpsSummary, cameraSummary, buildWebGpuSummary()].filter(Boolean).join('\n\n');
 
   return navigator.clipboard.writeText(summary).then(() => true).catch(() => false);
 }

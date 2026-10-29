@@ -58,6 +58,7 @@ export function useGameCanvasSceneRuntime({
   });
 
   const {
+    fallingTrees,
     isTreeFalling,
     getFallProgress,
     TREE_FALL_DURATION_MS,
@@ -151,6 +152,7 @@ export function useGameCanvasSceneRuntime({
     worldLookups,
     frameAssembly,
     treeAnimation: {
+      fallingTrees,
       isTreeFalling,
       getFallProgress,
       TREE_FALL_DURATION_MS,

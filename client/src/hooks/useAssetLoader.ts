@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { itemIcons } from '../utils/itemIconUtils';
+import { isWebGpuWorldEnabled } from '../engine/presentation/world3d/rendererRollout';
 
 // Import asset paths
 import heroSpriteSheet from '../assets/hero_walk.png';
@@ -38,7 +39,7 @@ interface AssetLoaderResult {
   isLoadingAssets: boolean;
 }
 
-export function useAssetLoader(): AssetLoaderResult {
+export function useAssetLoader(worldSprites = !isWebGpuWorldEnabled()): AssetLoaderResult {
   const [isLoadingAssets, setIsLoadingAssets] = useState<boolean>(true);
 
   // Refs for the loaded images
@@ -58,7 +59,7 @@ export function useAssetLoader(): AssetLoaderResult {
   useEffect(() => {
     let disposed = false;
     let loadedCount = 0;
-    const totalStaticAssets = 6 + 5 + 1 + 1 + 2 + 1; // hero images (6) + clouds (5) + shelter (1) + campfire (1) + burlap/death (2) + drone (1) = 16 total
+    const totalStaticAssets = worldSprites ? 16 : 2;
 
     const itemIconEntries = Object.entries(itemIcons).filter(([, iconPath]) => iconPath);
 
@@ -136,6 +137,12 @@ export function useAssetLoader(): AssetLoaderResult {
       window.setTimeout(loadNextBatch, 0);
     };
 
+    // UI item icons remain available without loading world sprites.
+    loadImage(burlapSackUrl, burlapSackImageRef, itemImagesRef, 'burlap_sack.png');
+    loadImage(deathMarkerUrl, undefined, itemImagesRef, 'death_marker.png');
+    warmItemIconsInBackground();
+    if (!worldSprites) return () => { disposed = true; };
+
     // --- Load Static Images --- 
     loadImage(heroSpriteSheet, heroImageRef);
     loadImage(heroSprintSpriteSheet, heroSprintImageRef);
@@ -144,8 +151,6 @@ export function useAssetLoader(): AssetLoaderResult {
     loadImage(heroCrouchSpriteSheet, heroCrouchImageRef);
     loadImage(heroDodgeSpriteSheet, heroDodgeImageRef);
     loadImage(campfireSprite, campfireImageRef);
-    loadImage(burlapSackUrl, burlapSackImageRef, itemImagesRef, 'burlap_sack.png');
-    loadImage(deathMarkerUrl, undefined, itemImagesRef, 'death_marker.png');
 
     // Load Cloud Images
     loadImage(cloud1Texture, undefined, cloudImagesRef, 'cloud1.png');
@@ -172,12 +177,11 @@ export function useAssetLoader(): AssetLoaderResult {
     shelterImg.decoding = 'async';
     shelterImg.src = shelterSpritePath;
 
-    warmItemIconsInBackground();
 
     return () => {
       disposed = true;
     };
-  }, []); // Runs once on mount
+  }, [worldSprites]);
 
   // Return the refs and loading state
   return {
@@ -195,4 +199,4 @@ export function useAssetLoader(): AssetLoaderResult {
     shelterImageRef,
     isLoadingAssets,
   };
-} 
+}

@@ -6,7 +6,7 @@ import {
   worldPixelsToFoundationCell,
 } from '../../config/gameConfig';
 import { playImmediateSound } from '../../hooks/useSoundSystem';
-import { getTileTypeFromChunkData } from '../../utils/renderers/placementRenderingUtils';
+import { getTileTypeFromChunkData } from '../placement/placementValidation';
 import { isWaterTileTag } from '../../utils/tileTypeGuards';
 
 export enum BuildingMode {

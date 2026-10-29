@@ -1,0 +1,2078 @@
+import type { PlacementItemInfo } from '../../hooks/usePlacementManager';
+import type { BuildingPlacementState } from '../runtime/buildingPlacementRuntime';
+import type { DbConnection } from '../../generated';
+import { FOUNDATION_TILE_SIZE, worldPixelsToFoundationCell, foundationCellToWorldCenter } from '../../config/gameConfig';
+import { getPlacementConfig, snapToPlacementGrid, shouldUseGridSnapping, getPlacementSquareBounds, getBoxTypePlacementConfig, type PlaceablePlacementConfig } from '../../config/placeablePlacementConfig';
+import { isSeedItemValid, requiresWaterPlacement, requiresBeachPlacement, requiresAlpinePlacement, requiresTundraPlacement, isPineconeBlockedOnBeach, isBirchCatkinBlockedOnAlpine, requiresTemperateOnlyPlacement } from '../../utils/plantsUtils';
+import { isWaterTileTag } from '../../utils/tileTypeGuards';
+import { getMonumentRestrictionRadiusForType } from '../../utils/renderers/buildingRestrictionRulesUtils';
+import { getAdjacentDoorEdge, getDoorEdgeForCursor, getDoorEdgePosition, isDoorEdgeOnFoundation } from '../../utils/doorPlacementGeometry';
+
+const PLAYER_BOX_INTERACTION_DISTANCE_SQUARED = 80 * 80;
+const SHELTER_PLACEMENT_MAX_DISTANCE = 256;
+
+interface ResourceInventoryRow { itemDefId: bigint; quantity: number }
+interface ResourceDefinitionRow { id: bigint; name: string }
+
+export interface PlacementEvaluationInput {
+  placementInfo: PlacementItemInfo | null;
+  buildingState: BuildingPlacementState | null;
+  worldMouseX: number | null;
+  worldMouseY: number | null;
+  isPlacementTooFar: boolean;
+  placementError: string | null;
+  connection: DbConnection | null;
+  localPlayerX: number;
+  localPlayerY: number;
+  inventoryItems?: Map<string, ResourceInventoryRow>;
+  itemDefinitions?: Map<string, ResourceDefinitionRow>;
+}
+
+export interface PlacementPreviewPlan {
+  kind: 'foundation' | 'wall' | 'fence' | 'item';
+  x: number; y: number;
+  cellX: number; cellY: number;
+  shape: number; tier: number; edge: number;
+  valid: boolean; clearError: boolean; warning: string | null;
+  item?: PlacementItemInfo;
+  grid?: PlaceablePlacementConfig | null;
+  isSeedPlacement?: boolean;
+  heatSourceType?: 'campfire' | 'fumarole' | null;
+}
+
+/**
+ * Converts world pixel coordinates to tile coordinates
+ */
+export function worldPosToTileCoords(worldX: number, worldY: number): { tileX: number; tileY: number } {
+    const TILE_SIZE = 48; // pixels per tile (matches server TILE_SIZE_PX and GameCanvas.tsx)
+    const tileX = Math.floor(worldX / TILE_SIZE);
+    const tileY = Math.floor(worldY / TILE_SIZE);
+    return { tileX, tileY };
+}
+
+/** World position to tile key string (e.g. for water/shadow lookups). */
+export function worldPosToTileKey(worldX: number, worldY: number): string {
+    const { tileX, tileY } = worldPosToTileCoords(worldX, worldY);
+    return `${tileX},${tileY}`;
+}
+
+// PERFORMANCE FIX: Cache for chunk data lookups to avoid O(n) iteration on every tile check
+// This dramatically improves building placement preview performance
+const chunkCache: Map<string, { chunkSize: number; tileTypes: Uint8Array }> = new Map();
+let cachedChunkSize = 8; // Default chunk size, updated when first chunk is seen
+let lastConnectionIdentity: string | null = null; // Track connection changes to invalidate cache
+let lastChunkCacheConnection: DbConnection | null = null;
+let lastChunkRefreshMs = 0;
+
+// PERFORMANCE FIX: Spatial index for foundations - O(1) cell lookup instead of O(n) iteration
+// Key: "cellX,cellY", Value: array of foundations at that cell
+const foundationSpatialIndex: Map<string, Array<{ shape: number; isDestroyed: boolean }>> = new Map();
+let foundationIndexVersion = 0;
+let lastFoundationCount = 0;
+
+// PERFORMANCE FIX: Spatial hash for grass - quick area checks
+// Key: "tileX,tileY" (at 96px granularity, same as foundation cells)
+const grassSpatialHash: Map<string, boolean> = new Map();
+let grassHashVersion = 0;
+let lastGrassCount = 0;
+
+// PERFORMANCE: Seed occupancy index (rebuilt at a short interval).
+const plantedSeedTileIndex: Set<string> = new Set();
+let lastSeedIndexRefreshMs = 0;
+const SEED_INDEX_REFRESH_MS = 250;
+
+// PERFORMANCE: Cache monument-zone validation per tile for preview path.
+const monumentZoneTileCache: Map<string, { blocked: boolean; timestamp: number }> = new Map();
+let monumentZoneCacheConnection: DbConnection | null = null;
+const MONUMENT_ZONE_CACHE_TTL_MS = 120;
+
+/**
+ * Rebuilds foundation spatial index for O(1) cell lookups
+ */
+function rebuildFoundationIndex(connection: DbConnection): void {
+    foundationSpatialIndex.clear();
+    let count = 0;
+    for (const foundation of connection.db.foundation_cell.iter()) {
+        count++;
+        const key = `${foundation.cellX},${foundation.cellY}`;
+        let arr = foundationSpatialIndex.get(key);
+        if (!arr) {
+            arr = [];
+            foundationSpatialIndex.set(key, arr);
+        }
+        arr.push({ shape: foundation.shape as number, isDestroyed: foundation.isDestroyed });
+    }
+    lastFoundationCount = count;
+    foundationIndexVersion++;
+}
+
+/**
+ * Rebuilds grass spatial hash for quick area checks
+ */
+function rebuildGrassSpatialHash(connection: DbConnection): void {
+    grassSpatialHash.clear();
+    let count = 0;
+    const FOUNDATION_SIZE = 96;
+    // With split tables: grass (static pos) + grassState (is_alive)
+    for (const grass of connection.db.grass.iter()) {
+        count++;
+        // Look up is_alive from grassState table
+        const grassState = connection.db.grass_state.grassId.find(grass.id);
+        const isAlive = grassState?.isAlive ?? false;
+        if (isAlive) {
+            // Hash to foundation cell coordinates
+            const cellX = Math.floor(grass.posX / FOUNDATION_SIZE);
+            const cellY = Math.floor(grass.posY / FOUNDATION_SIZE);
+            // Also add to adjacent cells for edge cases
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    grassSpatialHash.set(`${cellX + dx},${cellY + dy}`, true);
+                }
+            }
+        }
+    }
+    lastGrassCount = count;
+    grassHashVersion++;
+}
+
+/**
+ * Rebuild tile occupancy index for planted seeds.
+ * This replaces per-frame full iteration for one-seed-per-tile preview checks.
+ */
+function rebuildPlantedSeedTileIndex(connection: DbConnection): void {
+    plantedSeedTileIndex.clear();
+    const TILE_SIZE_LOCAL = 48;
+    for (const seed of connection.db.planted_seed.iter()) {
+        const tileX = Math.floor(seed.posX / TILE_SIZE_LOCAL);
+        const tileY = Math.floor(seed.posY / TILE_SIZE_LOCAL);
+        plantedSeedTileIndex.add(`${tileX},${tileY}`);
+    }
+    lastSeedIndexRefreshMs = Date.now();
+}
+
+/**
+ * Rebuilds the chunk cache from the database
+ * Called when connection changes or cache needs refreshing
+ */
+function rebuildChunkCache(connection: DbConnection): void {
+    chunkCache.clear();
+    
+    for (const chunk of connection.db.world_chunk_data.iter()) {
+        if (chunk.chunkSize && cachedChunkSize !== chunk.chunkSize) {
+            cachedChunkSize = chunk.chunkSize;
+        }
+        const key = `${chunk.chunkX},${chunk.chunkY}`;
+        chunkCache.set(key, {
+            chunkSize: chunk.chunkSize || 8,
+            tileTypes: chunk.tileTypes
+        });
+    }
+}
+
+/**
+ * Gets tile type from compressed chunk data (matching GameCanvas.tsx logic)
+ * Returns tile type tag string or null if not found
+ * 
+ * PERFORMANCE FIX: Now uses cached chunk lookup instead of iterating all chunks
+ * This reduces tile lookup from O(n_chunks) to O(1) per tile
+ */
+export function getTileTypeFromChunkData(connection: DbConnection | null, tileX: number, tileY: number): string | null {
+    if (!connection) return null;
+    
+    // PERFORMANCE FIX: Check if we need to rebuild the cache (connection changed)
+    const currentIdentity = connection.identity?.toHexString() || 'unknown';
+    if (lastChunkCacheConnection !== connection || lastConnectionIdentity !== currentIdentity) {
+        lastChunkCacheConnection = connection;
+        lastConnectionIdentity = currentIdentity;
+        rebuildChunkCache(connection);
+        lastChunkRefreshMs = Date.now();
+    }
+    
+    // Calculate which chunk this tile belongs to
+    const chunkX = Math.floor(tileX / cachedChunkSize);
+    const chunkY = Math.floor(tileY / cachedChunkSize);
+    
+    // PERFORMANCE FIX: O(1) lookup instead of O(n) iteration
+    const chunkKey = `${chunkX},${chunkY}`;
+    let cachedChunk = chunkCache.get(chunkKey);
+    if (!cachedChunk && Date.now() - lastChunkRefreshMs > 500) {
+        // Spatial subscriptions can deliver a chunk after the first cache build.
+        rebuildChunkCache(connection);
+        lastChunkRefreshMs = Date.now();
+        cachedChunk = chunkCache.get(chunkKey);
+    }
+    
+    if (!cachedChunk) {
+        return null; // Chunk not in cache
+    }
+    
+    // Calculate local tile position within the chunk
+    const localX = tileX % cachedChunkSize;
+    const localY = tileY % cachedChunkSize;
+    
+    // Handle negative mod (for negative tile coordinates)
+    const localTileX = localX < 0 ? localX + cachedChunkSize : localX;
+    const localTileY = localY < 0 ? localY + cachedChunkSize : localY;
+    
+    const tileIndex = localTileY * cachedChunk.chunkSize + localTileX;
+    
+    // Check bounds and extract tile type
+    if (tileIndex >= 0 && tileIndex < cachedChunk.tileTypes.length) {
+        const tileTypeU8 = cachedChunk.tileTypes[tileIndex];
+        // Convert Uint8 to tile type tag (matching server-side enum in lib.rs TileType::to_u8)
+        switch (tileTypeU8) {
+            case 0: return 'Grass';
+            case 1: return 'Dirt';
+            case 2: return 'DirtRoad';
+            case 3: return 'Sea';
+            case 4: return 'Beach';
+            case 5: return 'Sand';
+            case 6: return 'HotSpringWater'; // Hot spring water pools
+            case 7: return 'Quarry'; // Quarry tiles (rocky gray-brown)
+            case 8: return 'Asphalt'; // Paved compound areas
+            case 9: return 'Forest'; // Dense forested areas
+            case 10: return 'Tundra'; // Arctic tundra (northern regions)
+            case 11: return 'Alpine'; // High-altitude rocky terrain
+            case 12: return 'TundraGrass'; // Grassy patches in tundra biome
+            case 13: return 'Tilled'; // Tilled soil for farming (uses Dirt graphics)
+            case 14: return 'DeepSea'; // Outer ring - empty deep ocean
+            default: return 'Grass';
+        }
+    }
+    return null;
+}
+
+/**
+ * Call this to invalidate the chunk cache (e.g., when chunks are updated)
+ */
+export function invalidateChunkCache(): void {
+    chunkCache.clear();
+    lastChunkRefreshMs = 0;
+}
+
+/**
+ * Checks if a world position is on a water tile.
+ * Uses compressed chunk data for efficient lookup.
+ * Returns true if the position is on water.
+ */
+function isPositionOnWater(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) {
+        return false; // If no connection, allow placement (fallback)
+    }
+
+    const { tileX, tileY } = worldPosToTileCoords(worldX, worldY);
+    
+    // Use compressed chunk data lookup
+    const tileType = getTileTypeFromChunkData(connection, tileX, tileY);
+    return isWaterTileTag(tileType);
+}
+
+/**
+ * Checks if a world position is on a beach tile (Beach type).
+ * Uses compressed chunk data for efficient lookup.
+ * Returns true if the position is on a beach.
+ */
+function isPositionOnBeach(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) {
+        return false; // If no connection, allow placement (fallback)
+    }
+
+    const { tileX, tileY } = worldPosToTileCoords(worldX, worldY);
+    
+    // Use compressed chunk data lookup
+    const tileType = getTileTypeFromChunkData(connection, tileX, tileY);
+    return tileType === 'Beach';
+}
+
+/**
+ * Check if a position is on alpine tiles (for alpine-restricted plants)
+ */
+function isPositionOnAlpine(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) {
+        return false;
+    }
+
+    const { tileX, tileY } = worldPosToTileCoords(worldX, worldY);
+    const tileType = getTileTypeFromChunkData(connection, tileX, tileY);
+    return tileType === 'Alpine';
+}
+
+/**
+ * Check if a position is on tundra tiles (for tundra-restricted plants)
+ * Includes both Tundra and TundraGrass tile types
+ */
+function isPositionOnTundra(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) {
+        return false;
+    }
+
+    const { tileX, tileY } = worldPosToTileCoords(worldX, worldY);
+    const tileType = getTileTypeFromChunkData(connection, tileX, tileY);
+    return tileType === 'Tundra' || tileType === 'TundraGrass';
+}
+
+/**
+ * Check if a position is on shore (land tile adjacent to water)
+ * Returns true if the position is NOT on water AND has at least one adjacent water tile.
+ * Used for fish trap placement validation.
+ */
+function isPositionOnShore(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) {
+        return false;
+    }
+
+    // Must NOT be on water itself
+    if (isPositionOnWater(connection, worldX, worldY)) {
+        return false;
+    }
+    
+    const { tileX, tileY } = worldPosToTileCoords(worldX, worldY);
+    
+    // Check 8 adjacent tiles for water
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            
+            const checkTileX = tileX + dx;
+            const checkTileY = tileY + dy;
+            
+            // Get tile type from chunk data
+            const tileType = getTileTypeFromChunkData(connection, checkTileX, checkTileY);
+            if (isWaterTileTag(tileType)) {
+                return true; // Found adjacent water - this is a shore position
+            }
+        }
+    }
+    
+    return false; // No adjacent water tiles found
+}
+
+/**
+ * Check if a position is within a certain distance of shore (land adjacent to water)
+ * Used for fish trap placement which can be placed in water near shore.
+ * OPTIMIZED: Early exits when shore found, expands outward in rings.
+ */
+function isPositionNearShore(connection: DbConnection | null, worldX: number, worldY: number, maxDistancePx: number): boolean {
+    if (!connection) return false;
+    
+    // Fast path: Check if directly on shore
+    if (isPositionOnShore(connection, worldX, worldY)) {
+        return true;
+    }
+    
+    const TILE_SIZE_LOCAL = 48;
+    const { tileX: centerTileX, tileY: centerTileY } = worldPosToTileCoords(worldX, worldY);
+    const onWater = isPositionOnWater(connection, worldX, worldY);
+    
+    // Max search radius in tiles
+    const maxRadiusTiles = Math.ceil(maxDistancePx / TILE_SIZE_LOCAL) + 1;
+    const maxDistSq = maxDistancePx * maxDistancePx;
+    
+    // Expand outward in rings - find nearest tile of opposite type (water/land boundary = shore)
+    for (let ring = 1; ring <= maxRadiusTiles; ring++) {
+        for (let i = -ring; i <= ring; i++) {
+            // Check 4 edges of the ring
+            const checks = [
+                { x: centerTileX + i, y: centerTileY - ring }, // Top edge
+                { x: centerTileX + i, y: centerTileY + ring }, // Bottom edge
+                { x: centerTileX - ring, y: centerTileY + i }, // Left edge
+                { x: centerTileX + ring, y: centerTileY + i }, // Right edge
+            ];
+            
+            for (const check of checks) {
+                const tileType = getTileTypeFromChunkData(connection, check.x, check.y);
+                if (tileType === null) continue;
+                
+                const tileIsWater = isWaterTileTag(tileType);
+                
+                // Found boundary (water/land transition) = shore nearby
+                if (tileIsWater !== onWater) {
+                    // Calculate distance to this tile
+                    const tileCenterX = (check.x + 0.5) * TILE_SIZE_LOCAL;
+                    const tileCenterY = (check.y + 0.5) * TILE_SIZE_LOCAL;
+                    const dx = worldX - tileCenterX;
+                    const dy = worldY - tileCenterY;
+                    const distSq = dx * dx + dy * dy;
+                    
+                    if (distSq <= maxDistSq) {
+                        return true; // Found shore within range
+                    }
+                }
+            }
+        }
+        
+        // Early exit if ring is beyond max distance
+        const minRingDist = (ring - 1) * TILE_SIZE_LOCAL;
+        if (minRingDist * minRingDist > maxDistSq) {
+            break;
+        }
+    }
+    
+    return false; // No shore found within range
+}
+
+/**
+ * Check if fish trap placement is blocked (not within 600px of shore)
+ * Fish traps can be placed in water within 600px of shore.
+ */
+function isFishTrapPlacementBlocked(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) return false;
+    
+    const FISH_TRAP_MAX_DISTANCE_FROM_SHORE = 600.0;
+    
+    // Fish traps can be placed within 600px of shore
+    if (!isPositionNearShore(connection, worldX, worldY, FISH_TRAP_MAX_DISTANCE_FROM_SHORE)) {
+        return true; // Block if not near shore
+    }
+    
+    return false; // Valid placement
+}
+
+/**
+ * Calculates the distance to the nearest shore (non-water tile) from a water position.
+ * Returns distance in pixels, or -1 if position is not on water.
+ */
+function calculateShoreDistance(connection: DbConnection | null, worldX: number, worldY: number): number {
+    if (!connection) return -1;
+    
+    const TILE_SIZE = 48; // pixels per tile (matches server TILE_SIZE_PX and GameCanvas.tsx)
+    const MAX_SEARCH_RADIUS_PIXELS = 200.0; // Matching server-side limit (20 meters = 200 pixels)
+    const MAX_SEARCH_RADIUS_TILES = Math.ceil(MAX_SEARCH_RADIUS_PIXELS / TILE_SIZE); // ~5 tiles
+    
+    const { tileX: centerTileX, tileY: centerTileY } = worldPosToTileCoords(worldX, worldY);
+    
+    // First verify we're on water
+    if (!isPositionOnWater(connection, worldX, worldY)) {
+        return -1; // Not on water
+    }
+    
+    // Search outward in concentric circles to find nearest non-water tile
+    // Limit search to MAX_SEARCH_RADIUS_TILES to match server-side 200 pixel limit
+    for (let radius = 1; radius <= MAX_SEARCH_RADIUS_TILES; radius++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                // Only check tiles on the perimeter of the current radius
+                if (Math.abs(dx) !== radius && Math.abs(dy) !== radius) continue;
+                
+                const checkTileX = centerTileX + dx;
+                const checkTileY = centerTileY + dy;
+                
+                // Find this tile using compressed chunk data
+                const checkTileType = getTileTypeFromChunkData(connection, checkTileX, checkTileY);
+                
+                // If this tile is not water, we found shore
+                if (!isWaterTileTag(checkTileType)) {
+                    const distancePixels = radius * TILE_SIZE;
+                    // Cap at MAX_SEARCH_RADIUS_PIXELS to match server behavior
+                    return Math.min(distancePixels, MAX_SEARCH_RADIUS_PIXELS);
+                }
+            }
+        }
+    }
+    
+    return MAX_SEARCH_RADIUS_PIXELS + 1; // Beyond max search radius
+}
+
+/**
+ * Checks if Reed Rhizome placement is valid (water within 20m of shore).
+ * Returns true if placement should be blocked.
+ */
+function isReedRhizomePlacementBlocked(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) return false;
+    
+    // Reed Rhizomes must be on water
+    if (!isPositionOnWater(connection, worldX, worldY)) {
+        return true; // Block if not on water
+    }
+    
+    // Reed Rhizomes must be within 50m (500 pixels) of shore - MATCHING SERVER-SIDE LIMIT
+    const shoreDistance = calculateShoreDistance(connection, worldX, worldY);
+    const MAX_SHORE_DISTANCE = 500.0; // 50 meters = 500 pixels (matching server-side constant)
+    
+    if (shoreDistance < 0 || shoreDistance > MAX_SHORE_DISTANCE) {
+        return true; // Block if too far from shore
+    }
+    
+    return false; // Valid placement
+}
+
+/**
+ * Checks if Seaweed Frond placement is valid (any water tile, no shore restriction).
+ * Returns true if placement should be blocked.
+ * No snorkeling required - just needs to be on water.
+ */
+function isSeaweedFrondPlacementBlocked(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) return false;
+    
+    // Seaweed Fronds must be on water (any water tile - no shore restriction, no snorkeling required)
+    if (!isPositionOnWater(connection, worldX, worldY)) {
+        return true; // Block if not on water
+    }
+    
+    return false; // Valid placement on water tile
+}
+
+/**
+ * Checks if Beach Lyme Grass Seeds placement is valid (beach tiles only).
+ * Returns true if placement should be blocked.
+ */
+function isBeachLymeGrassPlacementBlocked(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) return false;
+    
+    // Beach Lyme Grass Seeds must be on beach tiles
+    if (!isPositionOnBeach(connection, worldX, worldY)) {
+        return true; // Block if not on beach
+    }
+    
+    return false; // Valid placement
+}
+
+/**
+ * Checks if an alpine plant placement is blocked (not on alpine tiles)
+ * Used for: Arctic Poppy Seeds
+ */
+function isAlpinePlacementBlocked(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) return false;
+    
+    // Alpine plants must be on alpine tiles
+    if (!isPositionOnAlpine(connection, worldX, worldY)) {
+        return true; // Block if not on alpine
+    }
+    
+    return false; // Valid placement
+}
+
+/**
+ * Checks if a tundra plant placement is blocked (not on tundra tiles)
+ * Used for: Crowberry Seeds, Fireweed Seeds
+ */
+function isTundraPlacementBlocked(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) return false;
+    
+    // Tundra plants must be on tundra or tundra grass tiles
+    if (!isPositionOnTundra(connection, worldX, worldY)) {
+        return true; // Block if not on tundra
+    }
+    
+    return false; // Valid placement
+}
+
+/**
+ * Checks if a temperate-only plant placement is blocked (on beach, alpine, or tundra tiles)
+ * Used for: Crab Apple Seeds, Hazelnuts (fruit/nut trees that only grow in temperate climates)
+ */
+function isTemperatePlacementBlocked(connection: DbConnection | null, worldX: number, worldY: number): boolean {
+    if (!connection) return false;
+    
+    // Temperate-only plants cannot be on beach, alpine, or tundra tiles
+    const isBeach = isPositionOnBeach(connection, worldX, worldY);
+    const isAlpine = isPositionOnAlpine(connection, worldX, worldY);
+    const isTundra = isPositionOnTundra(connection, worldX, worldY);
+    
+    if (isBeach || isAlpine || isTundra) {
+        return true; // Block if on non-temperate tiles
+    }
+    
+    return false; // Valid placement on temperate tiles (grass/forest)
+}
+
+/**
+ * Checks if placement should be blocked due to water tiles or terrain restrictions.
+ * This applies to shelters, camp fires, lanterns, stashes, wooden storage boxes, sleeping bags, and most seeds.
+ * Reed Rhizomes have special handling and require water near shore.
+ * Seaweed Fronds have special handling and require water (no shore restriction).
+ * Beach Lyme Grass Seeds and Scurvy Grass Seeds have special handling and require beach tiles.
+ * Pinecone (conifer tree seed) cannot be planted on beach tiles.
+ * Birch Catkin (deciduous tree seed) cannot be planted on alpine tiles.
+ */
+function isWaterPlacementBlocked(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
+    if (!connection || !placementInfo) {
+        return false;
+    }
+
+    const itemNameLower = placementInfo.itemName.toLowerCase().trim();
+
+    // Special case: Seaweed Frond - must be on water (no shore restriction, no snorkeling required)
+    // Match both "seaweed" and "frond" to handle "Seaweed Frond" item
+    const isSeaweedItem = itemNameLower.includes('seaweed') || itemNameLower.includes('frond');
+    
+    if (isSeaweedItem) {
+        return isSeaweedFrondPlacementBlocked(connection, worldX, worldY);
+    }
+
+    // Special case: Reed Rhizome - must be on water NEAR shore
+    if (requiresWaterPlacement(placementInfo.itemName)) {
+        return isReedRhizomePlacementBlocked(connection, worldX, worldY);
+    }
+
+    // Special case: Seeds that require beach placement (like Beach Lyme Grass Seeds)
+    if (requiresBeachPlacement(placementInfo.itemName)) {
+        return isBeachLymeGrassPlacementBlocked(connection, worldX, worldY);
+    }
+
+    // Special case: Seeds that require alpine placement (Arctic Poppy Seeds)
+    if (requiresAlpinePlacement(placementInfo.itemName)) {
+        return isAlpinePlacementBlocked(connection, worldX, worldY);
+    }
+
+    // Special case: Seeds that require tundra placement (Crowberry Seeds, Fireweed Seeds)
+    if (requiresTundraPlacement(placementInfo.itemName)) {
+        return isTundraPlacementBlocked(connection, worldX, worldY);
+    }
+
+    // Special case: Pinecone (conifer tree seed) - cannot be planted on beach tiles
+    if (isPineconeBlockedOnBeach(placementInfo.itemName)) {
+        if (isPositionOnBeach(connection, worldX, worldY)) {
+            return true; // Block Pinecone on beach
+        }
+    }
+
+    // Special case: Birch Catkin (deciduous tree seed) - cannot be planted on alpine tiles
+    if (isBirchCatkinBlockedOnAlpine(placementInfo.itemName)) {
+        if (isPositionOnAlpine(connection, worldX, worldY)) {
+            return true; // Block Birch Catkin on alpine
+        }
+    }
+
+    // Special case: Crab Apple Seeds and Hazelnuts - temperate only (not beach, alpine, or tundra)
+    if (requiresTemperateOnlyPlacement(placementInfo.itemName)) {
+        if (isTemperatePlacementBlocked(connection, worldX, worldY)) {
+            return true; // Block fruit/nut tree seeds on non-temperate tiles
+        }
+    }
+
+    // Special case: Fish Trap - must be placed on shore (land adjacent to water)
+    if (placementInfo.itemName === 'Fish Trap') {
+        return isFishTrapPlacementBlocked(connection, worldX, worldY);
+    }
+
+    // List of items that cannot be placed on water
+    const waterBlockedItems = ['Camp Fire', 'Furnace', 'Large Furnace', 'Barbecue', 'Lantern', 'Ancestral Ward', 'Signal Disruptor', 'Memory Resonance Beacon', 'Tallow Steam Turret', 'Wooden Storage Box', 'Large Wooden Storage Box', 'Pantry', 'Compost', 'Tanning Rack', 'Scarecrow', 'Sleeping Bag', 'Stash', 'Shelter', 'Reed Rain Collector', 'Repair Bench', 'Cooking Station', "Babushka's Surprise", "Matriarch's Wrath", 'Wooden Beehive'];
+    
+    // Seeds that don't require water or beach (most seeds) cannot be planted on water
+    const isSeedButNotSpecialSeed = isSeedItemValid(placementInfo.itemName) && 
+                                     !requiresWaterPlacement(placementInfo.itemName) && 
+                                     !requiresBeachPlacement(placementInfo.itemName);
+    
+    if (waterBlockedItems.includes(placementInfo.itemName) || isSeedButNotSpecialSeed) {
+        return isPositionOnWater(connection, worldX, worldY);
+    }
+    
+    return false;
+}
+
+/**
+ * Checks if a seed placement is blocked because there's already a seed on this tile.
+ * Returns true if the placement should be blocked (one seed per tile rule).
+ */
+function isSeedPlacementOnOccupiedTile(connection: DbConnection | null, placementInfo: PlacementItemInfo | null, worldX: number, worldY: number): boolean {
+    if (!connection || !placementInfo) return false;
+    
+    // Only check for seed items
+    if (!isSeedItemValid(placementInfo.itemName)) return false;
+    
+    const TILE_SIZE = 48; // pixels per tile
+    const targetTileX = Math.floor(worldX / TILE_SIZE);
+    const targetTileY = Math.floor(worldY / TILE_SIZE);
+    
+    if (Date.now() - lastSeedIndexRefreshMs > SEED_INDEX_REFRESH_MS) {
+        rebuildPlantedSeedTileIndex(connection);
+    }
+
+    return plantedSeedTileIndex.has(`${targetTileX},${targetTileY}`);
+}
+
+// NOTE: Client-side storage box collision validation removed
+// Server handles all collision validation consistently for all placeable items (furnaces, beehives, etc.)
+// This ensures players can place items as close as the server's collision radii allow
+
+/**
+ * Checks if a world position is within a monument zone (ALK stations, rune stones, hot springs, quarries)
+ * Returns true if the position is blocked due to monument proximity
+ * This matches the server-side check_monument_zone_placement logic for consistent preview coloring
+ */
+function isPositionInMonumentZone(
+    connection: DbConnection | null,
+    worldX: number,
+    worldY: number
+): boolean {
+    if (!connection) return false;
+
+    if (monumentZoneCacheConnection !== connection) {
+        monumentZoneTileCache.clear();
+        monumentZoneCacheConnection = connection;
+    }
+
+    const TILE_SIZE_LOCAL = 48;
+    // The boundary can cross a tile. Cache the exact tested position, not a
+    // 48px tile shared by valid and invalid points.
+    const cacheKey = `${worldX},${worldY}`;
+    const cached = monumentZoneTileCache.get(cacheKey);
+    const now = Date.now();
+    if (monumentZoneTileCache.size > 512) monumentZoneTileCache.clear();
+    if (cached && (now - cached.timestamp) < MONUMENT_ZONE_CACHE_TTL_MS) {
+        return cached.blocked;
+    }
+    
+    const MONUMENT_RESTRICTION_RADIUS = 800.0; // For hot springs and rune stones
+    const MONUMENT_RESTRICTION_RADIUS_SQ = MONUMENT_RESTRICTION_RADIUS * MONUMENT_RESTRICTION_RADIUS;
+    const QUARRY_RESTRICTION_RADIUS = 400.0; // Smaller radius for quarries
+    const QUARRY_RESTRICTION_RADIUS_SQ = QUARRY_RESTRICTION_RADIUS * QUARRY_RESTRICTION_RADIUS;
+    
+    // Check ALK stations
+    const ALK_STATION_BUILDING_RESTRICTION_MULTIPLIER_CENTRAL = 8.75;
+    const ALK_STATION_BUILDING_RESTRICTION_MULTIPLIER_SUBSTATION = 3.0;
+    
+    for (const station of connection.db.alk_station.iter()) {
+        if (!station.isActive) continue;
+        const dx = worldX - station.worldPosX;
+        const dy = worldY - station.worldPosY;
+        const distSq = dx * dx + dy * dy;
+        
+        const multiplier = station.stationId === 0 
+            ? ALK_STATION_BUILDING_RESTRICTION_MULTIPLIER_CENTRAL 
+            : ALK_STATION_BUILDING_RESTRICTION_MULTIPLIER_SUBSTATION;
+        const restrictionRadius = station.interactionRadius * multiplier;
+        const restrictionRadiusSq = restrictionRadius * restrictionRadius;
+        
+        if (distSq <= restrictionRadiusSq) {
+            monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
+            return true; // Too close to ALK station
+        }
+    }
+    
+    // Check rune stones (800px radius)
+    for (const runeStone of connection.db.rune_stone.iter()) {
+        const dx = worldX - runeStone.posX;
+        const dy = worldY - runeStone.posY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq <= MONUMENT_RESTRICTION_RADIUS_SQ) {
+            monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
+            return true; // Too close to rune stone
+        }
+    }
+    
+    // Check hot springs and quarries using tile type lookup (different radii)
+    const checkRadiusTiles = Math.ceil(MONUMENT_RESTRICTION_RADIUS / TILE_SIZE_LOCAL) + 1;
+    const centerTileX = Math.floor(worldX / TILE_SIZE_LOCAL);
+    const centerTileY = Math.floor(worldY / TILE_SIZE_LOCAL);
+    
+    for (let dy = -checkRadiusTiles; dy <= checkRadiusTiles; dy++) {
+        for (let dx = -checkRadiusTiles; dx <= checkRadiusTiles; dx++) {
+            const checkTileX = centerTileX + dx;
+            const checkTileY = centerTileY + dy;
+            
+            const tileType = getTileTypeFromChunkData(connection, checkTileX, checkTileY);
+            if (tileType === 'HotSpringWater' || tileType === 'Quarry') {
+                const tileCenterX = checkTileX * TILE_SIZE_LOCAL + TILE_SIZE_LOCAL / 2;
+                const tileCenterY = checkTileY * TILE_SIZE_LOCAL + TILE_SIZE_LOCAL / 2;
+                const tdx = worldX - tileCenterX;
+                const tdy = worldY - tileCenterY;
+                const distSq = tdx * tdx + tdy * tdy;
+                // Use different radius for quarries vs hot springs
+                const restrictionRadiusSq = tileType === 'Quarry' ? QUARRY_RESTRICTION_RADIUS_SQ : MONUMENT_RESTRICTION_RADIUS_SQ;
+                if (distSq <= restrictionRadiusSq) {
+                    monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
+                    return true; // Too close to hot spring or quarry
+                }
+            }
+        }
+    }
+    
+    // Check monument parts (unified table for fishing village, shipwreck, whale bone graveyard, etc.)
+    // NOTE: MonumentType is a tagged union with a `tag` property (e.g., { tag: 'FishingVillage' })
+    // All monument restriction radii must match server/src/building.rs values
+    for (const part of connection.db.monument_part.iter()) {
+        // Only check against the center piece for the exclusion zone
+        if (part.isCenter) {
+            const dx = worldX - part.worldX;
+            const dy = worldY - part.worldY;
+            const distSq = dx * dx + dy * dy;
+            
+            const restrictionRadius = getMonumentRestrictionRadiusForType(part.monumentType?.tag);
+            if (restrictionRadius > 0 && distSq <= restrictionRadius * restrictionRadius) {
+                monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
+                return true; // Too close to monument
+            }
+        }
+    }
+
+    for (const marsh of connection.db.reed_marsh.iter()) {
+        const dx = worldX - marsh.worldX;
+        const dy = worldY - marsh.worldY;
+        if (dx * dx + dy * dy <= marsh.radiusPx * marsh.radiusPx) {
+            monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
+            return true;
+        }
+    }
+    for (const pool of connection.db.tide_pool.iter()) {
+        const dx = worldX - pool.worldX;
+        const dy = worldY - pool.worldY;
+        if (dx * dx + dy * dy <= pool.radiusPx * pool.radiusPx) {
+            monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
+            return true;
+        }
+    }
+    
+    // Check asphalt tiles (compound areas)
+    const tileAtX = Math.floor(worldX / TILE_SIZE_LOCAL);
+    const tileAtY = Math.floor(worldY / TILE_SIZE_LOCAL);
+    const tileTypeAtPosition = getTileTypeFromChunkData(connection, tileAtX, tileAtY);
+    if (tileTypeAtPosition === 'Asphalt') {
+        monumentZoneTileCache.set(cacheKey, { blocked: true, timestamp: now });
+        return true; // Cannot place on asphalt/compound areas
+    }
+
+    monumentZoneTileCache.set(cacheKey, { blocked: false, timestamp: now });
+    return false;
+}
+
+/**
+ * Checks if a world position is too close to any wall (with buffer zone)
+ * Used to prevent placing placeables on or near walls (client-side validation)
+ * Returns true if the position is within the buffer zone around a wall, false otherwise
+ */
+function isPositionOnWall(
+    connection: DbConnection | null,
+    worldX: number,
+    worldY: number
+): boolean {
+    if (!connection) return false;
+    
+    const WALL_COLLISION_THICKNESS = 6.0;
+    const PLACEMENT_BUFFER = 24.0; // Buffer zone around walls (prevents placing too close on either side)
+    const FOUNDATION_TILE_SIZE = 96;
+    
+    // Convert world position to foundation cell coordinates
+    const cellX = Math.floor(worldX / FOUNDATION_TILE_SIZE);
+    const cellY = Math.floor(worldY / FOUNDATION_TILE_SIZE);
+    
+    // Check walls in nearby cells (±1 cell in each direction to catch edge cases)
+    for (let offsetX = -1; offsetX <= 1; offsetX++) {
+        for (let offsetY = -1; offsetY <= 1; offsetY++) {
+            const checkCellX = cellX + offsetX;
+            const checkCellY = cellY + offsetY;
+            
+            // Iterate through all walls and check if they're on this cell
+            for (const wall of connection.db.wall_cell.iter()) {
+                if (wall.isDestroyed) continue;
+                
+                // Only check walls on the cell we're interested in
+                if (wall.cellX !== checkCellX || wall.cellY !== checkCellY) continue;
+                
+                // Calculate wall edge collision bounds using foundation cell coordinates
+                const tileLeft = checkCellX * FOUNDATION_TILE_SIZE;
+                const tileTop = checkCellY * FOUNDATION_TILE_SIZE;
+                const tileRight = tileLeft + FOUNDATION_TILE_SIZE;
+                const tileBottom = tileTop + FOUNDATION_TILE_SIZE;
+                
+                // Determine wall edge bounds with buffer zone on both sides
+                // Edge 0 = North (top), 1 = East (right), 2 = South (bottom), 3 = West (left)
+                // Buffer extends on both interior and exterior sides of the wall
+                let wallMinX: number, wallMaxX: number, wallMinY: number, wallMaxY: number;
+                
+                switch (wall.edge) {
+                    case 0: // North (top edge) - horizontal line
+                        // Buffer extends both north (exterior) and south (interior) of the wall
+                        wallMinX = tileLeft;
+                        wallMaxX = tileRight;
+                        wallMinY = tileTop - WALL_COLLISION_THICKNESS / 2.0 - PLACEMENT_BUFFER;
+                        wallMaxY = tileTop + WALL_COLLISION_THICKNESS / 2.0 + PLACEMENT_BUFFER;
+                        break;
+                    case 1: // East (right edge) - vertical line
+                        // Buffer extends both east (exterior) and west (interior) of the wall
+                        wallMinX = tileRight - WALL_COLLISION_THICKNESS / 2.0 - PLACEMENT_BUFFER;
+                        wallMaxX = tileRight + WALL_COLLISION_THICKNESS / 2.0 + PLACEMENT_BUFFER;
+                        wallMinY = tileTop;
+                        wallMaxY = tileBottom;
+                        break;
+                    case 2: // South (bottom edge) - horizontal line
+                        // Buffer extends both south (exterior) and north (interior) of the wall
+                        wallMinX = tileLeft;
+                        wallMaxX = tileRight;
+                        wallMinY = tileBottom - WALL_COLLISION_THICKNESS / 2.0 - PLACEMENT_BUFFER;
+                        wallMaxY = tileBottom + WALL_COLLISION_THICKNESS / 2.0 + PLACEMENT_BUFFER;
+                        break;
+                    case 3: // West (left edge) - vertical line
+                        // Buffer extends both west (exterior) and east (interior) of the wall
+                        wallMinX = tileLeft - WALL_COLLISION_THICKNESS / 2.0 - PLACEMENT_BUFFER;
+                        wallMaxX = tileLeft + WALL_COLLISION_THICKNESS / 2.0 + PLACEMENT_BUFFER;
+                        wallMinY = tileTop;
+                        wallMaxY = tileBottom;
+                        break;
+                    default:
+                        continue; // Skip invalid edges
+                }
+                
+                // Check if placement position is within wall collision bounds (including buffer)
+                if (worldX >= wallMinX && worldX <= wallMaxX &&
+                    worldY >= wallMinY && worldY <= wallMaxY) {
+                    return true;
+                }
+            }
+        }
+    }
+    
+    return false;
+}
+
+/** AABB overlap: rects overlap iff they intersect */
+function rectsOverlap(
+    a: { x: number; y: number; width: number; height: number },
+    b: { x: number; y: number; width: number; height: number }
+): boolean {
+    return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+/**
+ * Check if placing at (centerX, centerY) would overlap existing placeables.
+ * Returns overlap status and warning message. Only applies to grid-snapping placeables.
+ */
+export function checkPlacementOverlap(
+    connection: DbConnection | null,
+    placementInfo: PlacementItemInfo | null,
+    centerX: number,
+    centerY: number
+): { overlaps: boolean; message: string | null } {
+    if (!connection || !placementInfo) return { overlaps: false, message: null };
+    const config = getPlacementConfig(placementInfo);
+    if (!config) return { overlaps: false, message: null }; // Excluded items (broth pot, doors, fish trap) - skip
+
+    const newBounds = getPlacementSquareBounds(centerX, centerY, config);
+
+    const getExistingBounds = (posX: number, posY: number, c: PlaceablePlacementConfig) =>
+        getPlacementSquareBounds(posX, posY, c);
+
+    // Campfires
+    for (const e of connection.db.campfire.iter()) {
+        const c = getPlacementConfig({ itemName: 'Camp Fire', iconAssetName: 'campfire.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Furnaces
+    for (const e of connection.db.furnace.iter()) {
+        const c = getPlacementConfig({ itemName: 'Furnace', iconAssetName: 'furnace.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Barbecues
+    for (const e of connection.db.barbecue.iter()) {
+        const c = getPlacementConfig({ itemName: 'Barbecue', iconAssetName: 'barbecue.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Lanterns
+    for (const e of connection.db.lantern.iter()) {
+        const c = getPlacementConfig({ itemName: 'Lantern', iconAssetName: 'lantern.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Turrets
+    for (const e of connection.db.turret.iter()) {
+        const c = getPlacementConfig({ itemName: 'Tallow Steam Turret', iconAssetName: 'turret_tallow.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Stashes
+    for (const e of connection.db.stash.iter()) {
+        const c = getPlacementConfig({ itemName: 'Stash', iconAssetName: 'stash.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Sleeping bags
+    for (const e of connection.db.sleeping_bag.iter()) {
+        const c = getPlacementConfig({ itemName: 'Sleeping Bag', iconAssetName: 'sleeping_bag.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Rain collectors
+    for (const e of connection.db.rain_collector.iter()) {
+        const c = getPlacementConfig({ itemName: 'Reed Rain Collector', iconAssetName: 'reed_rain_collector.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Homestead hearths (Matron's Chest)
+    for (const e of connection.db.homestead_hearth.iter()) {
+        const c = getPlacementConfig({ itemName: "Matron's Chest", iconAssetName: 'hearth.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Wooden storage boxes (various box types)
+    for (const e of connection.db.wooden_storage_box.iter()) {
+        const c = getBoxTypePlacementConfig(e.boxType);
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Shelters
+    for (const e of connection.db.shelter.iter()) {
+        const c = getPlacementConfig({ itemName: 'Shelter', iconAssetName: 'shelter.png' });
+        if (c && rectsOverlap(newBounds, getExistingBounds(e.posX, e.posY, c)))
+            return { overlaps: true, message: 'Blocked by existing structure' };
+    }
+    // Broth pots (placed on campfires - have position)
+    for (const e of connection.db.broth_pot.iter()) {
+        const c = getPlacementConfig({ itemName: 'Camp Fire', iconAssetName: 'campfire.png' });
+        if (c) {
+            const potBounds = getPlacementSquareBounds(e.posX, e.posY, c);
+            if (rectsOverlap(newBounds, potBounds))
+                return { overlaps: true, message: 'Blocked by existing structure' };
+        }
+    }
+
+    return { overlaps: false, message: null };
+}
+
+export function isPlacementTooFar(
+    placementInfo: PlacementItemInfo | null, 
+    playerX: number, 
+    playerY: number, 
+    worldX: number, 
+    worldY: number
+): boolean {
+    if (!placementInfo) {
+        return false;
+    }
+
+    const placeDistSq = (worldX - playerX) ** 2 + (worldY - playerY) ** 2;
+
+    // Use appropriate placement range based on item type
+    // These should match server-side placement distance constants!
+    let clientPlacementRangeSq: number;
+    if (isSeedItemValid(placementInfo.itemName)) {
+        // Matches MAX_PLANTING_DISTANCE_SQ in server/src/planted_seeds.rs.
+        clientPlacementRangeSq = 150.0 * 150.0;
+    } else if (placementInfo.iconAssetName === 'shelter.png') {
+        // Shelter has a much larger placement range (256px vs 64px for other items)
+        clientPlacementRangeSq = SHELTER_PLACEMENT_MAX_DISTANCE * SHELTER_PLACEMENT_MAX_DISTANCE;
+    } else if (placementInfo.iconAssetName === 'hearth.png') {
+        // Matron's Chest has increased placement range (200px) to make placement easier
+        const HEARTH_PLACEMENT_MAX_DISTANCE = 200.0;
+        clientPlacementRangeSq = HEARTH_PLACEMENT_MAX_DISTANCE * HEARTH_PLACEMENT_MAX_DISTANCE;
+    } else if (placementInfo.iconAssetName === 'field_cauldron.png') {
+        // Field Cauldron (broth pot) matches server PLAYER_BROTH_POT_INTERACTION_DISTANCE = 200.0
+        const BROTH_POT_PLACEMENT_MAX_DISTANCE = 200.0;
+        clientPlacementRangeSq = BROTH_POT_PLACEMENT_MAX_DISTANCE * BROTH_POT_PLACEMENT_MAX_DISTANCE;
+    } else if (placementInfo.iconAssetName === 'wood_door.png' || placementInfo.iconAssetName === 'metal_door.png') {
+        // Doors match server BUILDING_PLACEMENT_MAX_DISTANCE = 128.0
+        const DOOR_PLACEMENT_MAX_DISTANCE = 128.0;
+        clientPlacementRangeSq = DOOR_PLACEMENT_MAX_DISTANCE * DOOR_PLACEMENT_MAX_DISTANCE;
+    } else if (placementInfo.iconAssetName === 'ancestral_ward.png' || 
+               placementInfo.iconAssetName === 'signal_disruptor.png' || 
+               placementInfo.iconAssetName === 'memory_beacon.png' ||
+               placementInfo.iconAssetName === 'turret_tallow.png' ||
+               placementInfo.iconAssetName === 'large_furnace.png') {
+        // Wards, turrets, and large furnace have larger placement range (160px) because they have collision
+        // (wards: radius 40, turret: radius 50, large furnace: radius 50) - players need to place them further away
+        const WARD_PLACEMENT_MAX_DISTANCE = 160.0;
+        clientPlacementRangeSq = WARD_PLACEMENT_MAX_DISTANCE * WARD_PLACEMENT_MAX_DISTANCE;
+    } else if (placementInfo.iconAssetName === 'beehive_wooden.png' ||
+               placementInfo.iconAssetName === 'reed_rain_collector.png' ||
+               placementInfo.iconAssetName === 'fish_trap.png') {
+        // Large 256x256 objects need increased placement range (200px)
+        const LARGE_OBJECT_PLACEMENT_MAX_DISTANCE = 200.0;
+        clientPlacementRangeSq = LARGE_OBJECT_PLACEMENT_MAX_DISTANCE * LARGE_OBJECT_PLACEMENT_MAX_DISTANCE;
+    } else if (placementInfo.iconAssetName === 'cooking_station.png' ||
+               placementInfo.iconAssetName === 'repair_bench.png' ||
+               placementInfo.iconAssetName === 'scarecrow.png' ||
+               placementInfo.iconAssetName === 'compost.png' ||
+               placementInfo.iconAssetName === 'tanning_rack.png') {
+        // Medium-large objects (160-192px) need increased placement range (200px)
+        const MEDIUM_LARGE_OBJECT_PLACEMENT_MAX_DISTANCE = 200.0;
+        clientPlacementRangeSq = MEDIUM_LARGE_OBJECT_PLACEMENT_MAX_DISTANCE * MEDIUM_LARGE_OBJECT_PLACEMENT_MAX_DISTANCE;
+    } else if (placementInfo.iconAssetName === 'large_wood_box.png' ||
+               placementInfo.iconAssetName === 'sleeping_bag.png' ||
+               placementInfo.iconAssetName === 'wolf_pelt.png' ||
+               placementInfo.iconAssetName === 'fox_pelt.png' ||
+               placementInfo.iconAssetName === 'polar_bear_pelt.png' ||
+               placementInfo.iconAssetName === 'walrus_pelt.png') {
+        // Medium objects (96px) need slightly increased placement range (120px)
+        const MEDIUM_OBJECT_PLACEMENT_MAX_DISTANCE = 120.0;
+        clientPlacementRangeSq = MEDIUM_OBJECT_PLACEMENT_MAX_DISTANCE * MEDIUM_OBJECT_PLACEMENT_MAX_DISTANCE;
+    } else {
+        // Use standard interaction distance for other items (campfires, lanterns, small boxes, etc.)
+        clientPlacementRangeSq = PLAYER_BOX_INTERACTION_DISTANCE_SQUARED * 1.1;
+    }
+
+    return placeDistSq > clientPlacementRangeSq;
+}
+
+/**
+ * All placement previews should be perfectly centered on the cursor.
+ * Server-side positioning has been adjusted to compensate for renderer anchoring,
+ * so placement previews no longer need visual offsets.
+ */
+
+// PERFORMANCE FIX: Cache for placement validation results
+// Key: "cellX,cellY,shape", Value: { isValid: boolean, timestamp: number }
+// This avoids expensive iteration over all entities every frame
+const placementValidationCache: Map<string, { isValid: boolean; timestamp: number }> = new Map();
+const PLACEMENT_CACHE_TTL_MS = 100; // Cache results for 100ms - fast enough to feel instant but still avoids per-frame recalc
+
+/**
+ * Check if foundation placement is valid (client-side validation)
+ * Now includes resource checking
+ * 
+ * PERFORMANCE FIX: Caches results for 500ms to avoid expensive iteration every frame
+ */
+function isFoundationPlacementValid(
+    connection: DbConnection | null,
+    cellX: number,
+    cellY: number,
+    shape: number,
+    playerX: number,
+    playerY: number,
+    inventoryItems?: Map<string, ResourceInventoryRow>,
+    itemDefinitions?: Map<string, ResourceDefinitionRow>
+): boolean {
+    if (!connection) return false;
+
+    const BUILDING_PLACEMENT_MAX_DISTANCE = 128.0;
+    const BUILDING_PLACEMENT_MAX_DISTANCE_SQUARED = BUILDING_PLACEMENT_MAX_DISTANCE * BUILDING_PLACEMENT_MAX_DISTANCE;
+    
+    // Cost depends on shape: 50 for full, 25 for triangles
+    const REQUIRED_WOOD = (shape === 1) ? 50 : 25; // 1 = Full, 2-5 = Triangles
+
+    // Convert cell coordinates to world pixel coordinates (center of foundation cell)
+    const { x: worldX, y: worldY } = foundationCellToWorldCenter(cellX, cellY);
+
+    // Check distance FIRST (cheap check before expensive cache lookup)
+    const dx = worldX - playerX;
+    const dy = worldY - playerY;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > BUILDING_PLACEMENT_MAX_DISTANCE_SQUARED) {
+        return false;
+    }
+
+    // PERFORMANCE FIX: Check cache for this cell/shape combination
+    // Distance check is excluded from cache since it depends on player position
+    const cacheKey = `${cellX},${cellY},${shape}`;
+    const now = performance.now();
+    const cached = placementValidationCache.get(cacheKey);
+    if (cached && (now - cached.timestamp) < PLACEMENT_CACHE_TTL_MS) {
+        return cached.isValid;
+    }
+
+    // Match the server's foundation zone check, including monument parts and
+    // protected marsh/pool areas that the older foundation preview omitted.
+    if (isPositionInMonumentZone(connection, worldX, worldY)) {
+        placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+        return false;
+    }
+
+    // PERFORMANCE FIX: Check if grass spatial hash needs rebuilding
+    // We detect changes by counting entities (simple heuristic)
+    let currentGrassCount = 0;
+    for (const unusedRow of connection.db.grass.iter()) { void unusedRow; currentGrassCount++; if (currentGrassCount > lastGrassCount + 10) break; }
+    if (currentGrassCount !== lastGrassCount || grassHashVersion === 0) {
+        rebuildGrassSpatialHash(connection);
+    }
+    
+    // Check if position has grass using spatial hash (O(1) lookup instead of O(n) iteration)
+    // The hash already includes adjacent cells for edge cases
+    if (grassSpatialHash.has(`${cellX},${cellY}`)) {
+        // Double-check with actual grass entities only if hash says there might be grass
+        // With split tables: grass (static pos) + grassState (is_alive)
+        const FOUNDATION_SIZE = 96;
+        const foundationMinX = worldX - FOUNDATION_SIZE / 2;
+        const foundationMaxX = worldX + FOUNDATION_SIZE / 2;
+        const foundationMinY = worldY - FOUNDATION_SIZE / 2;
+        const foundationMaxY = worldY + FOUNDATION_SIZE / 2;
+        
+        for (const grass of connection.db.grass.iter()) {
+            // Look up is_alive from grassState table
+            const grassState = connection.db.grass_state.grassId.find(grass.id);
+            const isAlive = grassState?.isAlive ?? false;
+            if (isAlive &&
+                grass.posX >= foundationMinX && grass.posX <= foundationMaxX &&
+                grass.posY >= foundationMinY && grass.posY <= foundationMaxY) {
+                placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+                return false; // Grass is blocking placement
+            }
+        }
+    }
+
+    // Check if position is near monuments (rune stones, hot springs, quarries)
+    // Hot springs and rune stones: 800px, Quarries: 400px
+    const MONUMENT_RESTRICTION_RADIUS = 800.0;
+    const MONUMENT_RESTRICTION_RADIUS_SQ = MONUMENT_RESTRICTION_RADIUS * MONUMENT_RESTRICTION_RADIUS;
+    const QUARRY_RESTRICTION_RADIUS = 400.0;
+    const QUARRY_RESTRICTION_RADIUS_SQ = QUARRY_RESTRICTION_RADIUS * QUARRY_RESTRICTION_RADIUS;
+    const TILE_SIZE = 48;
+    
+    // Check rune stones (800px)
+    for (const runeStone of connection.db.rune_stone.iter()) {
+        const dx = worldX - runeStone.posX;
+        const dy = worldY - runeStone.posY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq <= MONUMENT_RESTRICTION_RADIUS_SQ) {
+            placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+            return false; // Too close to rune stone
+        }
+    }
+    
+    // Check hot springs (800px) and quarries (400px) using tile type lookup
+    // PERFORMANCE FIX: Reduced check radius from 17 tiles to 8 tiles for better performance
+    // The monument restriction is still enforced, but we only check tiles that could realistically be in range
+    const OPTIMIZED_CHECK_RADIUS_TILES = 8; // Reduced from ~17 to improve performance
+    const foundationTileX = Math.floor(worldX / TILE_SIZE);
+    const foundationTileY = Math.floor(worldY / TILE_SIZE);
+    
+    let foundMonumentTile = false;
+    for (let dy = -OPTIMIZED_CHECK_RADIUS_TILES; dy <= OPTIMIZED_CHECK_RADIUS_TILES && !foundMonumentTile; dy++) {
+        for (let dx = -OPTIMIZED_CHECK_RADIUS_TILES; dx <= OPTIMIZED_CHECK_RADIUS_TILES && !foundMonumentTile; dx++) {
+            const checkTileX = foundationTileX + dx;
+            const checkTileY = foundationTileY + dy;
+            
+            const tileType = getTileTypeFromChunkData(connection, checkTileX, checkTileY);
+            if (tileType === 'HotSpringWater' || tileType === 'Quarry') {
+                const tileCenterX = (checkTileX * TILE_SIZE) + (TILE_SIZE / 2);
+                const tileCenterY = (checkTileY * TILE_SIZE) + (TILE_SIZE / 2);
+                const tdx = worldX - tileCenterX;
+                const tdy = worldY - tileCenterY;
+                const distSq = tdx * tdx + tdy * tdy;
+                // Use different radius for quarries vs hot springs
+                const restrictionRadiusSq = tileType === 'Quarry' ? QUARRY_RESTRICTION_RADIUS_SQ : MONUMENT_RESTRICTION_RADIUS_SQ;
+                if (distSq <= restrictionRadiusSq) {
+                    foundMonumentTile = true;
+                }
+            }
+        }
+    }
+    
+    if (foundMonumentTile) {
+        placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+        return false; // Too close to hot spring or quarry
+    }
+    
+    // Check if position is on asphalt tiles (compound areas - cannot build)
+    const foundationTileAtX = Math.floor(worldX / TILE_SIZE);
+    const foundationTileAtY = Math.floor(worldY / TILE_SIZE);
+    const tileTypeAtPosition = getTileTypeFromChunkData(connection, foundationTileAtX, foundationTileAtY);
+    if (tileTypeAtPosition === 'Asphalt') {
+        placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+        return false; // Cannot build on asphalt/compound areas
+    }
+    
+    // Check if position is within ALK station monument bounds
+    // Building restriction radius MUST match safe zone radius to prevent abuse
+    // Central compound (stationId = 0): 7x interactionRadius = ~1750px (~1/3 of original)
+    // Substations (stationId 1-4): 3x interactionRadius = ~600px (1/3 of original)
+    const ALK_STATION_BUILDING_RESTRICTION_MULTIPLIER_CENTRAL = 8.75;
+    const ALK_STATION_BUILDING_RESTRICTION_MULTIPLIER_SUBSTATION = 3.0;
+    
+    for (const station of connection.db.alk_station.iter()) {
+        if (!station.isActive) continue;
+        const stationDx = worldX - station.worldPosX;
+        const stationDy = worldY - station.worldPosY;
+        const stationDistSq = stationDx * stationDx + stationDy * stationDy;
+        
+        // Calculate building restriction radius (matches safe zone radius)
+        const multiplier = station.stationId === 0 
+            ? ALK_STATION_BUILDING_RESTRICTION_MULTIPLIER_CENTRAL 
+            : ALK_STATION_BUILDING_RESTRICTION_MULTIPLIER_SUBSTATION;
+        const restrictionRadius = station.interactionRadius * multiplier;
+        const restrictionRadiusSq = restrictionRadius * restrictionRadius;
+        
+        if (stationDistSq <= restrictionRadiusSq) {
+            placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+            return false; // Too close to ALK station
+        }
+    }
+
+    // PERFORMANCE FIX: Check if foundation spatial index needs rebuilding
+    // We detect changes by counting entities (simple heuristic)
+    let currentFoundationCount = 0;
+    for (const unusedRow of connection.db.foundation_cell.iter()) { void unusedRow; currentFoundationCount++; if (currentFoundationCount > lastFoundationCount + 10) break; }
+    if (currentFoundationCount !== lastFoundationCount || foundationIndexVersion === 0) {
+        rebuildFoundationIndex(connection);
+    }
+    
+    // PERFORMANCE FIX: Use spatial index for O(1) cell lookup instead of O(n) iteration
+    const foundationKey = `${cellX},${cellY}`;
+    const foundationsAtCell = foundationSpatialIndex.get(foundationKey);
+    
+    let foundOverlap = false;
+    let foundationCount = 0;
+    
+    if (foundationsAtCell) {
+        for (const foundation of foundationsAtCell) {
+            if (!foundation.isDestroyed) {
+                foundationCount++;
+                const existingShape = foundation.shape;
+                
+                // Same shape = overlap
+                if (existingShape === shape) {
+                    placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+                    return false; // Position occupied
+                }
+                
+                // Full foundation overlaps with anything
+                if (existingShape === 1 || shape === 1) { // 1 = Full
+                    placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+                    return false; // Position occupied
+                }
+                
+                // Check if shapes are complementary triangles
+                const isComplementary = (
+                    (existingShape === 2 && shape === 4) || // TriNW + TriSE
+                    (existingShape === 4 && shape === 2) || // TriSE + TriNW
+                    (existingShape === 3 && shape === 5) || // TriNE + TriSW
+                    (existingShape === 5 && shape === 3)    // TriSW + TriNE
+                );
+                
+                if (!isComplementary) {
+                    // Non-complementary shapes overlap
+                    foundOverlap = true; // Mark that we found an overlap
+                }
+            }
+        }
+    }
+    
+    // If we found an overlap, block placement
+    if (foundOverlap) {
+        placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+        return false;
+    }
+    
+    // If there are already 2 foundations at this cell (two complementary triangles forming a full square),
+    // block any further placement
+    if (foundationCount >= 2) {
+        placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+        return false; // Already have two triangles forming a full square
+    }
+    
+    // If we found a complementary triangle and no overlaps, allow placement
+    // (This handles the case where we're adding the second triangle to form a full square)
+    // If no foundations found at all, allow placement
+
+    // Check if player has enough resources (cost depends on shape)
+    if (inventoryItems && itemDefinitions) {
+        // Find Wood item definition
+        let woodDefId: bigint | null = null;
+        for (const def of itemDefinitions.values()) {
+            if (def.name === 'Wood') {
+                woodDefId = def.id;
+                break;
+            }
+        }
+        
+        if (woodDefId) {
+            // Sum up all wood items (inventory + hotbar)
+            let totalWood = 0;
+            for (const item of inventoryItems.values()) {
+                if (item.itemDefId === woodDefId) {
+                    totalWood += item.quantity;
+                }
+            }
+            
+            if (totalWood < REQUIRED_WOOD) {
+                placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+                return false; // Not enough resources
+            }
+        } else {
+            // Can't find wood definition, assume invalid
+            placementValidationCache.set(cacheKey, { isValid: false, timestamp: now });
+            return false;
+        }
+    }
+
+    placementValidationCache.set(cacheKey, { isValid: true, timestamp: now });
+    return true;
+}
+
+/**
+ * Check if wall placement is valid (client-side validation)
+ * Checks: foundation exists, no overlapping wall, distance, resources
+ */
+function isWallPlacementValid(
+    connection: DbConnection | null,
+    cellX: number,
+    cellY: number,
+    worldMouseX: number,
+    worldMouseY: number,
+    playerX: number,
+    playerY: number,
+    inventoryItems?: Map<string, ResourceInventoryRow>,
+    itemDefinitions?: Map<string, ResourceDefinitionRow>
+): boolean {
+    if (!connection) return false;
+
+    const BUILDING_PLACEMENT_MAX_DISTANCE = 128.0;
+    const BUILDING_PLACEMENT_MAX_DISTANCE_SQUARED = BUILDING_PLACEMENT_MAX_DISTANCE * BUILDING_PLACEMENT_MAX_DISTANCE;
+    
+    // Wall cost: 15 wood for Twig tier
+    const REQUIRED_WOOD = 15;
+
+    // Convert cell coordinates to world pixel coordinates (center of foundation cell)
+    const { x: worldX, y: worldY } = foundationCellToWorldCenter(cellX, cellY);
+
+    // Check distance
+    const dx = worldX - playerX;
+    const dy = worldY - playerY;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > BUILDING_PLACEMENT_MAX_DISTANCE_SQUARED) {
+        return false;
+    }
+
+    // PERFORMANCE FIX: Use spatial index for O(1) foundation lookup
+    const foundationKey = `${cellX},${cellY}`;
+    const foundationsAtCell = foundationSpatialIndex.get(foundationKey);
+    
+    let hasFoundation = false;
+    let foundationShape = 1; // Default to Full (1)
+    
+    if (foundationsAtCell) {
+        for (const foundation of foundationsAtCell) {
+            if (!foundation.isDestroyed) {
+                hasFoundation = true;
+                foundationShape = foundation.shape;
+                break;
+            }
+        }
+    }
+
+    if (!hasFoundation) {
+        return false; // No foundation at this location
+    }
+
+    const isTriangle = foundationShape >= 2 && foundationShape <= 5;
+    const edge = wallEdgeForCursor(cellX, cellY, foundationShape, worldMouseX, worldMouseY);
+
+    // Check if edge is valid for triangle foundations
+    if (isTriangle) {
+        // Triangle shapes: 2=TriNW, 3=TriNE, 4=TriSE, 5=TriSW
+        // Valid edges for each triangle:
+        // TriNW (2): N, W, DiagNW_SE edges (0, 3, 5)
+        // TriNE (3): N, E, DiagNE_SW edges (0, 1, 4)
+        // TriSE (4): S, E, DiagNW_SE edges (2, 1, 5)
+        // TriSW (5): S, W, DiagNE_SW edges (2, 3, 4)
+        let isValidEdge = false;
+        switch (foundationShape) {
+            case 2: // TriNW
+                isValidEdge = edge === 0 || edge === 3 || edge === 5; // N, W, or DiagNW_SE
+                break;
+            case 3: // TriNE
+                isValidEdge = edge === 0 || edge === 1 || edge === 4; // N, E, or DiagNE_SW
+                break;
+            case 4: // TriSE
+                isValidEdge = edge === 2 || edge === 1 || edge === 5; // S, E, or DiagNW_SE
+                break;
+            case 5: // TriSW
+                isValidEdge = edge === 2 || edge === 3 || edge === 4; // S, W, or DiagNE_SW
+                break;
+        }
+        if (!isValidEdge) {
+            return false; // Invalid edge for triangle foundation
+        }
+    }
+
+    // Check if a wall already exists at this cell, edge, and facing
+    // Also check adjacent tiles for shared edges
+    // Note: We don't check facing - walls on same edge block regardless of facing
+    // IMPORTANT: Check ALL walls at this cell, not just the detected edge
+    // This handles cases where edge detection might be slightly off
+    for (const wall of connection.db.wall_cell.iter()) {
+        if (wall.cellX === cellX && wall.cellY === cellY && !wall.isDestroyed) {
+            // Check if this wall is on the same edge OR a very close edge
+            // For diagonal edges, also check if there's a wall on the other diagonal
+            if (wall.edge === edge) {
+                return false; // Wall already exists at this exact edge
+            }
+            // For triangle foundations, if we detected a diagonal edge but there's a wall
+            // on the other diagonal, that's also invalid (can't have two diagonals)
+            if (isTriangle && (edge === 4 || edge === 5) && (wall.edge === 4 || wall.edge === 5)) {
+                return false; // Diagonal wall already exists
+            }
+        }
+    }
+    for (const door of connection.db.door.iter()) {
+        if (!door.isDestroyed && door.cellX === cellX && door.cellY === cellY && door.edge === edge) {
+            return false;
+        }
+    }
+    
+    // Check adjacent tiles for shared edges
+    // North edge of (x, y) = South edge of (x, y-1)
+    // East edge of (x, y) = West edge of (x+1, y)
+    // South edge of (x, y) = North edge of (x, y+1)
+    // West edge of (x, y) = East edge of (x-1, y)
+    let adjacentCellX: number = 0;
+    let adjacentCellY: number = 0;
+    let oppositeEdge: number = 0;
+    let hasAdjacentTile = false;
+    
+    if (edge === 0) { // North
+        adjacentCellX = cellX;
+        adjacentCellY = cellY - 1;
+        oppositeEdge = 2; // South
+        hasAdjacentTile = true;
+    } else if (edge === 1) { // East
+        adjacentCellX = cellX + 1;
+        adjacentCellY = cellY;
+        oppositeEdge = 3; // West
+        hasAdjacentTile = true;
+    } else if (edge === 2) { // South
+        adjacentCellX = cellX;
+        adjacentCellY = cellY + 1;
+        oppositeEdge = 0; // North
+        hasAdjacentTile = true;
+    } else if (edge === 3) { // West
+        adjacentCellX = cellX - 1;
+        adjacentCellY = cellY;
+        oppositeEdge = 1; // East
+        hasAdjacentTile = true;
+    }
+    // Diagonal edges (4, 5) don't have adjacent tiles (they're internal to the triangle)
+    
+    // Check adjacent cell for a wall on the opposite edge (only for cardinal edges)
+    if (hasAdjacentTile) {
+        for (const wall of connection.db.wall_cell.iter()) {
+            if (wall.cellX === adjacentCellX && wall.cellY === adjacentCellY && wall.edge === oppositeEdge && !wall.isDestroyed) {
+                return false; // Wall already exists on the shared edge with the adjacent tile
+            }
+        }
+        for (const door of connection.db.door.iter()) {
+            if (!door.isDestroyed && door.cellX === adjacentCellX && door.cellY === adjacentCellY && door.edge === oppositeEdge) {
+                return false;
+            }
+        }
+    }
+
+    // Check if player has enough resources
+    if (inventoryItems && itemDefinitions) {
+        // Find Wood item definition
+        let woodDefId: bigint | null = null;
+        for (const def of itemDefinitions.values()) {
+            if (def.name === 'Wood') {
+                woodDefId = def.id;
+                break;
+            }
+        }
+
+        if (!woodDefId) {
+            return false; // Wood item definition not found
+        }
+
+        // Sum up all wood items (inventory + hotbar)
+        let totalWood = 0;
+        for (const item of inventoryItems.values()) {
+            if (item.itemDefId === woodDefId) {
+                totalWood += item.quantity;
+            }
+        }
+
+        if (totalWood < REQUIRED_WOOD) {
+            return false; // Not enough wood
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Check if fence placement is valid (client-side validation)
+ * Fences now use 96px foundation cell grid (same as walls)
+ * Checks: no overlapping fence/wall, distance, resources, water tiles
+ */
+function isFencePlacementValid(
+    connection: DbConnection | null,
+    cellX: number,
+    cellY: number,
+    edge: number, // 0 = North, 1 = East, 2 = South, 3 = West (same as walls)
+    worldMouseX: number,
+    worldMouseY: number,
+    playerX: number,
+    playerY: number,
+    inventoryItems?: Map<string, ResourceInventoryRow>,
+    itemDefinitions?: Map<string, ResourceDefinitionRow>
+): boolean {
+    if (!connection) return false;
+
+    const BUILDING_PLACEMENT_MAX_DISTANCE = 128.0;
+    const BUILDING_PLACEMENT_MAX_DISTANCE_SQUARED = BUILDING_PLACEMENT_MAX_DISTANCE * BUILDING_PLACEMENT_MAX_DISTANCE;
+    
+    // Fence cost: 15 wood
+    const REQUIRED_WOOD = 15;
+    
+    // Foundation cell size (96px) - same as walls
+    const FOUNDATION_SIZE = 96;
+
+    // Calculate world position at cell edge (exactly like walls)
+    const cellLeft = cellX * FOUNDATION_SIZE;
+    const cellRight = cellLeft + FOUNDATION_SIZE;
+    const cellTop = cellY * FOUNDATION_SIZE;
+    const cellBottom = cellTop + FOUNDATION_SIZE;
+    const cellCenterX = cellLeft + FOUNDATION_SIZE / 2;
+    const cellCenterY = cellTop + FOUNDATION_SIZE / 2;
+    
+    let worldX: number, worldY: number;
+    switch (edge) {
+        case 0: // North edge
+            worldX = cellCenterX;
+            worldY = cellTop;
+            break;
+        case 1: // East edge
+            worldX = cellRight;
+            worldY = cellCenterY;
+            break;
+        case 2: // South edge
+            worldX = cellCenterX;
+            worldY = cellBottom;
+            break;
+        case 3: // West edge
+            worldX = cellLeft;
+            worldY = cellCenterY;
+            break;
+        default:
+            worldX = cellCenterX;
+            worldY = cellCenterY;
+    }
+
+    // Check distance
+    const dx = worldX - playerX;
+    const dy = worldY - playerY;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > BUILDING_PLACEMENT_MAX_DISTANCE_SQUARED) {
+        return false;
+    }
+
+    // Check that player is NOT standing on the fence position
+    const FENCE_COLLISION_THICKNESS = 6;
+    const PLAYER_RADIUS = 32;
+    const halfEdge = FOUNDATION_SIZE / 2;
+    const halfThickness = FENCE_COLLISION_THICKNESS / 2;
+    
+    let fenceMinX: number, fenceMaxX: number, fenceMinY: number, fenceMaxY: number;
+    // Edge 0 (North) and 2 (South) are horizontal, Edge 1 (East) and 3 (West) are vertical
+    if (edge === 0 || edge === 2) {
+        // Horizontal fence
+        fenceMinX = worldX - halfEdge - PLAYER_RADIUS;
+        fenceMaxX = worldX + halfEdge + PLAYER_RADIUS;
+        fenceMinY = worldY - halfThickness - PLAYER_RADIUS;
+        fenceMaxY = worldY + halfThickness + PLAYER_RADIUS;
+    } else {
+        // Vertical fence
+        fenceMinX = worldX - halfThickness - PLAYER_RADIUS;
+        fenceMaxX = worldX + halfThickness + PLAYER_RADIUS;
+        fenceMinY = worldY - halfEdge - PLAYER_RADIUS;
+        fenceMaxY = worldY + halfEdge + PLAYER_RADIUS;
+    }
+    
+    if (playerX >= fenceMinX && playerX <= fenceMaxX &&
+        playerY >= fenceMinY && playerY <= fenceMaxY) {
+        return false; // Player is standing on fence position
+    }
+
+    // Check if there's already a fence at this exact edge
+    for (const fence of connection.db.fence.iter()) {
+        if (fence.cellX === cellX && fence.cellY === cellY && fence.edge === edge && !fence.isDestroyed) {
+            return false; // Fence already exists at this edge
+        }
+    }
+    
+    // Check adjacent cells for shared edges (same as walls)
+    // North edge of (x, y) = South edge of (x, y-1)
+    // East edge of (x, y) = West edge of (x+1, y)
+    // South edge of (x, y) = North edge of (x, y+1)
+    // West edge of (x, y) = East edge of (x-1, y)
+    let adjacentCellX: number, adjacentCellY: number, oppositeEdge: number;
+    switch (edge) {
+        case 0: adjacentCellX = cellX; adjacentCellY = cellY - 1; oppositeEdge = 2; break;
+        case 1: adjacentCellX = cellX + 1; adjacentCellY = cellY; oppositeEdge = 3; break;
+        case 2: adjacentCellX = cellX; adjacentCellY = cellY + 1; oppositeEdge = 0; break;
+        case 3: adjacentCellX = cellX - 1; adjacentCellY = cellY; oppositeEdge = 1; break;
+        default: adjacentCellX = cellX; adjacentCellY = cellY; oppositeEdge = edge;
+    }
+    
+    for (const fence of connection.db.fence.iter()) {
+        if (fence.cellX === adjacentCellX && fence.cellY === adjacentCellY && fence.edge === oppositeEdge && !fence.isDestroyed) {
+            return false; // Fence already exists on shared edge
+        }
+    }
+    
+    // Check if wall exists at this edge (cannot place fence where wall is)
+    for (const wall of connection.db.wall_cell.iter()) {
+        if (wall.cellX === cellX && wall.cellY === cellY && wall.edge === edge && !wall.isDestroyed) {
+            return false; // Wall exists at this edge
+        }
+    }
+    for (const wall of connection.db.wall_cell.iter()) {
+        if (wall.cellX === adjacentCellX && wall.cellY === adjacentCellY && wall.edge === oppositeEdge && !wall.isDestroyed) {
+            return false; // Wall exists on shared edge
+        }
+    }
+
+    // Check resources if inventory items provided
+    if (inventoryItems && itemDefinitions) {
+        // Find "Wood" item definition
+        let woodItemDef: ResourceDefinitionRow | null = null;
+        for (const def of itemDefinitions.values()) {
+            if (def.name === 'Wood') {
+                woodItemDef = def;
+                break;
+            }
+        }
+
+        if (!woodItemDef) {
+            return false; // Wood item definition not found
+        }
+
+        // Calculate total wood available
+        let totalWood = 0;
+        for (const item of inventoryItems.values()) {
+            if (item.itemDefId === woodItemDef.id && item.quantity > 0) {
+                totalWood += item.quantity;
+            }
+        }
+
+        if (totalWood < REQUIRED_WOOD) {
+            return false; // Not enough wood
+        }
+    }
+
+    return true;
+}
+
+
+let indexConnection: DbConnection | null = null;
+let foundationRefreshAt = -Infinity;
+function preparePlacementIndexes(connection: DbConnection | null): void {
+  if (indexConnection !== connection) {
+    indexConnection = connection;
+    foundationSpatialIndex.clear(); grassSpatialHash.clear(); plantedSeedTileIndex.clear();
+    placementValidationCache.clear(); monumentZoneTileCache.clear(); chunkCache.clear();
+    lastChunkCacheConnection = null; lastConnectionIdentity = null; lastChunkRefreshMs = 0;
+    foundationIndexVersion = 0; grassHashVersion = 0;
+    lastFoundationCount = 0; lastGrassCount = 0; lastSeedIndexRefreshMs = 0;
+    foundationRefreshAt = -Infinity;
+  }
+  const now = performance.now();
+  if (connection && now - foundationRefreshAt >= PLACEMENT_CACHE_TTL_MS) {
+    rebuildFoundationIndex(connection);
+    foundationRefreshAt = now;
+  }
+}
+
+/** Existing wall snapping rule shared by validation and the 3D preview. */
+export function wallEdgeForCursor(cellX: number, cellY: number, shape: number, x: number, y: number): number {
+  const center = foundationCellToWorldCenter(cellX, cellY);
+  const dx = x - center.x, dy = y - center.y;
+  const absDx = Math.abs(dx), absDy = Math.abs(dy);
+  if (shape >= 2 && shape <= 5) {
+    const nwse = Math.abs(dx - dy), nesw = Math.abs(dx + dy);
+    if (Math.min(nwse, nesw) < Math.min(absDx, absDy) * 1.2 || Math.min(nwse, nesw) < 10) return nwse < nesw ? 5 : 4;
+  }
+  return absDy > absDx ? (dy < 0 ? 0 : 2) : (dx < 0 ? 3 : 1);
+}
+
+/** Rendering-independent placement decision. No images, canvas or GPU work. */
+export function evaluatePlacementPreview({ placementInfo, buildingState, worldMouseX, worldMouseY,
+  isPlacementTooFar, placementError, connection, localPlayerX, localPlayerY, inventoryItems, itemDefinitions,
+}: PlacementEvaluationInput): PlacementPreviewPlan | null {
+  if (worldMouseX === null || worldMouseY === null) return null;
+  preparePlacementIndexes(connection);
+  if (buildingState?.isBuilding) {
+    const { cellX, cellY } = worldPixelsToFoundationCell(worldMouseX, worldMouseY);
+    const { x, y } = foundationCellToWorldCenter(cellX, cellY);
+    const foundation = foundationSpatialIndex.get(`${cellX},${cellY}`)?.find(row => !row.isDestroyed);
+    const base = { x, y, cellX, cellY, shape: buildingState.foundationShape, tier: buildingState.buildingTier,
+      edge: 0, valid: false, clearError: false, warning: null };
+    if (buildingState.mode === 'foundation') return { ...base, kind: 'foundation',
+      valid: isFoundationPlacementValid(connection, cellX, cellY, base.shape, localPlayerX, localPlayerY, inventoryItems, itemDefinitions) };
+    if (buildingState.mode === 'wall' && foundation) return { ...base, kind: 'wall', shape: foundation.shape,
+      edge: wallEdgeForCursor(cellX, cellY, foundation.shape, worldMouseX, worldMouseY),
+      valid: isWallPlacementValid(connection, cellX, cellY, worldMouseX, worldMouseY, localPlayerX, localPlayerY, inventoryItems, itemDefinitions) };
+    if (buildingState.mode === 'fence') {
+      const edge = wallEdgeForCursor(cellX, cellY, 1, worldMouseX, worldMouseY);
+      const position = getDoorEdgePosition(cellX, cellY, edge);
+      return { ...base, ...position, kind: 'fence', edge,
+        valid: isFencePlacementValid(connection, cellX, cellY, edge, worldMouseX, worldMouseY, localPlayerX, localPlayerY, inventoryItems, itemDefinitions) };
+    }
+    return null;
+  }
+  if (!placementInfo) return null;
+  const isSeedPlacement = isSeedItemValid(placementInfo.itemName);
+  const isDoorPlacement = placementInfo.iconAssetName === 'wood_door.png' || placementInfo.iconAssetName === 'metal_door.png';
+    // Snap to placement grid for items that use it (preview matches server placement exactly)
+    let snappedX = worldMouseX;
+    let snappedY = worldMouseY;
+    const placementConfig = shouldUseGridSnapping(placementInfo) ? getPlacementConfig(placementInfo) : null;
+    if (placementConfig && placementInfo.iconAssetName !== 'field_cauldron.png' && !isDoorPlacement) {
+      const snapped = snapToPlacementGrid(worldMouseX, worldMouseY, placementConfig);
+      snappedX = snapped.x;
+      snappedY = snapped.y;
+    }
+
+    // Special handling for broth pot - snap to nearest heat source (campfire or fumarole)
+    let nearestHeatSource: { id: number; posX: number; posY: number; attachedBrothPotId?: number | null } | null = null;
+    let heatSourceType: 'campfire' | 'fumarole' | null = null;
+    
+    if (placementInfo.iconAssetName === 'field_cauldron.png' && connection) {
+        let nearestDistance = Infinity;
+        const HEAT_SOURCE_SNAP_DISTANCE = 200; // Increased for easier placement
+        
+        // Check campfires
+        for (const campfire of connection.db.campfire.iter()) {
+            const dx = worldMouseX - campfire.posX;
+            const dy = worldMouseY - campfire.posY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < nearestDistance && distance < HEAT_SOURCE_SNAP_DISTANCE) {
+                nearestDistance = distance;
+                nearestHeatSource = campfire;
+                heatSourceType = 'campfire';
+            }
+        }
+        
+        // Check fumaroles (always-on heat sources)
+        for (const fumarole of connection.db.fumarole.iter()) {
+            const dx = worldMouseX - fumarole.posX;
+            const dy = worldMouseY - fumarole.posY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < nearestDistance && distance < HEAT_SOURCE_SNAP_DISTANCE) {
+                nearestDistance = distance;
+                nearestHeatSource = fumarole;
+                heatSourceType = 'fumarole';
+            }
+        }
+        
+        if (nearestHeatSource) {
+            // Snap to heat source position - match server placement exactly
+            // Server places pot at: campfire.pos_y - 60.0, fumarole.pos_y - 20.0
+            snappedX = nearestHeatSource.posX;
+            if (heatSourceType === 'fumarole') {
+                snappedY = nearestHeatSource.posY - 10.0; // Fumaroles: small offset above center
+            } else {
+                snappedY = nearestHeatSource.posY - 60.0; // Campfires: larger offset
+            }
+        }
+    }
+    
+
+    // Special handling for door placement - snap to the nearest cardinal foundation edge.
+    // Ensures the door preview shows exactly where the door will be placed
+    let nearestDoorCellX: number | null = null;
+    let nearestDoorCellY: number | null = null;
+    let nearestDoorFoundationShape = 0;
+    let doorEdge: number = 0;
+    
+    if (isDoorPlacement && connection) {
+        const FOUNDATION_TILE_SIZE = 96;
+        
+        // Ensure spatial index is populated for door placement preview
+        // Check if foundation spatial index needs rebuilding
+        let currentFoundationCount = 0;
+        for (const unusedRow of connection.db.foundation_cell.iter()) { 
+            void unusedRow; currentFoundationCount++; 
+            if (currentFoundationCount > lastFoundationCount + 10) break; 
+        }
+        if (currentFoundationCount !== lastFoundationCount || foundationIndexVersion === 0) {
+            rebuildFoundationIndex(connection);
+        }
+        
+        const mouseCellX = Math.floor(worldMouseX / FOUNDATION_TILE_SIZE);
+        const mouseCellY = Math.floor(worldMouseY / FOUNDATION_TILE_SIZE);
+        let nearestDistance = Infinity;
+        
+        // Check 3x3 grid around mouse position using spatial index
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const checkCellX = mouseCellX + dx;
+                const checkCellY = mouseCellY + dy;
+                const foundationsAtCell = foundationSpatialIndex.get(`${checkCellX},${checkCellY}`);
+                
+                const foundation = foundationsAtCell?.find(f => !f.isDestroyed);
+                if (foundation) {
+                    const foundationCenterX = checkCellX * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
+                    const foundationCenterY = checkCellY * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
+                    
+                    const fdx = worldMouseX - foundationCenterX;
+                    const fdy = worldMouseY - foundationCenterY;
+                    const distance = Math.sqrt(fdx * fdx + fdy * fdy);
+                    
+                    if (distance < nearestDistance && distance < FOUNDATION_TILE_SIZE * 1.5) {
+                        nearestDistance = distance;
+                        nearestDoorCellX = checkCellX;
+                        nearestDoorCellY = checkCellY;
+                        nearestDoorFoundationShape = foundation.shape;
+                    }
+                }
+            }
+        }
+        
+        // If spatial index didn't find anything, fall back to direct iteration
+        // This handles cases where the index hasn't been built yet
+        if (nearestDoorCellX === null) {
+            nearestDistance = Infinity;
+            for (const foundation of connection.db.foundation_cell.iter()) {
+                if (foundation.isDestroyed) continue;
+                
+                const foundationCenterX = foundation.cellX * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
+                const foundationCenterY = foundation.cellY * FOUNDATION_TILE_SIZE + FOUNDATION_TILE_SIZE / 2;
+                
+                const fdx = worldMouseX - foundationCenterX;
+                const fdy = worldMouseY - foundationCenterY;
+                const distance = Math.sqrt(fdx * fdx + fdy * fdy);
+                
+                if (distance < nearestDistance && distance < FOUNDATION_TILE_SIZE * 1.5) {
+                    nearestDistance = distance;
+                    nearestDoorCellX = foundation.cellX;
+                    nearestDoorCellY = foundation.cellY;
+                    nearestDoorFoundationShape = foundation.shape;
+                }
+            }
+        }
+        
+        if (nearestDoorCellX !== null && nearestDoorCellY !== null) {
+            doorEdge = getDoorEdgeForCursor(nearestDoorCellX, nearestDoorCellY, worldMouseX, worldMouseY);
+            const doorPosition = getDoorEdgePosition(nearestDoorCellX, nearestDoorCellY, doorEdge);
+            snappedX = doorPosition.x;
+            snappedY = doorPosition.y;
+        }
+    }
+
+    const isDoorTooFar = isDoorPlacement &&
+        (snappedX - localPlayerX) ** 2 + (snappedY - localPlayerY) ** 2 > 128 ** 2;
+
+    // Check for water placement restriction
+    const isOnWater = isWaterPlacementBlocked(connection, placementInfo, snappedX, snappedY);
+    
+    // Check for one-seed-per-tile restriction
+    const isTileOccupiedBySeed = isSeedPlacementOnOccupiedTile(connection, placementInfo, snappedX, snappedY);
+    
+    // NOTE: Storage box collision check removed - server handles all collision validation
+    
+    // Check if shelter is being placed on a foundation (not allowed)
+    // Shelter is 384x384px, which covers 4x4 foundation cells (96px each)
+    // PERFORMANCE FIX: Use spatial index for O(1) lookups per cell
+    const isOnFoundation = placementInfo.itemName === 'Shelter' && connection && 
+        (() => {
+            const FOUNDATION_TILE_SIZE = 96;
+            const centerCellX = Math.floor(snappedX / FOUNDATION_TILE_SIZE);
+            const centerCellY = Math.floor(snappedY / FOUNDATION_TILE_SIZE);
+            
+            // Check 5x5 grid around center (±2 cells in each direction)
+            for (let offsetX = -2; offsetX <= 2; offsetX++) {
+                for (let offsetY = -2; offsetY <= 2; offsetY++) {
+                    const checkCellX = centerCellX + offsetX;
+                    const checkCellY = centerCellY + offsetY;
+                    
+                    const foundationsAtCell = foundationSpatialIndex.get(`${checkCellX},${checkCellY}`);
+                    if (foundationsAtCell?.some(f => !f.isDestroyed)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        })();
+    
+    // Check if Matron's Chest is NOT on a foundation (required)
+    // PERFORMANCE FIX: Use spatial index for O(1) lookup
+    const isNotOnFoundation = placementInfo.itemName === "Matron's Chest" && connection && 
+        (() => {
+            const FOUNDATION_TILE_SIZE = 96;
+            const centerCellX = Math.floor(snappedX / FOUNDATION_TILE_SIZE);
+            const centerCellY = Math.floor(snappedY / FOUNDATION_TILE_SIZE);
+            
+            const foundationsAtCell = foundationSpatialIndex.get(`${centerCellX},${centerCellY}`);
+            return !foundationsAtCell?.some(f => !f.isDestroyed); // True if no foundation = invalid placement
+        })();
+    
+    // Check if placement position is on a wall
+    const isOnWall = connection ? isPositionOnWall(connection, snappedX, snappedY) : false;
+    
+    // Check if placement position is in a monument zone (ALK stations, rune stones, hot springs, quarries, asphalt)
+    const isInMonumentZone = connection ? isPositionInMonumentZone(connection, snappedX, snappedY) : false;
+    
+    // Check if broth pot is being placed without a nearby heat source or on one that already has a pot
+    const isBrothPotInvalid = placementInfo.iconAssetName === 'field_cauldron.png' && (() => {
+        if (!nearestHeatSource || !heatSourceType) {
+            return true; // No heat source nearby
+        }
+        
+        if (heatSourceType === 'campfire') {
+            // Check if campfire already has a broth pot
+            return nearestHeatSource.attachedBrothPotId !== null && nearestHeatSource.attachedBrothPotId !== undefined;
+        } else if (heatSourceType === 'fumarole') {
+            // Check if fumarole already has a broth pot
+            const existingPotOnFumarole = Array.from(connection!.db.broth_pot.iter()).find(
+                pot => pot.attachedToFumaroleId === nearestHeatSource.id && !pot.isDestroyed
+            );
+            return !!existingPotOnFumarole;
+        }
+        
+        return false;
+    })();
+    
+    // Check if door placement is invalid (no foundation, or edge already has wall/door)
+    const isDoorInvalid = isDoorPlacement && (() => {
+        if (nearestDoorCellX === null || nearestDoorCellY === null || !connection) {
+            return true; // No foundation nearby
+        }
+        if (!isDoorEdgeOnFoundation(nearestDoorFoundationShape, doorEdge)) return true;
+        
+        // Check for existing wall on this edge
+        for (const wall of connection.db.wall_cell.iter()) {
+            if (wall.cellX === nearestDoorCellX && 
+                wall.cellY === nearestDoorCellY && 
+                wall.edge === doorEdge && 
+                !wall.isDestroyed) {
+                return true; // Wall exists on this edge
+            }
+        }
+        
+        // Check for existing door on this edge
+        for (const door of connection.db.door.iter()) {
+            if (door.cellX === nearestDoorCellX && 
+                door.cellY === nearestDoorCellY && 
+                door.edge === doorEdge && !door.isDestroyed) {
+                return true; // Door exists on this edge
+            }
+        }
+
+        const adjacent = getAdjacentDoorEdge(nearestDoorCellX, nearestDoorCellY, doorEdge);
+        for (const wall of connection.db.wall_cell.iter()) {
+            if (wall.cellX === adjacent.cellX && wall.cellY === adjacent.cellY &&
+                wall.edge === adjacent.edge && !wall.isDestroyed) return true;
+        }
+        for (const door of connection.db.door.iter()) {
+            if (door.cellX === adjacent.cellX && door.cellY === adjacent.cellY &&
+                door.edge === adjacent.edge && !door.isDestroyed) return true;
+        }
+        
+        return false; // Valid placement
+    })();
+    
+    // Apply visual effect - red tint with opacity for any invalid placement
+    // For broth pot, only invalid if no campfire or campfire has pot - distance doesn't matter if snapping
+    // For door, only invalid if no foundation or edge has existing wall/door
+    let isInvalidPlacement: boolean;
+    let isPositionValid: boolean; // Position-based validity (excludes placementError) - used to clear stale errors
+    let placementWarning: string | null = null;
+    if (placementInfo.iconAssetName === 'field_cauldron.png') {
+        isInvalidPlacement = isBrothPotInvalid || isInMonumentZone; // Check both campfire validity and monument zone
+        isPositionValid = !isInvalidPlacement;
+    } else if (isDoorPlacement) {
+        isInvalidPlacement = isDoorInvalid || isDoorTooFar || isInMonumentZone;
+        isPositionValid = !isInvalidPlacement;
+    } else {
+        const { overlaps: isOverlappingPlaceable } = checkPlacementOverlap(connection, placementInfo, snappedX, snappedY);
+        isPositionValid = !(isPlacementTooFar || isOnWater || isTileOccupiedBySeed || isOnFoundation || isNotOnFoundation || isOnWall || isInMonumentZone || isOverlappingPlaceable);
+        isInvalidPlacement = !isPositionValid || !!placementError;
+        // Don't show "Blocked by existing structure" on hover - only on placement action (attemptPlacement)
+        placementWarning = null;
+        // NOTE: Removed hasStorageBoxCollision - let server handle collision validation consistently for all items (like furnaces)
+    }
+    
+    // When position becomes valid, clear any stale placement error so preview turns blue again
+
+
+
+  return { kind: 'item', item: placementInfo, x: snappedX, y: snappedY,
+    cellX: nearestDoorCellX ?? Math.floor(snappedX / FOUNDATION_TILE_SIZE),
+    cellY: nearestDoorCellY ?? Math.floor(snappedY / FOUNDATION_TILE_SIZE),
+    shape: nearestDoorFoundationShape || 1, tier: 1, edge: doorEdge,
+    valid: !isInvalidPlacement, clearError: Boolean(isPositionValid && placementError),
+    warning: placementWarning, grid: placementConfig, isSeedPlacement, heatSourceType };
+}

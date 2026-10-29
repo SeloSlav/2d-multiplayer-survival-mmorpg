@@ -1,6 +1,11 @@
 import { gameConfig } from '../../config/gameConfig';
 import { runtimeEngine } from '../runtimeEngine';
 import { renderGameCanvasFrame } from '../frame/renderGameCanvasFrame';
+import { WebGpuWorldSurface } from '../presentation/world3d/WebGpuWorldSurface';
+import { evaluateGameCanvasPlacement } from '../placement/gameCanvasPlacement';
+import { isWebGpuWorldEnabled } from '../presentation/world3d/rendererRollout';
+import { renderGameCanvasUiFrame } from '../frame/renderGameCanvasUiFrame';
+import type { PresentationStatus } from '../presentation/world3d/visualContract';
 import type { DbConnection } from '../../generated';
 import type { FrameInfo, GameLoopMetrics, MutableRef, RuntimeFramePipeline, StateSetter } from '../types';
 import type { Projectile as SpacetimeDBProjectile } from '../../generated/types';
@@ -94,6 +99,7 @@ export interface GameCanvasRuntimeSceneSnapshot extends Record<string, any> {
   interpolatedGrass: Map<string, any>;
   shipwreckPartsMap: Map<string, any>;
   isTreeFalling: (treeId: string) => boolean;
+  fallingTrees: Map<string, import('./fallingTreeAnimationRuntime').FallingTreeState>;
   getFallProgress: (treeId: string) => number;
   TREE_FALL_DURATION_MS: number;
   resolvedOverlayRgba: any;
@@ -607,9 +613,11 @@ export class GameCanvasRuntimeHost {
       }
     },
     processInputs: () => {
+      if (this.webGpuPresentationOptions?.enabled && !this.worldPresentationReady) return;
       this.frameBindings?.processInputsAndActions();
     },
     stepSimulation: (dtMs: number) => {
+      if (this.webGpuPresentationOptions?.enabled && !this.worldPresentationReady) return;
       this.frameBindings?.stepPredictedMovement?.(dtMs);
     },
     renderFrame: (renderAlpha: number) => {
@@ -627,6 +635,14 @@ export class GameCanvasRuntimeHost {
   }
 
   configureRenderContextFromSnapshots(config: GameCanvasRenderRuntimeConfig): void {
+    this.configureWebGpuPresentation({ enabled: isWebGpuWorldEnabled(), canvasRef: config.gameCanvasRef,
+      localPlayerId: config.localPlayerId, shadows: config.allShadowsEnabled,
+      getDodgeRoll: config.getCurrentDodgeRollVisualNow,
+      onStatus: (status) => {
+        config.gameCanvasRef.current?.dispatchEvent(new CustomEvent('world-presentation-status', { detail: status }));
+        if (status.phase === 'error') this.ambientEffectsSnapshot?.showError(status.message);
+      },
+    });
     const renderContext = assembleGameCanvasRenderContext({
       ...config,
       sceneRuntime: this.sceneSnapshot,
@@ -1275,6 +1291,7 @@ export class GameCanvasRuntimeHost {
     sceneSnapshot.interpolatedGrass = interpolated.interpolatedGrass;
 
     const fallingTrees = this.fallingTreeAnimationRuntime.update(sceneSnapshot.trees ?? EMPTY_RUNTIME_MAP);
+    sceneSnapshot.fallingTrees = fallingTrees.fallingTrees;
     sceneSnapshot.isTreeFalling = fallingTrees.isTreeFalling;
     sceneSnapshot.getFallProgress = fallingTrees.getFallProgress;
     sceneSnapshot.TREE_FALL_DURATION_MS = fallingTrees.TREE_FALL_DURATION_MS;
@@ -1490,6 +1507,9 @@ export class GameCanvasRuntimeHost {
   }
 
   unmount(): void {
+    void this.worldPresentation?.dispose();
+    this.worldPresentation = null;
+    this.worldPresentationReady = false;
     this.stopAmbientEffectsRuntimeServices();
     this.stopParticleRuntimeServices();
     this.stopPointerRuntimeServices();
@@ -1504,6 +1524,7 @@ export class GameCanvasRuntimeHost {
     if (!this.renderContext) {
       return;
     }
+    const frameStartMs = performance.now();
 
     if (this.frameBindings) {
       this.refreshLiveFramePose(this.frameBindings);
@@ -1514,10 +1535,62 @@ export class GameCanvasRuntimeHost {
       this.recordCameraProfilerSample(this.frameBindings);
     }
 
+    if (this.webGpuPresentationOptions?.enabled) {
+      const frameGapMs = this.lastPresentationFrameStart ? frameStartMs - this.lastPresentationFrameStart : 0;
+      this.lastPresentationFrameStart = frameStartMs;
+      const options = this.webGpuPresentationOptions;
+      const canvas = options.canvasRef.current;
+      if (!canvas || !this.sceneSnapshot || !this.frameBindings) return;
+      if (!this.worldPresentation || this.worldPresentation.canvas !== canvas) {
+        void this.worldPresentation?.dispose();
+        this.worldPresentationReady = false;
+        this.worldPresentation = new WebGpuWorldSurface(canvas, (status) => {
+          this.worldPresentationReady = status.phase === 'ready';
+          this.webGpuPresentationOptions?.onStatus(status);
+        });
+      }
+      const refs = this.controllerRefsState;
+      this.worldPresentation.render({
+        width: this.frameBindings.canvasWidth,
+        height: this.frameBindings.canvasHeight,
+        cameraOffset: refs.cameraOffsetRef.current,
+        tables: { ...this.sceneSnapshot, projectiles: this.sceneSnapshot.renderableProjectiles ?? this.sceneSnapshot.projectiles },
+        localPlayerId: options.localPlayerId,
+        predictedPosition: refs.predictedPositionRef.current,
+        facing: refs.localFacingDirectionRef.current,
+        jumpStartMs: refs.localOptimisticJumpPressMsRef.current,
+        rollProgress: options.getDodgeRoll?.().progress,
+        shadows: options.shadows,
+        profile: Boolean(this.renderContext.showFpsProfiler || isProfilerRecording()),
+        placement: evaluateGameCanvasPlacement(this.renderContext),
+        getRemotePlayerPosition: (player) => remotePlayerInterpolationRuntime.updateAndGetSmoothedPosition(player as SpacetimeDBPlayer, options.localPlayerId),
+      });
+      renderGameCanvasUiFrame(this.renderContext, {frameStartMs, frameGapMs, world:this.worldPresentation.renderer.lastProfile,
+        occludes:(x,y)=>this.worldPresentation!.renderer.shelterVisibility.occludes(x,y)});
+      this.checkRenderPerformance(frameStartMs);
+      return;
+    }
+
     renderGameCanvasFrame({
       ...this.renderContext,
       renderAlpha,
     });
+  }
+
+  private worldPresentation: WebGpuWorldSurface | null = null;
+  private lastPresentationFrameStart = 0;
+  private worldPresentationReady = false;
+  private webGpuPresentationOptions: {
+    enabled: boolean;
+    canvasRef: MutableRef<HTMLCanvasElement | null>;
+    localPlayerId?: string;
+    shadows: boolean;
+    onStatus: (status: PresentationStatus) => void;
+    getDodgeRoll?: () => { progress: number };
+  } | null = null;
+
+  configureWebGpuPresentation(options: NonNullable<GameCanvasRuntimeHost['webGpuPresentationOptions']>): void {
+    this.webGpuPresentationOptions = options;
   }
 
   private readonly checkRenderPerformance = (frameStartTime: number): void => {

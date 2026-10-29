@@ -15,6 +15,7 @@ import { getCollisionShapesForDebug } from '../../utils/clientCollision';
 import { gameConfig } from '../../config/gameConfig';
 
 export interface RenderTranslatedWorldExtrasOptions {
+  renderPlacementGeometry?: boolean;
   ctx: CanvasRenderingContext2D;
   visibleHarvestableResourcesMap: Map<string, any>;
   visibleCampfiresMap: Map<string, any>;
@@ -427,6 +428,7 @@ export function renderTranslatedWorldExtrasOverCampfireOverlay(
     });
   }
 
+  if (opts.renderPlacementGeometry === false) return;
   const placementWarningResult = renderPlacementPreview({
     ctx,
     placementInfo,

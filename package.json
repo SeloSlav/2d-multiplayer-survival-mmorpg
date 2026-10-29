@@ -4,7 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "verify:ui-unchanged": "node scripts/verify-ui-unchanged.mjs",
+    "test:world3d": "node scripts/test-world3d.mjs",
     "dev": "node scripts/vite-dev-pick-port.mjs",
+    "prebuild": "npm run verify:ui-unchanged",
     "build": "tsc -b && vite build",
     "build:production": "npm run generate-routes && npm run update-sitemap && npm run build",
     "lint": "eslint .",
@@ -35,6 +38,7 @@
     "react-router-dom": "^7.6.3",
     "spacetimedb": "^2.0.1",
     "statuses": "^2.0.2",
+    "three": "0.186.1",
     "use-debounce": "^10.0.4"
   },
   "devDependencies": {
@@ -44,7 +48,9 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
+    "@types/three": "0.186.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@webgpu/types": "0.1.74",
     "eslint": "^9.21.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.19",

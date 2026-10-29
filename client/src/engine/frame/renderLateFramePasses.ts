@@ -52,6 +52,7 @@ interface TimingMarks {
 }
 
 interface RenderLateFramePassesOptions {
+  renderLighting?: boolean;
   ctx: CanvasRenderingContext2D;
   frameStartTime: number;
   showFpsProfiler: boolean;
@@ -100,6 +101,7 @@ interface RenderLateFramePassesOptions {
 }
 
 export function renderLateFramePasses({
+  renderLighting = true,
   ctx,
   frameStartTime,
   showFpsProfiler,
@@ -167,6 +169,7 @@ export function renderLateFramePasses({
   });
   const t4 = mark(showFpsProfiler);
 
+  if (renderLighting) {
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   renderAllStructureLights({
@@ -298,6 +301,7 @@ export function renderLateFramePasses({
   }
 
   ctx.restore();
+  }
   const t5 = mark(showFpsProfiler);
 
   if (isMobile && tapAnimation) {

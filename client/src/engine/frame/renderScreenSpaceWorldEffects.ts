@@ -42,37 +42,7 @@ interface RenderScreenSpaceWorldEffectsOptions {
   localPlayerId?: string;
 }
 
-export function renderScreenSpaceWorldEffects({
-  ctx,
-  localPlayer,
-  chunkWeather,
-  currentPredictedPosition,
-  worldState,
-  showPrecipitation,
-  isSnorkeling,
-  currentCameraOffsetX,
-  currentCameraOffsetY,
-  currentCanvasWidth,
-  currentCanvasHeight,
-  deltaTimeMs,
-  stormAtmosphereEnabled,
-  currentCycleProgress,
-  resolvedOverlayRgba,
-  maskCanvas,
-  redrawMask,
-  currentWorldMouseX,
-  currentWorldMouseY,
-  visibleLanterns,
-  worldParticlesQuality,
-  renderParticles,
-  resourceSparkleParticles,
-  impactParticles,
-  structureImpactParticles,
-  hostileDeathParticles,
-  showStatusOverlays,
-  activeConsumableEffects,
-  localPlayerId,
-}: RenderScreenSpaceWorldEffectsOptions): void {
+export function renderScreenSpaceWeather({ ctx, localPlayer, chunkWeather, currentPredictedPosition, worldState, showPrecipitation, isSnorkeling, currentCameraOffsetX, currentCameraOffsetY, currentCanvasWidth, currentCanvasHeight, deltaTimeMs, stormAtmosphereEnabled, currentCycleProgress }: Pick<RenderScreenSpaceWorldEffectsOptions, 'ctx' | 'localPlayer' | 'chunkWeather' | 'currentPredictedPosition' | 'worldState' | 'showPrecipitation' | 'isSnorkeling' | 'currentCameraOffsetX' | 'currentCameraOffsetY' | 'currentCanvasWidth' | 'currentCanvasHeight' | 'deltaTimeMs' | 'stormAtmosphereEnabled' | 'currentCycleProgress'>): void {
   let rainIntensity = 0.0;
   if (localPlayer && chunkWeather) {
     const playerX = currentPredictedPosition?.x ?? localPlayer.positionX;
@@ -111,6 +81,41 @@ export function renderScreenSpaceWorldEffects({
       Date.now(),
     );
   }
+
+}
+
+export function renderScreenSpaceWorldEffects({
+  ctx,
+  localPlayer,
+  chunkWeather,
+  currentPredictedPosition,
+  worldState,
+  showPrecipitation,
+  isSnorkeling,
+  currentCameraOffsetX,
+  currentCameraOffsetY,
+  currentCanvasWidth,
+  currentCanvasHeight,
+  deltaTimeMs,
+  stormAtmosphereEnabled,
+  currentCycleProgress,
+  resolvedOverlayRgba,
+  maskCanvas,
+  redrawMask,
+  currentWorldMouseX,
+  currentWorldMouseY,
+  visibleLanterns,
+  worldParticlesQuality,
+  renderParticles,
+  resourceSparkleParticles,
+  impactParticles,
+  structureImpactParticles,
+  hostileDeathParticles,
+  showStatusOverlays,
+  activeConsumableEffects,
+  localPlayerId,
+}: RenderScreenSpaceWorldEffectsOptions): void {
+  renderScreenSpaceWeather({ ctx, localPlayer, chunkWeather, currentPredictedPosition, worldState, showPrecipitation, isSnorkeling, currentCameraOffsetX, currentCameraOffsetY, currentCanvasWidth, currentCanvasHeight, deltaTimeMs, stormAtmosphereEnabled, currentCycleProgress });
 
   if (resolvedOverlayRgba !== 'transparent' && resolvedOverlayRgba !== 'rgba(0,0,0,0.00)' && maskCanvas) {
     redrawMask({

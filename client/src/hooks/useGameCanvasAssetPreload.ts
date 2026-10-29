@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { isWebGpuWorldEnabled } from '../engine/presentation/world3d/rendererRollout';
 import { preloadMonumentImages } from '../utils/renderers/monumentRenderingUtils';
 import { preloadAlkStationImages } from '../utils/renderers/alkStationRenderingUtils';
 import { preloadCairnImages } from '../utils/renderers/cairnRenderingUtils';
@@ -23,6 +24,7 @@ import torchOnUrl from '../assets/items/torch_on.png';
 
 interface UseGameCanvasAssetPreloadOptions {
   itemImagesRef: RefObject<Map<string, HTMLImageElement>>;
+  worldSprites?: boolean;
 }
 
 interface LoadedOverlayImages {
@@ -33,6 +35,7 @@ interface LoadedOverlayImages {
 
 export function useGameCanvasAssetPreload({
   itemImagesRef,
+  worldSprites = !isWebGpuWorldEnabled(),
 }: UseGameCanvasAssetPreloadOptions) {
   const foundationTileImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const [imageLoadTrigger, setImageLoadTrigger] = useState(0);
@@ -62,14 +65,16 @@ export function useGameCanvasAssetPreload({
   }, [imageLoadTrigger, itemImagesRef]);
 
   useEffect(() => {
+    if (!worldSprites) return;
     touchCampfireFireWebGLInit();
     void preloadAlkStationImages();
     preloadMonumentImages();
     preloadCairnImages();
     preloadRoadLamppostImages();
-  }, []);
+  }, [worldSprites]);
 
   useEffect(() => {
+    if (!worldSprites) return;
     const tileAssets = [
       ['foundation_wood.png', foundationWoodTileUrl],
       ['foundation_twig.png', foundationTwigTileUrl],
@@ -90,14 +95,15 @@ export function useGameCanvasAssetPreload({
       img.onerror = () => console.error(`Failed to load ${assetName}`);
       img.src = assetUrl;
     });
-  }, []);
+  }, [worldSprites]);
 
   useEffect(() => {
+    if (!worldSprites) return;
     preloadWildAnimalImages();
     preloadAnimalCorpseImages();
     preloadFumaroleImages();
     preloadBasaltColumnImages();
-  }, []);
+  }, [worldSprites]);
 
   useEffect(() => {
     const loadOverlayImage = (

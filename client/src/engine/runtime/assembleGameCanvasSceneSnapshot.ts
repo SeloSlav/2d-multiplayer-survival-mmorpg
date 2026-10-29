@@ -20,6 +20,7 @@ interface AssembleGameCanvasSceneSnapshotOptions {
   worldLookups: Record<string, any>;
   frameAssembly: Record<string, any>;
   treeAnimation: {
+    fallingTrees: Map<string, import('./fallingTreeAnimationRuntime').FallingTreeState>;
     isTreeFalling: (treeId: string) => boolean;
     getFallProgress: (treeId: string) => number;
     TREE_FALL_DURATION_MS: number;

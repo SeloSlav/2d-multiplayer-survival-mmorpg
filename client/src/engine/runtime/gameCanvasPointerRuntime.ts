@@ -133,15 +133,16 @@ export class GameCanvasPointerRuntime {
     }
 
     const rect = this.canvas.getBoundingClientRect();
-    const scaleX = this.canvas.width / rect.width;
-    const scaleY = this.canvas.height / rect.height;
+    // Input uses logical CSS/gameplay pixels, independently of GPU resolution.
+    const scaleX = (this.options?.canvasSize.width ?? rect.width) / rect.width;
+    const scaleY = (this.options?.canvasSize.height ?? rect.height) / rect.height;
 
     const currentScreenX = (clientX - rect.left) * scaleX;
     const currentScreenY = (clientY - rect.top) * scaleY;
     const currentWorldX = currentScreenX - cameraOffsetX;
     const currentWorldY = currentScreenY - cameraOffsetY;
-    const canvasX = currentScreenX - rect.left;
-    const canvasY = currentScreenY - rect.top;
+    const canvasX = currentScreenX;
+    const canvasY = currentScreenY;
 
     this.snapshot.screenMousePos = { x: currentScreenX, y: currentScreenY };
     this.snapshot.worldMousePos = { x: currentWorldX, y: currentWorldY };

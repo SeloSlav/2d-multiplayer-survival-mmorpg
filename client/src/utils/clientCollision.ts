@@ -1,18 +1,16 @@
 // AAA-Quality Client-side Collision Detection System
 import { Player, Tree, Stone, RuneStone, Cairn, WoodenStorageBox, Shelter, RainCollector, WildAnimal, AnimalCorpse, Barrel, Furnace, Barbecue, WallCell, FoundationCell, HomesteadHearth, BasaltColumn, Door, AlkStation, LivingCoral, Lantern, Turret, Fence, RoadLamppost, MonumentPart } from '../generated/types';
 import { getVillageCampfireCollisionShapes, getMonumentScarecrowCollisionShapes } from './monumentCollision';
+import { COLLISION_OFFSETS, SHELTER_DIMS, MONUMENT_BUILDING_COLLISION, getTreeCollisionOffset, getBarrelCollisionOffset } from '../config/entityGroundGeometry';
+export { COLLISION_OFFSETS, SHELTER_DIMS, MONUMENT_BUILDING_COLLISION } from '../config/entityGroundGeometry';
 // StormPile removed - storms now spawn HarvestableResources and DroppedItems directly
 import { gameConfig, FOUNDATION_TILE_SIZE, foundationCellToWorldCenter } from '../config/gameConfig';
 import { COMPOUND_BUILDINGS, getBuildingWorldPosition, isCompoundMonument } from '../config/compoundBuildings';
-import { ANIMAL_CORPSE_COLLISION_RADIUS } from './renderers/animalCorpseRenderingUtils';
 
 // Add at top after imports:
 // Spatial filtering constants
 const COLLISION_QUERY_EXPANSION = 100; // Extra padding around movement path for safety
 const FOUNDATION_COLLISION_THICKNESS = 8; // Thickness for triangle hypotenuse collision
-// Keep road-barrel-on-water collision translation aligned with renderer waterline translation.
-const ROAD_BARREL_ON_WATER_COLLISION_X_OFFSET = 52;
-const ROAD_BARREL_ON_WATER_COLLISION_Y_OFFSET = 0;
 
 // Helper to check if shape intersects with query box
 function shapeIntersectsBox(shape: CollisionShape, minX: number, minY: number, maxX: number, maxY: number): boolean {
@@ -430,23 +428,14 @@ function getCollisionCandidates(
     
     const variantIndex = Number(barrel.variant ?? 0);
     const isBuoy = variantIndex === 6;
-    const isRoadBarrelOnWater = variantIndex < 3 && !!isOnSeaTile?.(barrel.posX, barrel.posY);
-    // Road barrels on sea are rendered rotated 90°. Translate right/down to match sprite/waterline shift.
-    const collisionXOffset = isRoadBarrelOnWater ? ROAD_BARREL_ON_WATER_COLLISION_X_OFFSET : COLLISION_OFFSETS.BARREL.x;
-    const collisionYOffset = isBuoy
-      ? -110
-      : isRoadBarrelOnWater
-        ? ROAD_BARREL_ON_WATER_COLLISION_Y_OFFSET
-        : variantIndex === 4
-          ? COLLISION_OFFSETS.BARREL.y * 2
-          : COLLISION_OFFSETS.BARREL.y;
+    const barrelOffset = getBarrelCollisionOffset(barrel, !!isOnSeaTile?.(barrel.posX, barrel.posY));
     const collisionRadius = isBuoy ? COLLISION_RADII.BARREL : variantIndex === 4 ? COLLISION_RADII.BARREL * 2 : COLLISION_RADII.BARREL;
     
     shapes.push({
       id: barrel.id.toString(),
       type: `barrel-${barrel.id.toString()}`,
-      x: barrel.posX + collisionXOffset,
-      y: barrel.posY + collisionYOffset,
+      x: barrel.posX + barrelOffset.x,
+      y: barrel.posY + barrelOffset.y,
       radius: collisionRadius
     });
   }
@@ -685,8 +674,10 @@ function getCollisionCandidates(
   
   // StormPile removed - storms now spawn HarvestableResources and DroppedItems directly
   
-  // Filter living corals (underwater coral reefs)
-  if (entities.livingCorals && entities.livingCorals.size > 0) {
+  // Coral lives on the seabed: surface swimmers pass above it. Use the local
+  // player's dive state, rather than water contact or another player's state.
+  const isDiving = entities.players.get(localPlayerId)?.isSnorkeling === true;
+  if (isDiving && entities.livingCorals && entities.livingCorals.size > 0) {
     const nearbyCorals = filterEntitiesByDistance(
       entities.livingCorals,
       playerX,
@@ -1258,19 +1249,6 @@ function getCollisionCandidates(
 // This avoids the "thin shape" heuristic (width > height*3) in checkAABBCollision
 // which causes glitchy push-out on skinny boxes.
 // ============================================================================
-export const MONUMENT_BUILDING_COLLISION = {
-  WIDTH: 350,   // Same as ALK substations
-  HEIGHT: 160,  // Same as ALK substations (480 / 3)
-  // Y offset from entity posY to collision center
-  // spriteBottom = posY + anchorOffset, then center at spriteBottom - height/2
-  // Monument placeables (96px anchor): posY + 96 - 80 = posY + 16
-  // ALK compound (0px anchor):         pushed up 60px from base (sprite at worldPosY)
-  // Compound rain collector:           pushed up 60px from standard (16 - 60 = -44)
-  CENTER_Y_OFFSET: 16,           // For monument placeables (96px anchor offset)
-  ALK_CENTER_Y_OFFSET: -140,     // For ALK compound (0px anchor, pushed up 60px from -80)
-  RAIN_COLLECTOR_CENTER_Y_OFFSET: -44,  // For compound rain collector (pushed up 60px from 16)
-} as const;
-
 // Unified collision radii for consistency - match visual sprite sizes
 // Exported for debug rendering
 export const COLLISION_RADII = {
@@ -1286,6 +1264,7 @@ export const COLLISION_RADII = {
   BARBECUE: 20, // Same as furnace (similar size appliance)
   PLAYER: PLAYER_RADIUS,
   WILD_ANIMAL: 40, // Add wild animal collision radius
+  ANIMAL_CORPSE: 16, // Matches server wild_animal_npc/animal_corpse.rs; debug geometry only
   BARREL: 25, // Smaller barrel collision radius for better accuracy
   SEA_STACK: 60, // Base radius for sea stacks - reduced significantly for smoother collision like trees
   HOMESTEAD_HEARTH: 55, // Homestead hearth collision radius (matches server-side HEARTH_COLLISION_RADIUS)
@@ -1296,66 +1275,6 @@ export const COLLISION_RADII = {
   TURRET: 35, // Turret collision radius (smaller, focused on base) - player-placed only; monument turrets use AABB
   // STORM_PILE removed - storms now spawn HarvestableResources and DroppedItems directly
   LIVING_CORAL: 80, // Living coral collision radius (underwater coral reef, doubled for better underwater presence)
-} as const;
-
-// Collision offsets for sprite positioning - align with visual sprite base
-// Exported for debug rendering
-export const COLLISION_OFFSETS = {
-  TREE: { x: 0, y: -68 },      // Adjusted to keep top boundary similar while squishing from bottom
-  STONE: { x: 0, y: -36 },     // Small circle positioned at visual stone base (pushed down from -72)
-  RUNE_STONE: { x: 0, y: -24 }, // Y offset for 48x48 AABB collision center (matches server-side)
-  CAIRN: { x: 0, y: -24 },     // Y offset for 96x48 AABB collision center (matches server-side CAIRN_COLLISION_Y_OFFSET)
-  STORAGE_BOX: { x: 0, y: -50 }, // Match small furnace collision offset (starts lower for better approach)
-  RAIN_COLLECTOR: { x: 0, y: -30 }, // Pushed up to align with stone base (matches server offset of 0.0)
-  // MONUMENT_RAIN_COLLECTOR removed - uses MONUMENT_BUILDING_COLLISION AABB instead
-  FURNACE: { x: 0, y: -50 }, // Adjusted center to extend collision below while keeping top boundary
-  LARGE_FURNACE: { x: 0, y: -80 }, // Matches server-side LARGE_FURNACE_COLLISION_Y_OFFSET (80.0)
-  BARBECUE: { x: 0, y: 0 }, // Collision at posY (matches server-side BARBECUE_COLLISION_Y_OFFSET: 0.0)
-  SHELTER: { x: 0, y: -200 },  // Shelter offset unchanged
-  WILD_ANIMAL: { x: 0, y: 0 }, // No offset needed for animals
-  BARREL: { x: 0, y: -48 }, // Barrel collision at visual center (matches server)
-  ALK_STATION: { x: 0, y: -170 }, // ALK station collision offset - moved UP to center on building (allows walking behind for Y-sorting)
-  SEA_STACK: { x: 0, y: -120 }, // Offset up to position collision higher on the structure
-  HOMESTEAD_HEARTH: { x: 0, y: -72.5 }, // Homestead hearth collision offset (matches server-side HEARTH_COLLISION_Y_OFFSET)
-  BASALT_COLUMN: { x: 0, y: -40 }, // Basalt column collision offset
-  ROAD_LAMPPOST: { x: 0, y: -90 }, // Road lamppost collision base pushed up (128x192 sprite, pole center)
-  WARD: { x: 0, y: -80 }, // Ward collision offset (matches server-side WARD_COLLISION_Y_OFFSET)
-  TURRET: { x: 0, y: 70 }, // Turret collision at wooden base/platform - player-placed only; monument turrets use AABB
-  // STORM_PILE removed - storms now spawn HarvestableResources and DroppedItems directly
-  LIVING_CORAL: { x: 0, y: -60 }, // Living coral collision offset (doubled to match visual size)
-} as const;
-
-const TREE_COLLISION_VARIANT_OFFSETS: Record<string, { x: number; y: number }> = {
-  // Rowanberry collision should sit a bit higher than the default tree anchor.
-  RowanberryTree: { x: 0, y: -20 },
-  // Twisted spruce trunk is visually left-biased.
-  KrummholzSpruce: { x: -40, y: 0 },
-};
-
-function getTreeCollisionOffset(tree: Tree): { x: number; y: number } {
-  const treeTypeKey = typeof tree.treeType === 'object' && tree.treeType !== null && 'tag' in tree.treeType
-    ? (tree.treeType as any).tag
-    : (tree.treeType as unknown as string);
-  const variantOffset = TREE_COLLISION_VARIANT_OFFSETS[treeTypeKey];
-  if (!variantOffset) return COLLISION_OFFSETS.TREE;
-
-  return {
-    x: COLLISION_OFFSETS.TREE.x + variantOffset.x,
-    y: COLLISION_OFFSETS.TREE.y + variantOffset.y,
-  };
-}
-
-// Shelter AABB dimensions (must match server-side constants in shelter.rs)
-// These are tuned to match the interior collision rectangle (black debug box)
-// drawn in `shelterRenderingUtils.ts`, so what you see is exactly what you
-// collide with as a non-owner.
-// Exported for debug rendering
-export const SHELTER_DIMS = {
-  WIDTH: 300,          // SHELTER_COLLISION_WIDTH
-  HEIGHT: 125,         // SHELTER_COLLISION_HEIGHT
-  HALF_WIDTH: 150,     // SHELTER_AABB_HALF_WIDTH
-  HALF_HEIGHT: 62.5,   // SHELTER_AABB_HALF_HEIGHT
-  AABB_CENTER_Y_OFFSET_FROM_POS_Y: 200, // SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y
 } as const;
 
 // Sea Stack AABB dimensions - wider at the base, scales with sea stack's scale property
@@ -2150,7 +2069,7 @@ export function getCollisionShapesForDebug(
       type: `animal_corpse-${corpse.id.toString()}`,
       x: corpse.posX,
       y: corpse.posY,
-      radius: ANIMAL_CORPSE_COLLISION_RADIUS,
+      radius: COLLISION_RADII.ANIMAL_CORPSE,
     });
   }
 

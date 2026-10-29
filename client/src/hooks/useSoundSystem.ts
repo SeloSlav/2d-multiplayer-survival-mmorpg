@@ -3,6 +3,7 @@ import type { SoundEvent, ContinuousSound, ChunkWeather, Season } from '../gener
 import { Identity } from 'spacetimedb';
 import { calculateChunkIndex } from '../utils/chunkUtils';
 import { isAnySovaAudioPlaying } from './useSovaSoundBox';
+import { recordTreeFallPlayback } from '../utils/treeFallAudioSync';
 
 interface SoundSystemProps {
     soundEvents: Map<string, SoundEvent>;
@@ -283,7 +284,8 @@ const initAudioContext = () => {
 const playLoudSound = async (
     filename: string,
     volume: number,
-    pitchVariation: number = 1.0
+    pitchVariation: number = 1.0,
+    onStarted?: () => void
 ): Promise<void> => {
     try {
         const ctx = initAudioContext();
@@ -308,6 +310,7 @@ const playLoudSound = async (
         
         // Play
         source.start(0);
+        onStarted?.();
         
     } catch (error) {
         console.warn(`🔊 Web Audio error for ${filename}:`, error);
@@ -327,6 +330,7 @@ const playLoudSound = async (
             if (playPromise !== undefined) {
                 await playPromise;
             }
+            onStarted?.();
         } catch (playError: any) {
             // Browser blocked autoplay - silent failure is expected
             if (playError.name !== 'NotAllowedError' && playError.name !== 'NotSupportedError') {
@@ -599,10 +603,13 @@ const playSpatialAudio = async (
         // Add slight random volume variation (±10% for subtle variety)
         const volumeVariation = 0.9 + Math.random() * SOUND_CONFIG.SPATIAL_VOLUME_VARIATION;
         const finalVolume = volume * volumeVariation;
+        const onStarted = filename === 'tree_falling.mp3'
+            ? () => recordTreeFallPlayback(soundX, soundY, pitchVariation)
+            : undefined;
         
         // Use Web Audio API for loud sounds (> 1.0), HTML Audio for normal sounds
         if (finalVolume > 1.0) {
-            await playLoudSound(filename, finalVolume, pitchVariation);
+            await playLoudSound(filename, finalVolume, pitchVariation, onStarted);
         } else {
             // Use regular HTML Audio for normal volumes
             const audio = await getAudio(filename);
@@ -635,6 +642,7 @@ const playSpatialAudio = async (
                 if (playPromise !== undefined) {
                     await playPromise;
                 }
+                onStarted?.();
             } catch (playError: any) {
                 // Browser blocked autoplay - this is normal and expected
                 // Don't log as error, just cleanup silently

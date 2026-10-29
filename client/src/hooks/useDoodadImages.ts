@@ -1,13 +1,15 @@
 import { useEffect, useRef } from 'react';
+import { isWebGpuWorldEnabled } from '../engine/presentation/world3d/rendererRollout';
 
 /**
  * Hook to load and manage doodad images for placement previews and rendering.
  * Extracts doodad image loading from GameCanvas for better separation of concerns.
  */
-export function useDoodadImages() {
+export function useDoodadImages(enabled = !isWebGpuWorldEnabled()) {
   const doodadImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   useEffect(() => {
+    if (!enabled) return;
     // Helper function to load a doodad image
     const loadDoodadImage = (importPromise: Promise<{ default: string }>, filename: string) => {
       importPromise.then((module) => {
@@ -111,7 +113,7 @@ export function useDoodadImages() {
     // Fish trap
     loadDoodadImage(import('../assets/doodads/fish_trap.png'), 'fish_trap.png');
 
-  }, []);
+  }, [enabled]);
 
   return doodadImagesRef;
 }
