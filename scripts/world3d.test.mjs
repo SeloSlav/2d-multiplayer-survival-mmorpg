@@ -1,5 +1,7 @@
 import test from 'node:test';
 import './fracture-runes-world3d.test.mjs';
+import './player-lifecycle.test.mjs';
+import './wildlife-projectiles.test.mjs';
 import { TerrainWindow3d } from '../client/src/engine/presentation/world3d/TerrainWindow3d.ts';
 import { GroundDetail3d, scatterForTile } from '../client/src/engine/presentation/world3d/GroundDetail3d.ts';
 import { VegetationWind3d } from '../client/src/engine/presentation/world3d/VegetationWind3d.ts';

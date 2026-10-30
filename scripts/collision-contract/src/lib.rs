@@ -10,3 +10,9 @@ mod alk_wildlife;
 #[allow(dead_code)]
 #[path = "../../../server/src/wild_animal_npc/bird_motion.rs"]
 mod bird_motion;
+#[allow(dead_code)]
+#[path = "../../../server/src/projectile_geometry.rs"]
+mod projectile_geometry;
+#[allow(dead_code)]
+#[path = "../../../server/src/wildlife_projectile_geometry.rs"]
+mod wildlife_projectile_geometry;

@@ -121,6 +121,7 @@ mod bones; // <<< ADDED bones module
 mod ranged_weapon_stats; // Add this line
 mod projectile; // Add this line
 mod projectile_geometry;
+mod wildlife_projectile_geometry;
 mod death_marker; // <<< ADDED death marker module
 mod torch; // <<< ADDED torch module
 mod flashlight; // <<< ADDED flashlight module

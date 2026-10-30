@@ -3,6 +3,7 @@ import type { Player } from '../../generated/types';
 import { resolveClientCollision, type GameEntities } from '../../utils/clientCollision';
 import { gameConfig } from '../../config/gameConfig';
 import { runtimeEngine } from '../runtimeEngine';
+import { readLocalPlayerLife, recoverRejectedPlayerLife } from './localPlayerLifecycle';
 import {
   DODGE_ROLL_COOLDOWN_MS,
   DODGE_ROLL_DISTANCE_PX,
@@ -185,20 +186,21 @@ class MovementPredictionEngine {
   };
 
   configure(config: MovementPredictionRuntimeProps): void {
-    this.config = config;
+    const localPlayer = readLocalPlayerLife(config.connection, config.localPlayer);
+    this.config = { ...config, localPlayer };
 
-    if (!config.localPlayer) {
+    if (!localPlayer) {
       this.reset();
       return;
     }
 
     if (!this.clientPosition) {
-      const serverPos = { x: config.localPlayer.positionX, y: config.localPlayer.positionY };
+      const serverPos = { x: localPlayer.positionX, y: localPlayer.positionY };
       this.clientPosition = serverPos;
       this.serverPosition = serverPos;
       this.pendingPosition = serverPos;
-      this.lastFacingDirection = config.localPlayer.direction || 'down';
-      this.wasDead = config.localPlayer.isDead;
+      this.lastFacingDirection = localPlayer.direction || 'down';
+      this.wasDead = localPlayer.isDead;
       this.publishSnapshot(true);
       return;
     }
@@ -215,8 +217,8 @@ class MovementPredictionEngine {
   }
 
   triggerOptimisticDodgeRoll = (moveX: number, moveY: number): boolean => {
-    const localPlayer = this.config?.localPlayer;
-    if (!this.clientPosition || !localPlayer || localPlayer.isOnWater) {
+    const localPlayer = readLocalPlayerLife(this.config?.connection, this.config?.localPlayer);
+    if (!this.clientPosition || !localPlayer || localPlayer.isDead || localPlayer.isKnockedOut || localPlayer.isOnWater) {
       return false;
     }
 
@@ -280,7 +282,7 @@ class MovementPredictionEngine {
   getCurrentPositionNow = (): { x: number; y: number } | null => {
     const config = this.config;
     const localPlayer = config?.localPlayer;
-    if (!this.clientPosition || !localPlayer) {
+    if (!this.clientPosition || !localPlayer || localPlayer.isDead) {
       return this.clientPosition;
     }
 
@@ -331,7 +333,7 @@ class MovementPredictionEngine {
 
   getCurrentDodgeRollVisualNow = (): DodgeRollVisualState => {
     const localPlayer = this.config?.localPlayer;
-    if (!localPlayer) {
+    if (!localPlayer || localPlayer.isDead) {
       return DEFAULT_DODGE_VISUAL;
     }
 
@@ -457,6 +459,21 @@ class MovementPredictionEngine {
       return;
     }
 
+    // Death takes priority over an optimistic dodge and movement acknowledgments.
+    if (localPlayer.isDead) {
+      this.clientPosition = { x: localPlayer.positionX, y: localPlayer.positionY };
+      this.serverPosition = { ...this.clientPosition };
+      this.pendingPosition = null;
+      this.isMoving = false;
+      this.clientDodgeRoll = null;
+      this.optimisticDodgeRollStartMs = 0;
+      this.visualRollStartMs = 0;
+      this.visualRollProgress = 0;
+      if (!this.wasDead && this.config?.isAutoWalking) this.config.stopAutoWalk();
+      this.wasDead = true;
+      return;
+    }
+
     const optimisticElapsedMs = Date.now() - this.optimisticDodgeRollStartMs;
     const isOptimisticDodgeRolling =
       this.optimisticDodgeRollStartMs > 0 && optimisticElapsedMs < DODGE_ROLL_DURATION_MS;
@@ -504,12 +521,16 @@ class MovementPredictionEngine {
   private applyMovementStep(dtSec: number, updateStartTime: number): void {
     const config = this.config;
     const connection = config?.connection ?? null;
-    const localPlayer = config?.localPlayer ?? null;
 
     try {
+      const localPlayer = readLocalPlayerLife(connection, config?.localPlayer);
       if (!connection || !localPlayer || !this.clientPosition) {
         movementMonitor.logUpdate(performance.now() - updateStartTime, false);
         return;
+      }
+      if (config && localPlayer !== config.localPlayer) {
+        this.config = { ...config, localPlayer };
+        this.syncServerPlayerState();
       }
       if (localPlayer.isDead) {
         movementMonitor.logUpdate(performance.now() - updateStartTime, false);
@@ -717,11 +738,13 @@ class MovementPredictionEngine {
                 facingDirection: this.lastFacingDirection,
                 clientSequence: this.clientSequence,
               }).catch((error: any) => {
+                if (recoverRejectedPlayerLife(error, connection, localPlayer)) return;
                 console.error('❌ [KnockedOut] Failed to send facing direction update:', error);
               });
               this.lastSentTime = now;
             }
           } catch (error) {
+            if (recoverRejectedPlayerLife(error, connection, localPlayer)) return;
             console.error('❌ [KnockedOut] Failed to send facing direction update:', error);
           }
         }
@@ -745,12 +768,14 @@ class MovementPredictionEngine {
             facingDirection: this.lastFacingDirection,
             clientSequence: this.clientSequence,
           }).catch((error: any) => {
+            if (recoverRejectedPlayerLife(error, connection, localPlayer)) return;
             console.error('❌ [SimpleMovement] Failed to send position update:', error);
           });
 
           this.lastSentTime = now;
           movementMonitor.logUpdate(performance.now() - updateStartTime, true);
         } catch (error) {
+          if (recoverRejectedPlayerLife(error, connection, localPlayer)) return;
           console.error('❌ [SimpleMovement] Failed to send position update:', error);
           movementMonitor.logUpdate(performance.now() - updateStartTime, false);
         }

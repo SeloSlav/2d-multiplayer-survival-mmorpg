@@ -57,6 +57,7 @@ export function useGameplayConnectionSetup({
     console.log('[useSpacetimeTables] ENTERING gameplay subscription runtime connection setup.');
 
     const tableBindings = createGameplayTableBindings({
+      connection,
       connectionIdentity: connection.identity ?? null,
       cancelPlacement: () => cancelPlacementRef.current(),
       hasSpatialSubscription: (chunkIndex) => gameplaySubscriptionsRuntime.hasSpatialSubscription(chunkIndex),

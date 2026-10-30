@@ -25,6 +25,7 @@
 
 import { useEffect, useSyncExternalStore, useCallback, useMemo, MutableRefObject } from 'react';
 import { useLatest } from './useLatest';
+import { readLocalPlayerLife, sendAlivePlayerAction } from '../engine/runtime/localPlayerLifecycle';
 import { recordActorInteraction } from '../engine/presentation/world3d/interactionAnimation';
 import { recordPredictedRangedShot } from '../engine/presentation/world3d/actorAnimation';
 import { isThrowableMelee } from '../engine/runtime/throwableMelee';
@@ -397,6 +398,10 @@ export const useInputHandler = ({
         // Player death no longer needs to manage sprinting here.
         // It's handled by the movement hooks.
 
+        if (localPlayer?.isDead) {
+            inputRuntime.resetPointerAndJumpState();
+            inputRuntime.setIsRightMouseDown(false);
+        }
         // Also clear E hold state if player dies
         if (localPlayer?.isDead && inputRuntime.isEHoldActive()) {
             inputRuntime.cancelEHoldInteraction();
@@ -468,6 +473,8 @@ export const useInputHandler = ({
         }
         
         if (!connectionRef.current?.reducers || !localPlayerId) return;
+        const currentPlayer = readLocalPlayerLife(connectionRef.current, localPlayerRef.current);
+        if (!currentPlayer || currentPlayer.isDead || currentPlayer.isKnockedOut) return;
 
         const localEquipment = activeEquipmentsRef.current?.get(localPlayerId);
         const itemDef = itemDefinitionsRef.current?.get(String(localEquipment?.equippedItemDefId));
@@ -648,23 +655,28 @@ export const useInputHandler = ({
         const fireIntervalMs = (weaponStats?.reloadTimeSecs ?? 0.1) * 1000;
         const now = performance.now();
         if (!inputRuntime.canFireRanged(fireIntervalMs, now)) return;
-        const currentPlayer = localPlayerRef.current;
-        if (!currentPlayer) return;
-        const exactPos = getCurrentPositionNowRef.current?.();
-        const fallbackPos = predictedPositionRef.current;
-        const fireX = exactPos?.x ?? fallbackPos?.x ?? currentPlayer.positionX;
-        const fireY = exactPos?.y ?? fallbackPos?.y ?? currentPlayer.positionY;
-        const clientShotId = inputRuntime.createClientShotId(localPlayerId);
-        registerLocalPlayerRangedShot(itemDef.name);
-        recordPredictedRangedShot(localPlayerId, clientShotId);
-        connectionRef.current.reducers.fireProjectile({
-            targetWorldX: worldMousePosRefInternal.current.x,
-            targetWorldY: worldMousePosRefInternal.current.y,
-            clientPlayerX: fireX,
-            clientPlayerY: fireY,
-            clientShotId,
+        const currentConnection = connectionRef.current;
+        const targetWorldX = worldMousePosRefInternal.current.x;
+        const targetWorldY = worldMousePosRefInternal.current.y;
+        sendAlivePlayerAction(currentConnection, localPlayerRef.current, currentPlayer => {
+            const exactPos = getCurrentPositionNowRef.current?.();
+            const fallbackPos = predictedPositionRef.current;
+            const fireX = exactPos?.x ?? fallbackPos?.x ?? currentPlayer.positionX;
+            const fireY = exactPos?.y ?? fallbackPos?.y ?? currentPlayer.positionY;
+            const clientShotId = inputRuntime.createClientShotId(localPlayerId);
+            registerLocalPlayerRangedShot(itemDef.name);
+            recordPredictedRangedShot(localPlayerId, clientShotId);
+            inputRuntime.markRangedFire(now);
+            return currentConnection.reducers.fireProjectile({
+                targetWorldX,
+                targetWorldY,
+                clientPlayerX: fireX,
+                clientPlayerY: fireY,
+                clientShotId,
+            });
+        }, error => {
+            console.warn('[RangedFire] fireProjectile failed:', getReducerErrorMessage(error));
         });
-        inputRuntime.markRangedFire(now);
     }, [inputRuntime, localPlayerId]);
 
     useEffect(() => {

@@ -1,4 +1,5 @@
 import type { Identity } from 'spacetimedb';
+import type { DbConnection } from '../../../generated';
 import type * as SpacetimeDB from '../../../generated/types';
 import type { MutableRef, StateSetter } from '../../types';
 import type {
@@ -22,6 +23,7 @@ type ValueSetter<T> = StateSetter<T>;
 type Ref<T> = MutableRef<T>;
 
 interface CreateGameplayTableBindingsOptions {
+  connection: DbConnection;
   connectionIdentity: Identity | null;
   cancelPlacement: () => void;
   hasSpatialSubscription: (chunkIndex: number) => boolean;
@@ -153,6 +155,7 @@ function replaceMapEntry<T>(setter: MapSetter<T>, key: string, value: T): void {
 }
 
 export function createGameplayTableBindings({
+  connection,
   connectionIdentity,
   cancelPlacement,
   hasSpatialSubscription,
@@ -499,6 +502,7 @@ export function createGameplayTableBindings({
       chunkWeatherUpdateTimeoutRef,
     }),
     combat: createCombatTableBindings({
+      connection,
       connectionIdentity,
       setPlayers,
       setLocalPlayerRegistered,

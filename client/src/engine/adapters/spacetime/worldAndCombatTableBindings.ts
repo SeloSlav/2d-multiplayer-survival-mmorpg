@@ -1,4 +1,6 @@
 import type { Identity } from 'spacetimedb';
+import type { DbConnection } from '../../../generated';
+import { reconcilePlayerLife } from '../../runtime/localPlayerLifecycle';
 import type * as SpacetimeDB from '../../../generated/types';
 import type { Projectile as SpacetimeDBProjectile } from '../../../generated/types';
 import type { MutableRef, StateSetter } from '../../types';
@@ -83,6 +85,7 @@ interface CreateWorldTableBindingsOptions {
 }
 
 interface CreateCombatTableBindingsOptions {
+  connection?: DbConnection;
   connectionIdentity: Identity | null;
   setPlayers: StateSetter<Map<string, SpacetimeDB.Player>>;
   setLocalPlayerRegistered: StateSetter<boolean>;
@@ -457,6 +460,7 @@ export function createWorldTableBindings({
 }
 
 export function createCombatTableBindings({
+  connection,
   connectionIdentity,
   setPlayers,
   setLocalPlayerRegistered,
@@ -488,6 +492,19 @@ export function createCombatTableBindings({
   hostileDeathCleanupTimeoutsRef,
   hostileDeathEventsMax,
 }: CreateCombatTableBindingsOptions): CombatTableBindingGroup {
+  const publishPlayers = () => {
+    // A queued movement batch must not undo a confirmed death while the
+    // corresponding table update is still catching up. Read the cache as well
+    // so an old batch cannot restore the corpse after a successful respawn.
+    const players = new Map(playersRef.current);
+    const localId = connectionIdentity?.toHexString();
+    const localPlayer = localId ? players.get(localId) : undefined;
+    if (localId && localPlayer) {
+      const latest = connection?.db.player?.identity.find(localPlayer.identity) ?? localPlayer;
+      players.set(localId, reconcilePlayerLife(connection, latest));
+    }
+    setPlayers(players);
+  };
   const scheduleProjectileUpdate = () => {
     if (projectilesUpdateTimeoutRef.current) return;
     projectilesUpdateTimeoutRef.current = setTimeout(() => {
@@ -508,7 +525,7 @@ export function createCombatTableBindings({
     player: {
       onInsert: (_ctx: any, player: SpacetimeDB.Player) => {
         playersRef.current.set(player.identity.toHexString(), player);
-        setPlayers(new Map(playersRef.current));
+        publishPlayers();
         if (connectionIdentity && player.identity.toHexString() === connectionIdentity.toHexString()) {
           console.log('[useSpacetimeTables] Local player matched! Setting localPlayerRegistered = true.');
           setLocalPlayerRegistered(true);
@@ -543,7 +560,7 @@ export function createCombatTableBindings({
             clearTimeout(playerRenderTimerRef.current);
             playerRenderTimerRef.current = null;
           }
-          setPlayers(new Map(playersRef.current));
+          publishPlayers();
           lastPlayerRenderTimeRef.current = performance.now();
           playerRenderPendingRef.current = false;
           return;
@@ -552,7 +569,7 @@ export function createCombatTableBindings({
         const now = performance.now();
         const timeSinceLastRender = now - lastPlayerRenderTimeRef.current;
         if (timeSinceLastRender >= 50) {
-          setPlayers(new Map(playersRef.current));
+          publishPlayers();
           lastPlayerRenderTimeRef.current = now;
           playerRenderPendingRef.current = false;
           if (playerRenderTimerRef.current) {
@@ -563,7 +580,7 @@ export function createCombatTableBindings({
           playerRenderPendingRef.current = true;
           const remainingMs = 50 - timeSinceLastRender;
           playerRenderTimerRef.current = setTimeout(() => {
-            setPlayers(new Map(playersRef.current));
+            publishPlayers();
             lastPlayerRenderTimeRef.current = performance.now();
             playerRenderPendingRef.current = false;
             playerRenderTimerRef.current = null;
@@ -572,7 +589,7 @@ export function createCombatTableBindings({
       },
       onDelete: (_ctx: any, deletedPlayer: SpacetimeDB.Player) => {
         playersRef.current.delete(deletedPlayer.identity.toHexString());
-        setPlayers(new Map(playersRef.current));
+        publishPlayers();
         if (connectionIdentity && deletedPlayer.identity && deletedPlayer.identity.isEqual(connectionIdentity)) {
           console.warn('[useSpacetimeTables] Local player deleted from server.');
           setLocalPlayerRegistered(false);

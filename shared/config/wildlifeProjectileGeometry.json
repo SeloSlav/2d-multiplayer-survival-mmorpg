@@ -1,0 +1,21 @@
+{
+  "CinderFox":    { "radius": 46, "halfWidth": 32, "height": 50,  "aimHeight": 26 },
+  "TundraWolf":   { "radius": 60, "halfWidth": 32, "height": 70,  "aimHeight": 38 },
+  "Wolverine":    { "radius": 52, "halfWidth": 32, "height": 58,  "aimHeight": 28 },
+  "PolarBear":    { "radius": 82, "halfWidth": 42, "height": 100, "aimHeight": 52 },
+  "Caribou":      { "radius": 76, "halfWidth": 36, "height": 110, "aimHeight": 65 },
+  "Hare":         { "radius": 34, "height": 48,  "aimHeight": 22 },
+  "Vole":         { "radius": 32, "height": 28,  "aimHeight": 12 },
+  "ArcticWalrus": { "radius": 84, "halfWidth": 46, "height": 66,  "aimHeight": 30 },
+  "Crow":         { "radius": 34, "height": 42,  "aimHeight": 22 },
+  "Tern":         { "radius": 34, "height": 42,  "aimHeight": 22 },
+  "SnowyOwl":     { "radius": 46, "height": 58,  "aimHeight": 34 },
+  "Bee":          { "radius": 32, "height": 18,  "aimHeight": 8, "hoverHeight": 31 },
+  "BeachCrab":    { "radius": 48, "height": 48,  "aimHeight": 18 },
+  "CableViper":   { "radius": 70, "halfWidth": 32, "height": 28,  "aimHeight": 12 },
+  "SalmonShark":  { "radius": 82, "halfWidth": 36, "height": 52,  "aimHeight": 25 },
+  "Jellyfish":    { "radius": 32, "height": 52,  "aimHeight": 30 },
+  "Shorebound":   { "radius": 32, "height": 76,  "aimHeight": 38 },
+  "Shardkin":     { "radius": 32, "height": 46,  "aimHeight": 23 },
+  "DrownedWatch": { "radius": 32, "height": 98,  "aimHeight": 49 }
+}

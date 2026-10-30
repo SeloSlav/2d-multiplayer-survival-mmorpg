@@ -231,43 +231,57 @@ fn player_vertical_bounds(ctx: &ReducerContext, player: &crate::Player, now: Tim
     (bottom, bottom + if player.is_crouching { 63.0 } else { 90.0 })
 }
 
-fn animal_vertical_bounds(ctx: &ReducerContext, animal: &crate::wild_animal_npc::WildAnimal) -> (f32, f32) {
+fn animal_projectile_profile(animal: &crate::wild_animal_npc::WildAnimal) -> crate::wildlife_projectile_geometry::WildlifeProjectileProfile {
     use crate::wild_animal_npc::AnimalSpecies::*;
-    let height = match animal.species {
-        CinderFox => 27.0, TundraWolf => 40.0, Wolverine => 27.0,
-        PolarBear => 52.0, Caribou => 67.0, Hare => 19.0, Vole => 11.0,
-        ArcticWalrus => 24.0, Crow => 27.0, Tern => 25.0, SnowyOwl => 38.0,
-        Bee => 9.0, BeachCrab => 15.0, CableViper => 9.0, SalmonShark => 30.0,
-        Jellyfish => 31.0, Shorebound => 76.0, Shardkin => 46.0, DrownedWatch => 98.0,
-    };
-    let bottom = ground_height_at(ctx, animal.pos_x, animal.pos_y) + if animal.is_flying { 48.0 } else if animal.species == Bee { 24.0 } else { 0.0 };
-    (bottom, bottom + height)
+    crate::wildlife_projectile_geometry::profile(match animal.species {
+        CinderFox => "CinderFox", TundraWolf => "TundraWolf", Wolverine => "Wolverine",
+        PolarBear => "PolarBear", Caribou => "Caribou", Hare => "Hare", Vole => "Vole",
+        ArcticWalrus => "ArcticWalrus", Crow => "Crow", Tern => "Tern", SnowyOwl => "SnowyOwl",
+        Bee => "Bee", BeachCrab => "BeachCrab", CableViper => "CableViper", SalmonShark => "SalmonShark",
+        Jellyfish => "Jellyfish", Shorebound => "Shorebound", Shardkin => "Shardkin", DrownedWatch => "DrownedWatch",
+    })
+}
+
+fn animal_vertical_bounds(ctx: &ReducerContext, animal: &crate::wild_animal_npc::WildAnimal) -> (f32, f32) {
+    animal_projectile_profile(animal).vertical_bounds(ground_height_at(ctx, animal.pos_x, animal.pos_y), animal.is_flying)
+}
+
+fn animal_projectile_direction(animal: &crate::wild_animal_npc::WildAnimal) -> (f32, f32) {
+    crate::wildlife_projectile_geometry::direction_or_facing((animal.direction_x, animal.direction_y), &animal.facing_direction)
 }
 
 /// The pointer is projected onto the ground plane. Compensate for the visual
-/// elevation of nearby characters, then aim at the centre of their hit volume.
+/// elevation of nearby characters. Wildlife preserves the reticle's projected
+/// point so a deliberate lead is not snapped back to a moving animal's centre.
 fn auto_aim_target(ctx: &ReducerContext, owner: Identity, x: f32, y: f32, fallback_height: f32) -> crate::projectile_geometry::Point3 {
     use crate::projectile_geometry::{Point3, swept_chunks};
     let mut target = Point3 { x, y, height: fallback_height };
     let mut best = 42.0f32.powi(2);
-    let mut consider = |cx: f32, cy: f32, bottom: f32, top: f32| {
+    let consider = |cx: f32, cy: f32, bottom: f32, top: f32, best: &mut f32, target: &mut Point3| {
         let h = (bottom + top) * 0.5;
         let dx = x - cx;
         let ground_dy = y - cy;
         let projected_dy = y - (cy - h * 0.8660254);
         let score = (dx * dx + ground_dy * ground_dy).min(dx * dx + projected_dy * projected_dy);
-        if score < best { best = score; target = Point3 { x: cx, y: cy, height: h }; }
+        if score < *best { *best = score; *target = Point3 { x: cx, y: cy, height: h }; }
     };
     for player in ctx.db.player().iter() {
         if player.identity == owner || player.is_dead || !player.is_online { continue; }
         let (bottom, top) = player_vertical_bounds(ctx, &player, ctx.timestamp);
-        consider(player.position_x, player.position_y, bottom, top);
+        consider(player.position_x, player.position_y, bottom, top, &mut best, &mut target);
     }
-    for chunk in swept_chunks((x, y), (x, y), 180.0, CHUNK_SIZE_PX, WORLD_WIDTH_CHUNKS, WORLD_HEIGHT_CHUNKS) {
+    for chunk in swept_chunks((x, y), (x, y), crate::wildlife_projectile_geometry::AIM_SEARCH_PADDING, CHUNK_SIZE_PX, WORLD_WIDTH_CHUNKS, WORLD_HEIGHT_CHUNKS) {
         for animal in ctx.db.wild_animal().chunk_index().filter(chunk) {
             if animal.health <= 0.0 || animal.state == crate::wild_animal_npc::AnimalState::Burrowed { continue; }
-            let (bottom, top) = animal_vertical_bounds(ctx, &animal);
-            consider(animal.pos_x, animal.pos_y, bottom, top);
+            if animal.species.is_hostile_npc() {
+                let (bottom, top) = animal_vertical_bounds(ctx, &animal);
+                consider(animal.pos_x, animal.pos_y, bottom, top, &mut best, &mut target);
+            } else if let Some((score, aim)) = animal_projectile_profile(&animal).aim_target(
+                (x, y), (animal.pos_x, animal.pos_y), animal_projectile_direction(&animal),
+                ground_height_at(ctx, animal.pos_x, animal.pos_y), animal.is_flying,
+            ) {
+                if score < best { best = score; target = aim; }
+            }
         }
     }
     target
@@ -401,8 +415,15 @@ fn first_flight_hit(ctx: &ReducerContext, projectile: &Projectile, start: crate:
         }
         for animal in ctx.db.wild_animal().chunk_index().filter(*chunk) {
             if animal.health <= 0.0 || animal.state == crate::wild_animal_npc::AnimalState::Burrowed { continue; }
-            let (bottom, top) = animal_vertical_bounds(ctx, &animal);
-            circle!("animal", animal.id, animal.pos_x, animal.pos_y, 32.0, bottom, top);
+            if animal.species.is_hostile_npc() {
+                let (bottom, top) = animal_vertical_bounds(ctx, &animal);
+                circle!("animal", animal.id, animal.pos_x, animal.pos_y, 32.0, bottom, top);
+            } else {
+                add(FlightHit::Entity("animal", animal.id as u64), animal_projectile_profile(&animal).impact(
+                    start, end, (animal.pos_x, animal.pos_y), animal_projectile_direction(&animal),
+                    ground_height_at(ctx, animal.pos_x, animal.pos_y), animal.is_flying,
+                ));
+            }
         }
     }
     for station in ctx.db.alk_station().iter().filter(|station| station.is_active) {
@@ -3300,7 +3321,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             }
             
             // Use line segment collision detection for wild animals
-            const WILD_ANIMAL_HIT_RADIUS: f32 = 32.0; // Generous radius for wild animals
+            const WILD_ANIMAL_HIT_RADIUS: f32 = 32.0; // Legacy planar projectiles
             let collision_impact = selected_impact(projectile.flight_3d, current_x, current_y, line_circle_first_impact_point(
                 prev_x,
                 prev_y,
