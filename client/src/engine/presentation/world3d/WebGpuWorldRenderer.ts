@@ -389,6 +389,12 @@ export class WebGpuWorldRenderer {
     }, (x, y) => this.floorAt(x, y));
     this.swimmingEffects.endFrame(time);
     this.treeFallEffects.endFrame();
+    const effectZoom=Math.max(.5,Math.min(2,frame.zoom??1));
+    this.combatEffects.apparitions.observeDeaths(frame.tables.hostileDeathEvents,renderNow,(x,y)=>{
+      const sx=(x+frame.cameraOffset.x-frame.width/2)*effectZoom+frame.width/2;
+      const sy=(y+frame.cameraOffset.y-frame.height/2)*effectZoom+frame.height/2;
+      return !this.diving&&!this.shelterVisibility.occludes(x,y)&&sx>=-240&&sx<=frame.width+240&&sy>=-240&&sy<=frame.height+240;
+    },(x,y)=>this.floorAt(x,y));
     this.combatEffects.update(frame.nowMs??Date.now());
     this.footEffects.update(time, this.diving);
     this.explosionEffects.update(frame.nowMs ?? Date.now(), this.diving);
@@ -399,6 +405,7 @@ export class WebGpuWorldRenderer {
       projectiles: this.projectileWorld.activeCount, projectileTrails: this.projectileWorld.trails.count,
       contactParticles: this.footEffects.particles.count, footprints: this.footEffects.prints.count,
       explosionParticles: this.explosionEffects.particles.count, fishingFloats: this.fishingEffects.floats.count, wind: this.kit.wind.intensity,
+      apparitionBursts: this.combatEffects.apparitions.activeCount, apparitionWisps: this.combatEffects.apparitions.wisps.count,
     });
     const entitiesEnd = performance.now();
     this.batches.flush();
@@ -414,6 +421,7 @@ export class WebGpuWorldRenderer {
     if(!this.diving)this.dormantLightEffects.push(this.underwater.overlay);
     if(!this.treeFallEffects.root.visible)this.dormantLightEffects.push(this.treeFallEffects.root);
     if(!this.combatEffects.root.visible)this.dormantLightEffects.push(this.combatEffects.root);
+    this.dormantLightEffects.push(this.combatEffects.apparitions.flashWarmup);
     if(!this.footEffects.root.visible)this.dormantLightEffects.push(this.footEffects.root);
     if(!this.projectileWorld.root.visible)this.dormantLightEffects.push(this.projectileWorld.root);
     if(!this.explosionEffects.root.visible)this.dormantLightEffects.push(this.explosionEffects.root);
@@ -804,6 +812,7 @@ export class WebGpuWorldRenderer {
         }
       }
       if (visual.animal) {
+        if(kind==='wildAnimals')visual.animal.setHitFlash(this.combatEffects.isHitFlashing(kind,id,frame.nowMs??Date.now()),this.combatEffects.apparitions.flashMaterial);
         const direction = visual.corpseYaw ?? (Math.hypot(row.directionX ?? 0, row.directionY ?? 0) > 0.01
           ? Math.atan2(row.directionX ?? 0, row.directionY ?? 0) : yaw(row.facingDirection ?? ''));
         const now = frame.nowMs ?? Date.now();

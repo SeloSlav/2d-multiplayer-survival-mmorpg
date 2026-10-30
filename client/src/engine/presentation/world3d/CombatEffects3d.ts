@@ -4,6 +4,7 @@ import type { CombatFeedbackKind } from '../../../utils/combatFeedbackEvents';
 import { ModelKit } from './modelKit';
 import { seedFromId, worldToScene, WORLD_3D } from './visualContract';
 import { worldItemBreaksAfter } from './presentationEffectEvents';
+import { ApparitionEffects3d } from './ApparitionEffects3d';
 
 type MaterialKind = 'blood'|'ethereal'|'wood'|'stone'|'metal';
 interface HitState { server:bigint; predicted:number; predictionAt:number; reactionAt:number; seenAt:number }
@@ -28,6 +29,7 @@ export class CombatEffects3d {
   readonly root=new Group();
   readonly debris:InstancedMesh;
   readonly flashes:InstancedMesh;
+  readonly apparitions:ApparitionEffects3d;
   private readonly debrisMaterial=new MeshStandardMaterial({color:0xffffff,roughness:.9,flatShading:true});
   private readonly flashMaterial=new MeshBasicMaterial({color:0xffffff,toneMapped:false});
   private readonly states=new Map<string,HitState>();
@@ -38,6 +40,7 @@ export class CombatEffects3d {
   private breakCursor=0;
   constructor(kit:ModelKit){
     this.root.name='combat-impact-effects';
+    this.apparitions=new ApparitionEffects3d(kit);this.root.add(this.apparitions.root);
     this.debris=new InstancedMesh(kit.geometry('rock'),this.debrisMaterial,PARTICLES);
     this.flashes=new InstancedMesh(kit.geometry('box'),this.flashMaterial,PARTICLES);
     for(const mesh of [this.debris,this.flashes]){
@@ -69,10 +72,15 @@ export class CombatEffects3d {
     if(!state.reactionAt||age<0||age>=300)return 0;
     return Math.sin(age*.055)*(1-age/300)**2;
   }
+  isHitFlashing(kind:string,id:string,now:number):boolean {
+    const at=this.states.get(`${kind}:${id}`)?.reactionAt ?? 0;
+    return at>0 && now-at>=0 && now-at<180;
+  }
   private impact(state:HitState,key:string,kind:string,subtype:string,x:number,y:number,groundY:number,now:number):void {
     state.reactionAt=now;
     const point=worldToScene(x,y);
     const material=impactMaterial(kind,subtype);
+    if(material==='ethereal')this.apparitions.hit(subtype,x,y,groundY,now,seedFromId(`${key}:${now}`));
     const height=kind==='players'?1.05:kind==='trees'?1.05:kind==='wildAnimals' ? .65 : .55;
     this.impacts.push({at:now,x:point.x,y:groundY+height,z:point.z+(groundY<0?groundY/Math.tan(WORLD_3D.elevationRadians):0),ground:groundY,material,seed:seedFromId(`${key}:${now}`)});
     if(this.impacts.length>36)this.impacts.shift();
@@ -87,9 +95,10 @@ export class CombatEffects3d {
     while(this.impacts.length&&now-this.impacts[0].at>=DURATION)this.impacts.shift();
     let debris=0,flashes=0;
     for(const hit of this.impacts){
+      if(hit.material==='ethereal')continue; // Dedicated species-specific emissive wisps own this hit.
       const age=Math.max(0,(now-hit.at)/1000),fade=Math.max(0,1-age/(DURATION/1000));
       const rand=(i:number,salt:number)=>{let v=Math.imul(hit.seed^Math.imul(i+1,0x9e3779b1)^salt,0x85ebca6b);v=Math.imul(v^v>>>13,0xc2b2ae35);return ((v^v>>>16)>>>0)/4294967295;};
-      const palette=hit.material==='blood'?[0x8d1f27,0xbf3035,0x641820]:hit.material==='ethereal'?[0xa7c9dc,0xb68de1,0x6ca8c5]:
+      const palette=hit.material==='blood'?[0x8d1f27,0xbf3035,0x641820]:
         hit.material==='wood'?[0x98704a,0xc09a63,0x684934]:hit.material==='metal'?[0xc0bca8,0x9fa5a4,0xe7b75d]:[0x9d9b8d,0xb8b2a1,0x736f65];
       for(let i=0;i<12&&debris<PARTICLES;i++){
         const angle=rand(i,1)*Math.PI*2,speed=1.2+rand(i,2)*2.8,rise=.65+rand(i,3)*1.45;
@@ -108,9 +117,10 @@ export class CombatEffects3d {
         this.flashes.setMatrixAt(flashes,this.transform.matrix);this.flashes.setColorAt(flashes++,this.color.setHex(hit.material==='blood'?0xf2b8a1:0xffe5a4));
       }
     }
-    this.debris.count=debris;this.flashes.count=flashes;this.root.visible=debris+flashes>0;
+    this.apparitions.update(now);
+    this.debris.count=debris;this.flashes.count=flashes;this.root.visible=debris+flashes+this.apparitions.wisps.count>0;
     for(const mesh of [this.debris,this.flashes])if(mesh.count){mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;}
     if(now-this.lastCleanup>5000){for(const [key,state] of this.states)if(now-state.seenAt>10000)this.states.delete(key);this.lastCleanup=now;}
   }
-  dispose():void {this.root.removeFromParent();this.debris.dispose();this.flashes.dispose();this.debrisMaterial.dispose();this.flashMaterial.dispose();this.impacts.length=0;this.states.clear();}
+  dispose():void {this.root.removeFromParent();this.apparitions.dispose();this.debris.dispose();this.flashes.dispose();this.debrisMaterial.dispose();this.flashMaterial.dispose();this.impacts.length=0;this.states.clear();}
 }

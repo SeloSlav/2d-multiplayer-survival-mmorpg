@@ -79,6 +79,7 @@ import { TerrainBuildQueue } from '../client/src/engine/presentation/world3d/Ter
 import { buildTerrain } from '../client/src/engine/presentation/world3d/terrainBuild.ts';
 import { PipelineWarmup3d } from '../client/src/engine/presentation/world3d/PipelineWarmup3d.ts';
 import { CombatEffects3d } from '../client/src/engine/presentation/world3d/CombatEffects3d.ts';
+import { ApparitionEffects3d, APPARITION_PALETTES } from '../client/src/engine/presentation/world3d/ApparitionEffects3d.ts';
 import { combatCameraOffset } from '../client/src/engine/presentation/world3d/combatCamera.ts';
 import { recordPredictedCombatHit, predictedImpactCameraShake } from '../client/src/utils/combatFeedbackEvents.ts';
 import { TREE_IMPACT_MS } from '../client/src/engine/presentation/world3d/TreeFallEffects3d.ts';
@@ -123,6 +124,47 @@ test('combat impacts use fresh damage events, deduplicate prediction confirmatio
   hit('wildAnimals','ghost-test',base+810,base+810,'Shardkin');assert.equal(fx.impacts.at(-1).material,'ethereal');
   const count=fx.impacts.length;hit('wildAnimals','stale-test',base-3000,base+810);assert.equal(fx.impacts.length,count,'old hits do not replay when entering view');
   fx.update(base+850);assert.ok(fx.root.visible&&fx.debris.count>0);fx.update(base+2000);assert.equal(fx.debris.count,0);assert.equal(fx.root.visible,false);
+  fx.dispose();kit.dispose();
+});
+
+test('apparition hits flash only the affected rig and emit species-colored wisps once',()=>{
+  const kit=new ModelKit(),fx=new CombatEffects3d(kit),now=7000000;
+  for(const [i,species] of ['Shorebound','Shardkin','DrownedWatch'].entries()){
+    const id=`flash-${species}`,rig=new AnimalRig(kit,species),neighbor=new AnimalRig(kit,species);
+    const source=[];rig.root.traverse(o=>{if(o instanceof Mesh)source.push([o,o.material]);});
+    fx.observe('wildAnimals',id,0n,400,400,0,species,now);
+    recordPredictedCombatHit('wildAnimals',id,now+10);
+    fx.observe('wildAnimals',id,0n,400,400,0,species,now+10);
+    assert.equal(fx.isHitFlashing('wildAnimals',id,now+10),true);
+    rig.setHitFlash(true,fx.apparitions.flashMaterial);
+    assert.ok(source.length>0);for(const [mesh] of source)assert.equal(mesh.material,fx.apparitions.flashMaterial);
+    neighbor.root.traverse(o=>{if(o instanceof Mesh)assert.notEqual(o.material,fx.apparitions.flashMaterial,'other entities retain their shared materials');});
+    const bursts=fx.apparitions.activeCount;
+    fx.observe('wildAnimals',id,BigInt(now+30)*1000n,400,400,0,species,now+40);
+    assert.equal(fx.apparitions.activeCount,bursts,'server confirmation must not replay predicted hit');
+    rig.setHitFlash(fx.isHitFlashing('wildAnimals',id,now+190),fx.apparitions.flashMaterial);
+    for(const [mesh,original] of source)assert.equal(mesh.material,original,'original per-part materials are restored');
+    assert.equal(fx.isHitFlashing('wildAnimals',id,now+190),false);
+    assert.equal(fx.apparitions.bursts.at(-1).species,species);
+    assert.notDeepEqual(APPARITION_PALETTES[species],APPARITION_PALETTES[['Shorebound','Shardkin','DrownedWatch'][(i+1)%3]]);
+  }
+  fx.update(now+70);assert.ok(fx.apparitions.wisps.count>=36);assert.equal(fx.debris.count,0,'apparitions use wisps instead of generic debris');
+  fx.update(now+900);assert.equal(fx.apparitions.wisps.count,0);assert.equal(fx.root.visible,false);
+  fx.dispose();kit.dispose();
+});
+
+test('apparition death bursts use the event position and species, deduplicate and expire',()=>{
+  const kit=new ModelKit(),fx=new ApparitionEffects3d(kit),now=8000000;
+  const event={id:'death-1',species:'DrownedWatch',x:480,y:240,timestamp:now};
+  fx.observeDeaths([event],now,()=>true,()=>.16);fx.observeDeaths([event],now+30,()=>true,()=>.16);
+  assert.equal(fx.activeCount,1);assert.equal(fx.bursts[0].species,'DrownedWatch');
+  assert.equal(fx.bursts[0].x,10);assert.equal(fx.bursts[0].y,.16);
+  fx.update(now+30);assert.equal(fx.wisps.count,98,'large apparition emits 80 wisps and 18 white flashes');
+  fx.update(now+200);assert.ok(fx.wisps.count>0&&fx.wisps.count<=80);
+  fx.observeDeaths([{...event,id:'hidden'}],now+200,()=>false,()=>0);
+  fx.observeDeaths([{...event,id:'stale',timestamp:now-2000}],now+200,()=>true,()=>0);
+  assert.equal(fx.activeCount,1,'hidden and stale deaths do not appear');
+  fx.update(now+901);assert.equal(fx.activeCount,0);assert.equal(fx.wisps.count,0);
   fx.dispose();kit.dispose();
 });
 

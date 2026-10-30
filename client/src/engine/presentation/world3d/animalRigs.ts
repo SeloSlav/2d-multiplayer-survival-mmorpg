@@ -1,4 +1,5 @@
 import { Box3, Group, Mesh, Vector3 } from 'three/webgpu';
+import type { Material } from 'three/webgpu';
 import { COLORS as C, ModelKit } from './modelKit';
 import { animalAttackPhase, smoothPhase } from './actorAnimation';
 
@@ -49,6 +50,8 @@ export class AnimalRig {
   private running = 0;
   private heading = 0;
   private firstFrame = true;
+  private flashOn = false;
+  private readonly flashMeshes:Array<{mesh:Mesh;material:Material|Material[]}> = [];
 
   constructor(private readonly kit: ModelKit, readonly species: string, private readonly seed = 0) {
     const p = ANIMAL_PROFILES[species];
@@ -72,6 +75,11 @@ export class AnimalRig {
     this.headRest.copy(this.head.position);
     this.eyes.forEach(eye => { eye.userData.restScaleY = eye.scale.y; });
     this.root.userData.species = species; this.root.userData.motionFamily = p.family;
+    if (p.family === 'humanoid') this.root.traverse(o => { if(o instanceof Mesh)this.flashMeshes.push({mesh:o,material:o.material}); });
+  }
+  setHitFlash(active:boolean,material:Material):void {
+    if(this.flashOn===active)return;this.flashOn=active;
+    for(const entry of this.flashMeshes)entry.mesh.material=active?material:entry.material;
   }
   private joint(x: number, y: number, z: number): Group {
     const pivot = new Group(), index = this.joints.length; pivot.name = `animal-limb-${index}`; pivot.position.set(x, y, z);
