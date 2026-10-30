@@ -2,20 +2,34 @@
 
 ![Broth & Bullets gameplay — a new survivor exploring the rainy shoreline](./preview.png)
 
-# Broth & Bullets — Open-Source 2D Multiplayer Survival MMORPG
+# Broth & Bullets — Open-Source Multiplayer Survival MMORPG
 
 There is no live game in production at the moment. You can play solo by downloading this project from GitHub and following the setup instructions below.
 
 🎮 **[Watch gameplay demo](https://x.com/SeloSlav/status/2023523837724221851?s=20)**
 
-**Broth & Bullets** is a full-fledged 2D multiplayer survival MMORPG powered by SpacetimeDB 2.0. What began as a generic open-source survival game has grown into an extensive, feature-rich project that demonstrates a wide range of multiplayer game-development patterns.
+**Broth & Bullets** is a multiplayer survival MMORPG powered by SpacetimeDB 2.0, with a 2D pixel-art renderer and a 3D WebGPU renderer for the same game world. What began as a generic open-source survival game has grown into an extensive, feature-rich project that demonstrates a wide range of multiplayer game-development patterns.
 
 The source code is open for you to study, run locally, fork, and use as the foundation for games of your own. The documentation is designed to help you get up and running quickly, understand how the systems fit together, and contribute improvements back to Broth & Bullets.
 
 💬 **Want to chat?** Join the discussion on [Discord](https://discord.gg/tUcBzfAYfs)
 
+## 3D graphics and renderer selection
+
+![The 3D WebGPU renderer showing a survivor, campfire and wooden structure in a forest clearing](./preview-3d.jpg)
+
+*The 3D renderer in the project's engine inspection scene.*
+
+The 3D WebGPU renderer is the default. To switch between it and the original 2D pixel-art renderer, add a `worldRenderer` parameter to the game URL before opening the game:
+
+- **3D:** `http://localhost:3008/?worldRenderer=webgpu`
+- **2D pixel art:** `http://localhost:3008/?worldRenderer=legacy`
+
+Use your local client port if it differs from `3008`, and use `&` instead of `?` if the URL already has query parameters. The selection is remembered in the browser tab's session, including through authentication redirects; use the corresponding URL above to switch back. The 3D renderer requires a browser and device with WebGPU support. If WebGPU is unavailable, select the 2D renderer explicitly.
+
 ## Table of Contents
 
+- [3D graphics and renderer selection](#3d-graphics-and-renderer-selection)
 - [⚡ Quick Local Setup](#️-quick-local-setup)
 - [🐳 Docker Compose (Alternative)](#-docker-compose-alternative)
 - [🗺️ Roadmap](#️-roadmap)
