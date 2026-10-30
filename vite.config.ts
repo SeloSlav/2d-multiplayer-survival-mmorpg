@@ -45,6 +45,9 @@ export default defineConfig(({ command, mode }) => {
     },
     server: {
       port: 3008,
+      // Rust builds and the local database contain locked, rapidly changing files;
+      // neither belongs in the client hot-reload watcher.
+      watch: { ignored: ['**/server/target/**', '**/.local-spacetimedb/**', '**/.cache/**'] },
       // Prefer 3008; if busy (e.g. another dev server), use the next free port (3009, …).
       strictPort: false,
       hmr: {
