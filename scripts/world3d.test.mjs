@@ -1,5 +1,77 @@
 import test from 'node:test';
 import { TerrainWindow3d } from '../client/src/engine/presentation/world3d/TerrainWindow3d.ts';
+import { GroundDetail3d, scatterForTile } from '../client/src/engine/presentation/world3d/GroundDetail3d.ts';
+import { CloudShadows3d } from '../client/src/engine/presentation/world3d/CloudShadows3d.ts';
+import { worldLightAt } from '../client/src/engine/presentation/world3d/WorldLighting3d.ts';
+import { mapLegacyCycleProgress } from '../client/src/config/dayNightConstants.ts';
+
+test('terrain scatter is deterministic, terrain-specific and absent from water and tilled ground', () => {
+  let grass=0, quarry=0;
+  for(let y=0;y<30;y++) for(let x=0;x<30;x++) {
+    const a=scatterForTile(x,y,'Grass');
+    assert.deepEqual(a,scatterForTile(x,y,'Grass'));
+    if(a) grass++;
+    if(scatterForTile(x,y,'Quarry')) quarry++;
+    assert.equal(scatterForTile(x,y,'Sea'),null);
+    assert.equal(scatterForTile(x,y,'Tilled'),null);
+  }
+  assert.ok(quarry>grass && grass>0);
+});
+
+test('3D grass follows live grass state and excludes foundations and water', () => {
+  const detail=new GroundDetail3d();
+  const kinds=new Map([['0,0','Grass'],['1,0','TundraGrass'],['2,0','Sea']]);
+  const grass=new Map([['a',{currentRenderPosX:12,currentRenderPosY:12,appearanceType:{tag:'PatchA'}}],['b',{currentRenderPosX:60,currentRenderPosY:12,appearanceType:{tag:'TundraPatchA'}}],['c',{currentRenderPosX:108,currentRenderPosY:12,appearanceType:{tag:'PatchA'}}]]);
+  const mesh=detail.root.getObjectByName('gameplay-grass');
+  detail.update(grass,kinds,1,true,()=>0); assert.equal(mesh.count,2);
+  grass.delete('a');detail.update(grass,kinds,2,true,()=>0);assert.equal(mesh.count,1);
+  detail.update(grass,kinds,3,false,()=>.16);assert.equal(mesh.count,0);
+  detail.update(grass,kinds,4,true,()=>0);assert.equal(mesh.count,1);
+  grass.set('b',{currentRenderPosX:60,currentRenderPosY:12,appearanceType:{tag:'BramblesA'}});
+  detail.update(grass,kinds,5,true,()=>0);
+  assert.equal(mesh.count,0);assert.equal(detail.root.getObjectByName('gameplay-bushes').count,1);
+  grass.clear();detail.rebuild([]);detail.update(grass,kinds,6,true,()=>0);
+  assert.equal(detail.root.getObjectByName('gameplay-bushes').count,0);
+  detail.dispose();
+});
+
+test('cloud projection tracks interpolated positions and clears when disabled', () => {
+  const shadows=new CloudShadows3d();
+  const clouds=new Map([['c',{currentRenderPosX:96,currentRenderPosY:144,width:480,height:240,rotationDegrees:0,currentOpacity:.1}]]);
+  shadows.update(clouds,96,144,true);
+  assert.equal(shadows.shapes[0].value.x,2);assert.equal(shadows.shapes[0].value.y,3);
+  assert.ok(shadows.properties[0].value.z>0);
+  clouds.get('c').currentRenderPosX=144;shadows.update(clouds,96,144,true);assert.equal(shadows.shapes[0].value.x,3);
+  shadows.update(clouds,96,144,false);assert.equal(shadows.properties[0].value.z,0);
+});
+
+test('world light follows the game day phases, keeps moonlight blue and crosses midnight smoothly', () => {
+  const phase=p=>worldLightAt(mapLegacyCycleProgress(p));
+  const morning=phase(.10),noon=phase(.4),sunset=phase(.72),twilight=phase(.77),night=phase(.9);
+  assert.ok(morning.daylight>.9 && noon.daylight===1,'morning and midday are sunlit');
+  assert.ok(sunset.direct.r>sunset.direct.b*3,'sunset is orange');
+  assert.ok(twilight.sky.b>twilight.sky.g && night.direct.b>night.direct.r,'twilight and night are cool');
+  assert.ok(night.directPower<sunset.directPower && night.skyPower<noon.skyPower);
+  const full=worldLightAt(mapLegacyCycleProgress(.9),true,3);
+  assert.ok(full.skyPower>night.skyPower && full.direct.b>full.direct.r,'full moon is brighter and silver-blue');
+  const before=worldLightAt(1-1e-7,true,3),after=worldLightAt(0,false,4);
+  assert.ok(Math.hypot(before.direct.r-after.direct.r,before.direct.g-after.direct.g,before.direct.b-after.direct.b)<1e-5);
+  assert.ok(Math.abs(before.directPower-after.directPower)<1e-5);
+  const firstFull=worldLightAt(0,true,0),regularDawn=worldLightAt(0,false);
+  assert.ok(Math.abs(firstFull.directPower-regularDawn.directPower)<1e-6);
+  const sunrise=phase(.02),late=phase(.74);
+  assert.ok(sunrise.direction.x<0 && late.direction.x>0,'sun and shadow directions travel across the day');
+  for(let i=0;i<1000;i++){const state=worldLightAt(i/1000);assert.ok(state.direction.y>0 && Number.isFinite(state.skyPower));}
+});
+
+test('clouds modulate the directional light shared by scene materials',async()=>{
+  const renderer=new WebGpuWorldRenderer({dataset:{},style:{}});
+  assert.equal(renderer.sun.colorNode,renderer.terrainMaterials.cloudShadows.directLight);
+  const state=worldLightAt(.45);renderer.updateLighting({tables:{}},0,[],state);
+  assert.ok(renderer.terrainMaterials.cloudShadows.lightColor.value.r>0);
+  assert.ok(Number.isFinite(renderer.terrainMaterials.cloudShadows.lightSlope.value.x));
+  await renderer.dispose();
+});
 import { addWebGpuSample, webGpuProfilerTimings } from '../client/src/engine/presentation/world3d/world3dProfiler.ts';
 import { startRecording, stopRecording, copyToClipboard } from '../client/src/utils/profilerRecording.ts';
 import { FpsProfiler } from '../client/src/utils/profiler/FpsProfiler.ts';
@@ -999,15 +1071,24 @@ test('village assembly and cutaway construction never submit missing scene objec
   }finally{console.error=original;kit.dispose();}
 });
 
-test('every village roof is fully hidden inside and restored on exit without hiding the interior',()=>{
+test('every village building uses an opaque projected rim and restores its exterior on exit',()=>{
   const kit=new ModelKit();
   for(const [asset,plan] of Object.entries(VILLAGE_BUILDINGS)){
     const rig=new VillageRig(kit,asset,createVillageModel(kit,asset)),roof=rig.root.getObjectByName('village-roof');
     assert.ok(roof&&roof.children.length>0,`${asset}: an independent roof exists`);
     rig.update({x:1000,y:1000-plan.depth*24},{x:1000,y:1000},0,1);
-    assert.equal(rig.root.userData.cutaway,true);assert.equal(roof.visible,false,`${asset}: roof never obscures the interior`);
-    assert.equal(rig.root.getObjectByName('village-shell').visible,true,`${asset}: the wall silhouette remains`);
-    rig.update({x:1000,y:1100},{x:1000,y:1000},0,2);assert.equal(roof.visible,true,`${asset}: roof returns after exit`);
+    assert.equal(rig.root.userData.cutaway,true);
+    assert.equal(rig.root.getObjectByName('village-opaque').visible,false,`${asset}: full exterior hides`);
+    const rim=rig.root.getObjectByName('village-rim');assert.equal(rim.visible,true);
+    let triangles=0;rim.traverse(o=>{if(!(o instanceof Mesh))return;assert.equal(o.material.opacity,1);assert.equal(o.castShadow,false);
+      const p=o.geometry.getAttribute('position');for(let i=0;i<p.count;i+=3){
+        const x=(p.getX(i)+p.getX(i+1)+p.getX(i+2))/3;
+        const y=(p.getY(i)+p.getY(i+1)+p.getY(i+2))/3;
+        const z=(p.getZ(i)+p.getZ(i+1)+p.getZ(i+2))/3-y/(Math.tan(WORLD_3D.elevationRadians)*GROUND_Y_SCALE);
+        assert.ok(Math.abs(x)>=plan.width/2-1e-5||Math.abs(z)>=plan.depth/2-1e-5,`${asset}: opening stays clear`);triangles++;
+      }});assert.ok(triangles>0,`${asset}: retains an exterior rim`);
+    rig.update({x:1000,y:1100},{x:1000,y:1000},0,2);
+    assert.equal(rig.root.getObjectByName('village-opaque').visible,true);assert.equal(rim.visible,false);
   }
   kit.dispose();
 });
@@ -1016,13 +1097,19 @@ test('village cutaways preserve open movement anchors, rotate in ground space an
   const kit=new ModelKit(),asset='hv_lodge.png',prototype=createVillageModel(kit,asset),a=new VillageRig(kit,asset,prototype),b=new VillageRig(kit,asset,prototype);
   const anchor={x:1000,y:1000},plan=VILLAGE_BUILDINGS[asset];
   a.update({x:1000,y:1000-plan.depth*24},anchor,0,1);
-  assert.equal(a.root.userData.cutaway,true);a.root.getObjectByName('village-shell').traverse(o=>{if(o instanceof Mesh&&!o.userData.cutawayDepth)assert.equal(o.material.opacity,.4);});
-  assert.equal(a.root.getObjectByName('village-roof').visible,false,'the roof is completely removed while inside');
+  assert.equal(a.root.userData.cutaway,true);assert.equal(a.root.getObjectByName('village-opaque').visible,false);
+  const firstRim=a.root.getObjectByName('village-rim');assert.equal(firstRim.visible,true);
   assert.equal(b.root.getObjectByName('village-roof').visible,true,'neighboring roofs stay opaque');
   b.root.getObjectByName('village-shell').traverse(o=>{if(o instanceof Mesh)assert.equal(o.material.opacity,1);});
-  a.update({x:1000+plan.depth*24,y:1000},anchor,Math.PI/2,2);assert.equal(a.root.userData.cutaway,true);assert.equal(a.root.rotation.y,-Math.PI/2);
+  a.update({x:1000+plan.depth*24,y:1000},anchor,Math.PI/2,2);assert.equal(a.root.userData.cutaway,true);assert.equal(a.root.rotation.y,-Math.PI/2);assert.equal(firstRim.visible,false);
+  const visibleRim=a.root.children[0].children.find(o=>o.name==='village-rim'&&o.visible);assert.ok(visibleRim);
+  visibleRim.traverse(o=>{if(!(o instanceof Mesh))return;const p=o.geometry.getAttribute('position');for(let i=0;i<p.count;i+=3){
+    const x=(p.getX(i)+p.getX(i+1)+p.getX(i+2))/3-(p.getY(i)+p.getY(i+1)+p.getY(i+2))/3/(Math.tan(WORLD_3D.elevationRadians)*GROUND_Y_SCALE);
+    const z=(p.getZ(i)+p.getZ(i+1)+p.getZ(i+2))/3;
+    assert.ok(Math.abs(x)>=plan.width/2-1e-5||Math.abs(z)>=plan.depth/2-1e-5,'rotated screen opening remains clear');
+  }});
   a.update({x:2000,y:2000},anchor,0,3);assert.equal(a.root.userData.cutaway,false);
-  assert.equal(a.root.getObjectByName('village-roof').visible,true,'the roof returns when leaving');
+  assert.equal(a.root.getObjectByName('village-opaque').visible,true,'the exterior returns when leaving');assert.equal(visibleRim.visible,false);
   const weatherAsset='ws_station.png',weatherModel=createVillageModel(kit,weatherAsset),weatherRig=new VillageRig(kit,weatherAsset,weatherModel),rotors=[];
   weatherRig.root.traverse(o=>{if(o.name==='village-turbine')rotors.push(o);});assert.equal(rotors.length,3);
   const pivots=rotors.map(o=>o.position.toArray());weatherRig.update(null,anchor,0,2);assert.deepEqual(rotors.map(o=>o.position.toArray()),pivots);assert.ok(rotors.every(o=>o.rotation.z===2.8));

@@ -1565,6 +1565,8 @@ export class GameCanvasRuntimeHost {
         jumpStartMs: refs.localOptimisticJumpPressMsRef.current,
         rollProgress: options.getDodgeRoll?.().progress,
         shadows: options.shadows,
+        cloudsEnabled: this.renderContext.cloudsEnabled !== false,
+        grassAnimationEnabled: this.renderContext.grassAnimationEnabled !== false,
         profile: Boolean(this.renderContext.showFpsProfiler || isProfilerRecording()),
         placement: evaluateGameCanvasPlacement(this.renderContext),
         getRemotePlayerPosition: (player) => remotePlayerInterpolationRuntime.updateAndGetSmoothedPosition(player as SpacetimeDBPlayer, options.localPlayerId),

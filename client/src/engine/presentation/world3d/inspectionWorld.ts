@@ -81,7 +81,17 @@ export function createInspectionWorld(seed = 73021, scene: InspectionScene = 'wo
     resolvedBuildingClusters: new Map<string, { isEnclosed: boolean; cellCoords: Set<string> }>(),
     itemDefinitions: new Map(INSPECTION_WEAPONS.map((name, i) => [String(i + 1), { name }])),
     worldState: { cycleProgress: 0.43, currentWeather: { tag: 'Clear' }, rainIntensity: 0 },
+    interpolatedGrass: new Map<string, {currentRenderPosX:number;currentRenderPosY:number;appearanceType:{tag:string}}>(),
+    interpolatedClouds: new Map<string, {currentRenderPosX:number;currentRenderPosY:number;width:number;height:number;rotationDegrees:number;currentOpacity:number}>(),
     terrainPalette: TERRAIN_PALETTE,
+  };
+  const addGroundDetail = () => {
+    for (const [id,tile] of tiles) {
+      const kind=(tile.tileType as {tag:string}).tag, x=tile.worldX??0, y=tile.worldY??0;
+      if (!['Grass','Forest','TundraGrass','Tundra','Alpine','Beach'].includes(kind) || (x*17+y*31+seed)%3 !== 0) continue;
+      world.interpolatedGrass.set(id,{currentRenderPosX:(x+.35)*48,currentRenderPosY:(y+.6)*48,appearanceType:{tag:kind==='Alpine'?'AlpinePatchA':kind.startsWith('Tundra')?'TundraPatchA':kind==='Beach'?'BeachGrassA':'PatchA'}});
+    }
+    world.interpolatedClouds.set('inspection-cloud',{currentRenderPosX:20*48,currentRenderPosY:16*48,width:600,height:350,rotationDegrees:20,currentOpacity:.18});
   };
   const applyStoredAnchors = () => {
     // Coordinates above describe the desired ground composition. Encode the
@@ -94,7 +104,7 @@ export function createInspectionWorld(seed = 73021, scene: InspectionScene = 'wo
       }
     }
   };
-  if (scene === 'world') { applyStoredAnchors(); return world; }
+  if (scene === 'world') { addGroundDetail(); applyStoredAnchors(); return world; }
   // The asset yard uses real row families and the production renderer. The
   // composition changes; no alternate mesh implementation exists in the lab.
   world.trees.clear(); world.stones.clear(); world.harvestableResources.clear(); world.wildAnimals.clear();
@@ -127,6 +137,7 @@ export function createInspectionWorld(seed = 73021, scene: InspectionScene = 'wo
       const row = Math.max(0, Math.min(4, Math.floor(((tile.worldY ?? 0) - 8) / 4)));
       tile.tileType = { tag: kinds[row * 3 + column] ?? 'Grass' };
     }
+    addGroundDetail();
   } else if (scene.startsWith('trees-')) {
     Object.keys(TREE_PROFILES).slice((Number(scene.slice(-1)) - 1) * 8, Number(scene.slice(-1)) * 8).forEach((type, i) => {
       world.trees.set(`tree-${type}`, { treeType: { tag: type }, posX: (11 + i % 4 * 6) * 48, posY: (14 + Math.floor(i / 4) * 8) * 48, health: 100 });

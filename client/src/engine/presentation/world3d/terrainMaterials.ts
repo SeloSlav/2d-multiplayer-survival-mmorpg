@@ -3,6 +3,7 @@ import { attribute, cameraViewMatrix, color, dFdx, dFdy, float, max, mix, normal
 import type Node from 'three/src/nodes/core/Node.js';
 import { createTerrainField, sampleTerrainDepth, TERRAIN_KINDS } from './terrainField';
 import type { TerrainTile, TerrainField } from './terrainField';
+import { CloudShadows3d } from './CloudShadows3d';
 export { createTerrainField, TERRAIN_KINDS, WATER_DEPTH } from './terrainField';
 export type { TerrainTile, TerrainField } from './terrainField';
 
@@ -73,6 +74,7 @@ export function createPaintedAtlases(): PaintedAtlases {
 
 /** One shared stable field drives biome blending, coastal wetness and shoreline waves. */
 export class TerrainMaterials3d {
+  readonly cloudShadows = new CloudShadows3d();
   readonly material = new MeshStandardNodeMaterial({ roughness: .95 });
   readonly origin = uniform(new Vector2());
   readonly dimensions = uniform(new Vector2(1, 1));

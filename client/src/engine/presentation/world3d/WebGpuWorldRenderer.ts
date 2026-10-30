@@ -56,6 +56,8 @@ import { configureWaterShadows } from './waterShadows';
 import { treeFallPlayback } from '../../../utils/treeFallAudioSync';
 import type { TreeFallPlayback } from '../../../utils/treeFallAudioSync';
 import { TerrainWindow3d } from './TerrainWindow3d';
+import { GroundDetail3d } from './GroundDetail3d';
+import { worldLightAt } from './WorldLighting3d';
 import type { World3dProfile } from './world3dProfiler';
 import {
   GROUND_Y_SCALE, seedFromId, TERRAIN_PALETTE, WATER_TERRAINS,
@@ -75,6 +77,8 @@ export interface World3dFrame {
   jumpStartMs?: number;
   rollProgress?: number;
   shadows?: boolean;
+  cloudsEnabled?: boolean;
+  grassAnimationEnabled?: boolean;
   timeSeconds?: number;
   nowMs?: number;
   debug?: VisualDebugMode;
@@ -166,6 +170,7 @@ export class WebGpuWorldRenderer {
   private readonly underwater = new UnderwaterView3d(this.camera);
   private diving = false;
   private readonly terrainMaterials = new TerrainMaterials3d();
+  private readonly groundDetail = new GroundDetail3d();
   private readonly terrainWindow = new TerrainWindow3d();
   private terrainWorker: TerrainBuildQueue | null = null;
   private readyTerrain: {build:TerrainBuild;tiles:Row[];reason:string} | null = null;
@@ -214,6 +219,9 @@ export class WebGpuWorldRenderer {
     this.scene.add(this.collectibleGlitter.root);
     this.scene.add(this.water.root);
     this.sun.castShadow = true;
+    // Three's analytic light node accepts a color node, allowing cloud cover to
+    // affect every lit material without multiplying local or emissive lights.
+    (this.sun as DirectionalLight & {colorNode: unknown}).colorNode = this.terrainMaterials.cloudShadows.directLight;
     this.sun.shadow.mapSize.setScalar(WORLD_3D.shadowMapSize);
     this.sun.shadow.camera.near = 0.1;
     this.sun.shadow.camera.far = 100;
@@ -225,6 +233,7 @@ export class WebGpuWorldRenderer {
     this.terrain.receiveShadow = true;
     this.terrain.frustumCulled = false;
     this.scene.add(this.terrain);
+    this.scene.add(this.groundDetail.root);
     for (let i = 0; i < WORLD_3D.maxLocalLights; i++) {
       const light = new PointLight(0xffac63, 0, 5, 2);
       this.lights.push(light);
@@ -309,9 +318,12 @@ export class WebGpuWorldRenderer {
     const local = [...rows(frame.tables.players)].find(([id, row]) => (identity(row.identity) || id) === frame.localPlayerId)?.[1];
     this.diving = Boolean(local?.isSnorkeling);
     this.terrainMaterials.setDiving(this.diving);
+    this.terrainMaterials.cloudShadows.update(frame.tables.interpolatedClouds, -frame.cameraOffset.x + frame.width / 2, -frame.cameraOffset.y + frame.height / 2, frame.cloudsEnabled !== false);
     this.underwater.beginFrame(this.camera,this.diving,time);
     this.swimmingEffects.root.visible = !this.diving;
     const cycle = (frame.tables.worldState as Row | null)?.cycleProgress ?? .45;
+    const worldState = frame.tables.worldState as {isFullMoon?:boolean;cycleCount?:number} | undefined;
+    const celestial = worldLightAt(cycle,worldState?.isFullMoon,worldState?.cycleCount);
     const weatherState = frame.tables.worldState as { rainIntensity?: number; currentWeather?: unknown } | undefined;
     let windRain = weatherState?.rainIntensity ?? 0, windStorm = /Storm|Thunder|Blizzard/.test(tag(weatherState?.currentWeather));
     if (frame.tables.chunkWeather instanceof Map) for (const weather of frame.tables.chunkWeather.values()) {
@@ -319,7 +331,7 @@ export class WebGpuWorldRenderer {
       windStorm ||= /Storm|Thunder|Blizzard/.test(tag(weather.currentWeather));
     }
     this.kit.wind.update(time, windRain, windStorm, frame.debug === 'fields');
-    this.water.beginFrame(time, Math.max(.08, Math.sin((cycle - .25) * Math.PI * 2)), this.diving);
+    this.water.beginFrame(time, Math.max(.08, celestial.daylight), this.diving);
     const waterEnd = performance.now();
     const seen = new Set<string>();
     const fires: LocalLight[] = [];
@@ -330,6 +342,7 @@ export class WebGpuWorldRenderer {
     this.shardGlow.beginFrame(time);
     this.collectibleGlitter.beginFrame(time, cycle, this.camera.quaternion);
     this.prepareBuildings(frame);
+    this.groundDetail.update(frame.tables.interpolatedGrass, this.terrainKinds, time, frame.grassAnimationEnabled !== false, (x,y) => this.floorAt(x,y));
     const renderNow = frame.nowMs ?? Date.now();
     if (frame.tables.projectiles instanceof Map && frame.tables.itemDefinitions instanceof Map) {
       for (const shot of frame.tables.projectiles.values()) {
@@ -390,7 +403,7 @@ export class WebGpuWorldRenderer {
     const entitiesEnd = performance.now();
     this.batches.flush();
     const batchesEnd = performance.now();
-    this.updateLighting(frame, time, fires);
+    this.updateLighting(frame, time, fires, celestial);
     const mode = frame.debug ?? 'lit';
     if (mode !== this.debug) { this.debug = mode; this.kit.setDebug(mode === 'fields' ? 'lit' : mode); this.terrainMaterials.setDebug(mode); this.water.setDebug(mode); }
     this.flatLight.intensity = mode === 'unlit' ? 3 : 0;
@@ -516,6 +529,7 @@ export class WebGpuWorldRenderer {
     for (const tile of tileRows) if (tag(tile.tileType) === 'HotSpringWater') this.hotSpringTiles.add(`${tile.worldX},${tile.worldY}`);
     if (build) this.terrainMaterials.applyField(build.field); else this.terrainMaterials.rebuild(tileRows);
     this.water.rebuild(tileRows);
+    this.groundDetail.rebuild(tileRows);
     for (const tile of tileRows) {
       const type = tag(tile.tileType);
       if (!(type in TERRAIN_PALETTE)) this.unfinished.add(`terrain:${type}`);
@@ -926,13 +940,11 @@ export class WebGpuWorldRenderer {
       corpseYaw: kind === 'animalCorpses' ? animal?.root.rotation.y ?? (seed % 360) * Math.PI / 180 : undefined };
   }
 
-  private updateLighting(frame: World3dFrame, time: number, fires: LocalLight[]): void {
-    const state = frame.tables.worldState as Row | null;
-    const cycle = state?.cycleProgress ?? 0.45;
-    const daylight = Math.max(0, Math.sin((cycle - 0.25) * Math.PI * 2));
-    this.sun.intensity = 0.18 + daylight * 2.7;
-    this.sun.color.setHex(daylight < 0.25 ? 0xe6ac79 : 0xffe3b2);
-    this.sky.intensity = 0.48 + daylight * 1.6;
+  private updateLighting(frame: World3dFrame, time: number, fires: LocalLight[], celestial = worldLightAt(cycleOf(frame))): void {
+    this.sun.intensity=celestial.directPower;this.sun.color.copy(celestial.direct);
+    this.sun.position.copy(this.sun.target.position).addScaledVector(celestial.direction,32);
+    this.sky.intensity=celestial.skyPower;this.sky.color.copy(celestial.sky);this.sky.groundColor.copy(celestial.ground);
+    this.terrainMaterials.cloudShadows.setLight(this.sun.color,this.sun.intensity,celestial.direction);
     fires.sort((a, b) => (a.priority??0)-(b.priority??0) || a.position.distanceToSquared(this.camera.position) - b.position.distanceToSquared(this.camera.position));
     this.lights.forEach((light, i) => {
       // Visibility changes alter the lights-node cache key and synchronously
@@ -956,7 +968,7 @@ export class WebGpuWorldRenderer {
     this.thrownAt.clear();
     const warmupRelease = this.pipelineWarmup.dispose();
     // Renderer releases GPU resources before their shared CPU owners are disposed.
-    const release = () => { this.device?.destroy(); this.device = null; this.water.dispose(); this.terrainMaterials.dispose(); this.swimmingEffects.dispose(); this.treeFallEffects.dispose(); this.combatEffects.dispose(); this.footEffects.dispose(); this.projectileWorld.dispose(); this.explosionEffects.dispose(); this.fishingEffects.dispose(); this.shardGlow.dispose(); this.collectibleGlitter.dispose(); this.underwater.dispose(); this.placementPreview.dispose(); this.batches.dispose(); this.terrain.geometry.dispose(); this.kit.dispose(); this.scene.clear(); this.visuals.clear(); this.prototypes.clear(); };
+    const release = () => { this.device?.destroy(); this.device = null; this.water.dispose(); this.groundDetail.dispose(); this.terrainMaterials.dispose(); this.swimmingEffects.dispose(); this.treeFallEffects.dispose(); this.combatEffects.dispose(); this.footEffects.dispose(); this.projectileWorld.dispose(); this.explosionEffects.dispose(); this.fishingEffects.dispose(); this.shardGlow.dispose(); this.collectibleGlitter.dispose(); this.underwater.dispose(); this.placementPreview.dispose(); this.batches.dispose(); this.terrain.geometry.dispose(); this.kit.dispose(); this.scene.clear(); this.visuals.clear(); this.prototypes.clear(); };
     this.disposal = (async () => {
       // A pending init may still own the canvas context. Finish its release before
       // a remount or seed reset is allowed to configure this same canvas again.

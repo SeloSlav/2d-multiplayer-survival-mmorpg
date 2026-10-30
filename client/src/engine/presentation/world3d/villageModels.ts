@@ -6,7 +6,7 @@ import { seededRandom } from './visualContract';
 import { VILLAGE_BUILDINGS } from './villagePlans';
 import type { VillageBuildingPlan } from './villagePlans';
 import type { GroundPoint } from './buildingPlan';
-import { CutawayEnvelope } from './CutawayEnvelope';
+import { createProjectedRim } from './shelterCutaway';
 import { VILLAGE_DOOR_HALF_WIDTH } from '../../../config/villageGeometry';
 
 const V=(x:number,y:number,z:number)=>new Vector3(x,y,z);
@@ -258,7 +258,8 @@ export function createVillageModel(kit:ModelKit,asset:string):Group {
     else{plankWalls(kit,shell,p);roofAssembly(kit,roof,p);ornament(kit,shell,lamps,p);}
     const skin=kit.compileColored(kit.compile(shell));skin.name='village-shell';
     const roofMesh=kit.compileColored(kit.compile(roof));roofMesh.name='village-roof';
-    center.add(skin,roofMesh,kit.compileColored(kit.compile(interior)));
+    const opaque=new Group();opaque.name='village-opaque';opaque.add(skin,roofMesh);
+    center.add(opaque,kit.compileColored(kit.compile(interior)));
     const glow=kit.compile(lamps);glow.name='village-lamps';center.add(glow);
     if(glow.children.length)for(const side of [-1,1]){const anchor=new Group();anchor.name='village-window-anchor';anchor.position.set(side*p.width*.34,1.55,p.depth/2+.14);glow.add(anchor);}
     // Keep wind instruments as articulated groups; each fixed assembly is tiny.
@@ -293,19 +294,23 @@ export function createVillageModel(kit:ModelKit,asset:string):Group {
   root.add(kit.compileColored(kit.compile(g)));return root;
 }
 
+// Prototypes and their clipped geometry belong to the same ModelKit; repeated
+// instances share the expensive derived mesh without sharing visibility.
+const villageRims=new WeakMap<Group,Map<number,Group>>();
+
 export class VillageRig {
   readonly root:Group;
-  private readonly cutaway:CutawayEnvelope|undefined;
+  private readonly opaque:Group|undefined;
+  private readonly rims=new Map<number,Group>();
+  private activeRim:Group|undefined;
   private readonly lamps:Group|undefined;
-  private readonly roof:Group|undefined;
   private readonly fixtures:Group|undefined;
   private readonly rotors:Group[]=[];
   private faded=false;
-  constructor(private kit:ModelKit,readonly asset:string,prototype:Group){
+  constructor(private kit:ModelKit,readonly asset:string,private readonly prototype:Group){
     this.root=prototype.clone(true);this.lamps=this.root.getObjectByName('village-lamps') as Group|undefined;
-    this.roof=this.root.getObjectByName('village-roof') as Group|undefined;
+    this.opaque=this.root.getObjectByName('village-opaque') as Group|undefined;
     this.fixtures=this.root.getObjectByName('village-rooftop-fixtures') as Group|undefined;
-    const shell=this.root.getObjectByName('village-shell') as Group|undefined;if(shell)this.cutaway=new CutawayEnvelope(kit,shell,.4);
     this.root.traverse(o=>{if(o.name==='village-turbine'||o.name==='village-wind-rotor')this.rotors.push(o as Group);});
   }
   update(local:{x:number;y:number}|null|undefined,anchor:{x:number;y:number},rotation:number,time:number):void {
@@ -313,7 +318,18 @@ export class VillageRig {
     const x=(dx*Math.cos(rotation)+dy*Math.sin(rotation))/48,z=(-dx*Math.sin(rotation)+dy*Math.cos(rotation))/48;
     const inside=Boolean(p&&local&&Math.abs(x)<p.width/2&&z<0&&z>-p.depth
       && (p.form!=='round'||(x/(p.width/2))**2+((z+p.depth/2)/(p.depth/2))**2<1));
-    if(this.faded!==inside){this.faded=inside;this.cutaway?.set(inside);if(this.roof)this.roof.visible=!inside;if(this.fixtures)this.fixtures.visible=!inside;if(this.lamps)this.lamps.visible=!inside;}
+    if(inside&&p&&this.opaque){
+      let rim=this.rims.get(rotation);
+      if(!rim){
+        let shared=villageRims.get(this.prototype);if(!shared){shared=new Map();villageRims.set(this.prototype,shared);}
+        let geometry=shared.get(rotation);
+        if(!geometry){geometry=createProjectedRim(this.kit,this.opaque,p.width/2,p.depth/2,rotation);geometry.name='village-rim';shared.set(rotation,geometry);}
+        rim=geometry.clone(true);this.opaque.parent!.add(rim);this.rims.set(rotation,rim);
+      }
+      if(this.activeRim!==rim){if(this.activeRim)this.activeRim.visible=false;this.activeRim=rim;}
+    }
+    if(this.faded!==inside){this.faded=inside;if(this.opaque)this.opaque.visible=!inside;if(this.fixtures)this.fixtures.visible=!inside;if(this.lamps)this.lamps.visible=!inside;}
+    if(this.activeRim)this.activeRim.visible=inside;
     this.rotors.forEach(rotor=>{if(rotor.name==='village-turbine')rotor.rotation.z=time*1.4;else rotor.rotation.y=time*.9;});
     this.root.rotation.y=-rotation;this.root.userData.cutaway=inside;
   }

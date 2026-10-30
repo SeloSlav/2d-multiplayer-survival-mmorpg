@@ -5,12 +5,9 @@ import { GROUND_Y_SCALE, WORLD_3D } from './visualContract';
 
 // Shelters are viewed by a fixed orthographic camera. Project each vertex to
 // the ground plane before clipping so the clear area follows the drawn border.
-const W=SHELTER_DIMS.HALF_WIDTH/WORLD_3D.tilePixels;
-const D=SHELTER_DIMS.HALF_HEIGHT/WORLD_3D.tilePixels;
 const heightShift=1/(Math.tan(WORLD_3D.elevationRadians)*GROUND_Y_SCALE);
 type Vertex=number[]; // position, normal, linear vertex color
 type Plane=(vertex:Vertex)=>number;
-const planes:Plane[]=[v=>v[0]+W,v=>W-v[0],v=>v[2]-v[1]*heightShift+D,v=>D-v[2]+v[1]*heightShift];
 
 function split(polygon:Vertex[],plane:Plane):[Vertex[],Vertex[]] {
   const inside:Vertex[]=[],outside:Vertex[]=[];
@@ -26,13 +23,19 @@ function split(polygon:Vertex[],plane:Plane):[Vertex[],Vertex[]] {
 }
 
 /** The returned meshes share source materials and are owned by the kit. */
-export function createShelterRim(kit:ModelKit,shell:Group):Group {
-  const rim=new Group();rim.name='shelter-rim';rim.visible=false;
+export function createProjectedRim(kit:ModelKit,shell:Group,halfWidth:number,halfDepth:number,rotation=0):Group {
+  const rim=new Group();rim.visible=false;
+  // The ground footprint rotates with the building, while the camera's height
+  // projection remains fixed in world space. Transform that shift back into
+  // the building's local coordinates before clipping.
+  const sx=Math.sin(rotation)*heightShift,sz=Math.cos(rotation)*heightShift;
+  const planes:Plane[]=[v=>v[0]-v[1]*sx+halfWidth,v=>halfWidth-v[0]+v[1]*sx,
+    v=>v[2]-v[1]*sz+halfDepth,v=>halfDepth-v[2]+v[1]*sz];
   shell.updateMatrixWorld(true);
   shell.traverse(object=>{
     if(!(object instanceof Mesh)||Array.isArray(object.material))return;
     const geometry=object.geometry,position=geometry.getAttribute('position'),normal=geometry.getAttribute('normal'),color=geometry.getAttribute('color');
-    if(!position||!normal||!color)throw new Error('Shelter geometry requires position, normal and color attributes');
+    if(!position||!normal||!color)throw new Error('Cutaway geometry requires position, normal and color attributes');
     const indices=geometry.getIndex(),count=indices?.count??position.count,positions:number[]=[],normals:number[]=[],colors:number[]=[];
     const vertex=(index:number):Vertex=>{
       const i=indices?indices.getX(index):index;
@@ -60,4 +63,9 @@ export function createShelterRim(kit:ModelKit,shell:Group):Group {
     rim.add(mesh);
   });
   return rim;
+}
+
+export function createShelterRim(kit:ModelKit,shell:Group):Group {
+  const rim=createProjectedRim(kit,shell,SHELTER_DIMS.HALF_WIDTH/WORLD_3D.tilePixels,SHELTER_DIMS.HALF_HEIGHT/WORLD_3D.tilePixels);
+  rim.name='shelter-rim';return rim;
 }
