@@ -3,6 +3,7 @@
 
 pub mod core;
 pub mod alk_wildlife;
+pub mod bird_motion;
 pub mod fox;
 pub mod wolf;
 pub mod viper;

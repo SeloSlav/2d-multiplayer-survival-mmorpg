@@ -524,6 +524,7 @@ pub fn respawn_destroyed_barrels(ctx: &ReducerContext, _schedule: BarrelRespawnS
         .collect();
     
     for mut barrel in barrels_to_respawn {
+        if crate::indoors::blocks_world_spawn(ctx, barrel.pos_x, barrel.pos_y) || crate::indoors::blocks_world_spawn(ctx, barrel.pos_x, barrel.pos_y-BARREL_COLLISION_Y_OFFSET) { continue; }
         // Reset barrel state
         barrel.health = BARREL_INITIAL_HEALTH;
         barrel.respawn_at = Timestamp::UNIX_EPOCH; // Use epoch to mean "not respawning"
@@ -658,6 +659,7 @@ pub fn spawn_barrel_clusters_scaled(
                 is_monument: false,
             };
 
+            if crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y) || crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y-BARREL_COLLISION_Y_OFFSET) { continue; }
             match ctx.db.barrel().try_insert(new_barrel) {
                 Ok(inserted_barrel) => {
                     barrels_spawned_in_cluster += 1;
@@ -952,6 +954,7 @@ fn spawn_barrel_cluster_at_position(
             is_monument: false,
         };
         
+        if crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y) || crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y-BARREL_COLLISION_Y_OFFSET) { continue; }
         match barrels.try_insert(new_barrel) {
             Ok(inserted_barrel) => {
                 log::debug!("[BarrelSpawn] Spawned barrel {} (variant {}) at ({:.1}, {:.1})", 
@@ -1072,6 +1075,7 @@ pub fn spawn_sea_barrels_around_stacks(
                     is_monument: false,
                 };
 
+                if crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y) || crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y-BARREL_COLLISION_Y_OFFSET) { continue; }
                 match barrels.try_insert(new_barrel) {
                     Ok(inserted_barrel) => {
                         spawned_sea_barrel_positions.push((barrel_x, barrel_y));
@@ -1205,6 +1209,7 @@ pub fn spawn_beach_barrels(
             is_monument: false,
         };
 
+        if crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y) || crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y-BARREL_COLLISION_Y_OFFSET) { continue; }
         match barrels.try_insert(new_barrel) {
             Ok(inserted_barrel) => {
                 spawned_beach_barrel_positions.push((barrel_x, barrel_y));
@@ -1320,6 +1325,7 @@ pub fn spawn_hot_spring_barrels(
                 is_monument: false,
             };
 
+            if crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y) || crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y-BARREL_COLLISION_Y_OFFSET) { continue; }
             match barrels.try_insert(new_barrel) {
                 Ok(inserted_barrel) => {
                     spawned_positions.push((barrel_x, barrel_y));
@@ -1515,6 +1521,7 @@ pub fn spawn_buoy_barrels(ctx: &ReducerContext) -> Result<(), String> {
             is_monument: false,
         };
 
+        if crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y) || crate::indoors::blocks_world_spawn(ctx, new_barrel.pos_x, new_barrel.pos_y-BARREL_COLLISION_Y_OFFSET) { continue; }
         match barrels.try_insert(new_barrel) {
             Ok(inserted) => {
                 spawned_count += 1;

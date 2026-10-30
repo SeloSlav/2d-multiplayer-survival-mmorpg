@@ -71,7 +71,9 @@ const RAIN_CONFIG = {
   HEAVY_STORM_DROPS: 3000,
   
   // Screen margins (spawn rain outside visible area)
-  SPAWN_MARGIN: 800,
+  // Keep most drops near the viewport. The former 800px margin spread moderate
+  // rain across a much larger offscreen area, making it read like a few drips.
+  SPAWN_MARGIN: 200,
   
   // Gust timing
   GUST_FREQUENCY: 0.5,
@@ -1030,4 +1032,4 @@ export function handleServerThunderEvent(serverThunderEvent: { intensity: number
   
   // Call the internal thunder function
   triggerThunderFlash(safeIntensity);
-} 
+}

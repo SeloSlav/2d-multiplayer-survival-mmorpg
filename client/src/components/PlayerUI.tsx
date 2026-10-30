@@ -851,7 +851,7 @@ const PlayerUI: React.FC<PlayerUIProps> = ({
                 name: 'Indoors',
                 emoji: '🏠',
                 type: 'positive',
-                description: 'Protected from rain. Can light campfires during storms.\nWarmth decay reduced.'
+                description: 'Protected from rain. Warmth decay reduced.\nSafe from animal and apparition attacks. Outdoor sounds are muffled.'
                 // No duration - this is instant on/off based on position (shelter or building)
             });
         }

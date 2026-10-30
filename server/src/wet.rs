@@ -204,27 +204,8 @@ fn is_player_protected_from_rain(ctx: &ReducerContext, player: &Player) -> bool 
     const FISHING_VILLAGE_WARMTH_RADIUS: f32 = 450.0;
     const FISHING_VILLAGE_WARMTH_RADIUS_SQ: f32 = FISHING_VILLAGE_WARMTH_RADIUS * FISHING_VILLAGE_WARMTH_RADIUS;
     
-    // Check if player is inside any shelter
-    for shelter in ctx.db.shelter().iter() {
-        if shelter.is_destroyed {
-            continue;
-        }
-        
-        if crate::shelter::is_player_inside_shelter(player.position_x, player.position_y, &shelter) {
-            return true;
-        }
-    }
-    
-    // NEW: Check if player is inside an enclosed building (foundation + walls)
-    if crate::building_enclosure::is_player_inside_building(ctx, player.position_x, player.position_y) {
-        return true;
-    }
-    
-    // NEW: Check if player is inside a shipwreck protection zone (ancient shelter)
-    if crate::shipwreck::is_position_protected_by_shipwreck(ctx, player.position_x, player.position_y) {
-        return true;
-    }
-    
+    if crate::indoors::is_position_indoors(ctx, player.position_x, player.position_y) { return true; }
+
     // Check if player is near any burning campfire (warmth radius provides rain protection)
     for campfire in ctx.db.campfire().iter() {
         if !campfire.is_burning {
@@ -302,53 +283,11 @@ pub fn check_and_remove_wet_from_environment(ctx: &ReducerContext) -> Result<(),
             apply_wet_effect(ctx, player_id, wetness_cap, &reason)?;
         }
         
-        // NEW: Update indoor/protected state for status effect display
-        // Check BOTH shelters (fast AABB) and buildings (slower perimeter check)
-        let mut is_inside_shelter = false;
-        for shelter in ctx.db.shelter().iter() {
-            if shelter.is_destroyed {
-                continue;
-            }
-            if crate::shelter::is_player_inside_shelter(player.position_x, player.position_y, &shelter) {
-                is_inside_shelter = true;
-                break;
-            }
-        }
-        
-        // Only check building perimeter if NOT already in shelter (optimization)
-        let is_inside_building = if is_inside_shelter {
-            false // Skip expensive check
-        } else {
-            crate::building_enclosure::is_player_inside_building(
-                ctx, 
-                player.position_x, 
-                player.position_y
-            )
-        };
-        
-        // NEW: Check if player is inside a shipwreck protection zone
-        // Shipwrecks serve as protected "safe zones" for new players - hostile NPCs won't approach
-        let is_inside_shipwreck = if is_inside_shelter || is_inside_building {
-            false // Skip check if already protected
-        } else {
-            crate::shipwreck::is_position_protected_by_shipwreck(
-                ctx,
-                player.position_x,
-                player.position_y
-            )
-        };
-        
-        let is_indoors = is_inside_shelter || is_inside_building || is_inside_shipwreck;
-        
-        // Only update if state changed to avoid unnecessary DB writes
-        if player.is_inside_building != is_indoors {
+        let indoors = crate::indoors::is_position_indoors(ctx, player.position_x, player.position_y);
+        if player.is_inside_building != indoors {
             let mut updated_player = player.clone();
-            updated_player.is_inside_building = is_indoors;
+            updated_player.is_inside_building = indoors;
             ctx.db.player().identity().update(updated_player);
-            log::debug!(
-                "Player {:?} indoor state changed: {} -> {} (shelter={}, building={}, shipwreck={})",
-                player_id, player.is_inside_building, is_indoors, is_inside_shelter, is_inside_building, is_inside_shipwreck
-            );
         }
     }
     

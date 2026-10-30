@@ -1,6 +1,5 @@
-import { calculateChunkIndex } from '../../utils/chunkUtils';
-import { renderRain } from '../../utils/renderers/rainRenderingUtils';
-import { renderWeatherOverlay } from '../../utils/renderers/weatherOverlayUtils';
+import { renderScreenSpaceWeather } from './renderScreenSpaceWeather';
+export { renderScreenSpaceWeather } from './renderScreenSpaceWeather';
 import { renderWardRadius, LANTERN_TYPE_LANTERN } from '../../utils/renderers/lanternRenderingUtils';
 import { renderStatusOverlayPasses } from './renderStatusOverlayPasses';
 
@@ -42,47 +41,6 @@ interface RenderScreenSpaceWorldEffectsOptions {
   localPlayerId?: string;
 }
 
-export function renderScreenSpaceWeather({ ctx, localPlayer, chunkWeather, currentPredictedPosition, worldState, showPrecipitation, isSnorkeling, currentCameraOffsetX, currentCameraOffsetY, currentCanvasWidth, currentCanvasHeight, deltaTimeMs, stormAtmosphereEnabled, currentCycleProgress }: Pick<RenderScreenSpaceWorldEffectsOptions, 'ctx' | 'localPlayer' | 'chunkWeather' | 'currentPredictedPosition' | 'worldState' | 'showPrecipitation' | 'isSnorkeling' | 'currentCameraOffsetX' | 'currentCameraOffsetY' | 'currentCanvasWidth' | 'currentCanvasHeight' | 'deltaTimeMs' | 'stormAtmosphereEnabled' | 'currentCycleProgress'>): void {
-  let rainIntensity = 0.0;
-  if (localPlayer && chunkWeather) {
-    const playerX = currentPredictedPosition?.x ?? localPlayer.positionX;
-    const playerY = currentPredictedPosition?.y ?? localPlayer.positionY;
-    const currentChunkIndex = calculateChunkIndex(playerX, playerY);
-    const chunkWeatherData = chunkWeather.get(currentChunkIndex.toString());
-    if (chunkWeatherData && chunkWeatherData.currentWeather?.tag !== 'Clear') {
-      rainIntensity = chunkWeatherData.rainIntensity ?? 0.0;
-    }
-  }
-  if (rainIntensity === 0.0 && worldState?.rainIntensity) {
-    rainIntensity = worldState.rainIntensity;
-  }
-
-  const isWinter = worldState?.currentSeason?.tag === 'Winter';
-  if (showPrecipitation && !isSnorkeling) {
-    renderRain(
-      ctx,
-      -currentCameraOffsetX,
-      -currentCameraOffsetY,
-      currentCanvasWidth,
-      currentCanvasHeight,
-      rainIntensity,
-      deltaTimeMs / 1000,
-      isWinter,
-    );
-  }
-
-  if (stormAtmosphereEnabled) {
-    renderWeatherOverlay(
-      ctx,
-      currentCanvasWidth,
-      currentCanvasHeight,
-      rainIntensity,
-      currentCycleProgress,
-      Date.now(),
-    );
-  }
-
-}
 
 export function renderScreenSpaceWorldEffects({
   ctx,

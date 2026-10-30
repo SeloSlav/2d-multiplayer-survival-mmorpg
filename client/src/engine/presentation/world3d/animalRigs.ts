@@ -27,7 +27,7 @@ export const ANIMAL_PROFILES: Record<string, Profile> = {
   DrownedWatch: { family: 'humanoid', length: .68, height: 2.05, width: 1.05, fur: 0x435f61, accent: 0x81958d, muzzle: .1, tail: 0, runSpeed: 2.2, attackSeconds: 1.05 },
 };
 export const AUTHORED_ANIMAL_SPECIES = new Set(Object.keys(ANIMAL_PROFILES));
-export interface AnimalEvents { attackAge?: number; deathAge?: number; hidden?: boolean; shock?: boolean; state?: string; lookYaw?: number; alertAge?: number }
+export interface AnimalEvents { attackAge?: number; deathAge?: number; hidden?: boolean; shock?: boolean; state?: string; lookYaw?: number; alertAge?: number; travelYaw?:number }
 interface Joint { pivot: Group; lower?: Group; index: number; x: number; y: number; z: number }
 const ease = (x: number) => { const t = Math.max(0, Math.min(1, x)); return t * t * (3 - 2 * t); };
 
@@ -49,6 +49,8 @@ export class AnimalRig {
   private stride = 0;
   private running = 0;
   private heading = 0;
+  private flightPhase = 0;
+  private flightMotion = 0;
   private firstFrame = true;
   private flashOn = false;
   private readonly flashMeshes:Array<{mesh:Mesh;material:Material|Material[]}> = [];
@@ -57,6 +59,7 @@ export class AnimalRig {
     const p = ANIMAL_PROFILES[species];
     if (!p) throw new Error(`Unfinished animal species ${species}`);
     this.p = p; this.root.name = `animal-${species}`;
+    this.flightPhase=(seed%1000)*.037;
     this.body.name = 'animal-body'; this.head.name = 'animal-head'; this.jaw.name = 'animal-jaw'; this.tail.name = 'animal-tail';
     this.root.add(this.body); this.body.add(this.head, this.tail); this.head.add(this.jaw);
     if (p.family === 'quadruped') this.quadruped();
@@ -225,8 +228,15 @@ export class AnimalRig {
     this.running += (Math.max(0, Math.min(1, (speed / p.runSpeed - .4) / .5)) - this.running) * response;
     this.phase += Math.max(0, dt) * (3.5 + Math.min(speed, p.runSpeed * 1.5) * 2.4);
     const phase = this.phase, gait = this.stride, run = this.running;
-    if (this.firstFrame) { this.heading = yaw; this.firstFrame = false; }
-    this.heading += Math.atan2(Math.sin(yaw - this.heading), Math.cos(yaw - this.heading)) * (1 - Math.exp(-dt * 14));
+    if (this.firstFrame) { this.heading = p.family==='bird'&&speed>.25?(events.travelYaw??yaw):yaw; this.firstFrame = false; }
+    if(p.family==='bird'&&!dead){
+      // Intent may change while collision keeps a bird stationary. Its body
+      // follows real travel and keeps the last heading while hovering/resting.
+      const target=speed>.25?(events.travelYaw??yaw):this.heading;
+      const turn=Math.atan2(Math.sin(target-this.heading),Math.cos(target-this.heading));
+      const maxTurn=Math.max(0,Math.min(.1,dt))*(flying?4:1.8);
+      this.heading+=Math.max(-maxTurn,Math.min(maxTurn,turn));
+    }else this.heading += Math.atan2(Math.sin(yaw - this.heading), Math.cos(yaw - this.heading)) * (1 - Math.exp(-dt * 14));
     this.root.rotation.y = this.heading; this.root.visible = !events.hidden;
     this.body.position.set(0, 0, 0); this.body.rotation.set(0, 0, 0); this.body.scale.set(1, 1, 1);
     this.head.rotation.set(0, 0, 0); this.jaw.rotation.x = 0; this.tail.rotation.set(0, 0, 0);
@@ -261,11 +271,15 @@ export class AnimalRig {
       this.tail.rotation.y = Math.sin(phase * .65) * (.09 + gait * .2);
     } else if (p.family === 'bird' || p.family === 'insect') {
       const air = flying || p.family === 'insect';
-      this.body.position.y = air ? (p.family === 'insect' ? .65 : 1.1) + Math.sin(time * 2.5) * .09 - attack * .42 : Math.abs(Math.sin(phase)) * gait * .035;
+      if(p.family==='bird'){
+        this.flightMotion+=(Math.min(1,Math.max(0,(speed-.25)/2))-this.flightMotion)*(1-Math.exp(-Math.max(0,dt)*4));
+        this.flightPhase+=Math.max(0,dt)*(4.2+this.flightMotion*7.8);
+      }
+      this.body.position.y = air ? (p.family === 'insect' ? .65 : 1.1) + Math.sin(p.family==='bird'?this.flightPhase*.25:time*2.5) * .09 - attack * .42 : Math.abs(Math.sin(phase)) * gait * .035;
       this.body.rotation.x = air ? -.1 - run * .15 + attack * .5 : attack * .55; this.head.rotation.x = attack * .3;
       for (const j of this.joints) {
         const wing = Math.abs(j.x) > p.width * .3;
-        if (wing) j.pivot.rotation.z = (j.x > 0 ? 1 : -1) * (air ? Math.sin(time * (p.family === 'insect' ? 75 : 13)) * .75 : -.95);
+        if (wing) j.pivot.rotation.z = (j.x > 0 ? 1 : -1) * (air ? Math.sin(p.family==='insect'?time*75:this.flightPhase) * (p.family==='insect'?.75:.5+this.flightMotion*.25) : -.95);
         else j.pivot.rotation.x = air ? .8 : Math.sin(phase + j.index * Math.PI) * gait * .55;
       }
     } else if (p.family === 'crab') {
@@ -317,6 +331,6 @@ export class AnimalRig {
       const blink = ((clock % 4.7) + 4.7) % 4.7;
       this.eyes.forEach(eye => { eye.scale.y = eye.userData.restScaleY * (blink < .14 ? .12 + .88 * Math.abs(blink - .07) / .07 : 1); });
     }
-    this.root.userData.animation = { state: attack > 0 ? 'attack' : phases.prepare > 0 ? 'attack-prepare' : flying ? 'flight' : gait > .1 ? run > .5 ? 'run' : 'walk' : alert ? 'alert' : behaviour, phase, attack, prepare: phases.prepare, shock: Boolean(events.shock) };
+    this.root.userData.animation = { state: attack > 0 ? 'attack' : phases.prepare > 0 ? 'attack-prepare' : flying ? p.family==='bird'&&speed<=.25?'hover':'flight' : gait > .1 ? run > .5 ? 'run' : 'walk' : alert ? 'alert' : behaviour, phase, flightPhase:this.flightPhase, attack, prepare: phases.prepare, shock: Boolean(events.shock) };
   }
 }

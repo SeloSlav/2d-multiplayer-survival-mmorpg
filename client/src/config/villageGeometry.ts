@@ -9,6 +9,14 @@ export const VILLAGE_DOOR_HALF_WIDTH = collisionGeometry.village.doorHalfWidth;
 export const VILLAGE_WALL_THICKNESS = collisionGeometry.village.wallThickness * collisionGeometry.village.tilePixels;
 export interface VillageWallSegment { ax:number; ay:number; bx:number; by:number }
 
+export function isInsideVillageBuilding(row:PresentationEntity,x:number,y:number,padding=0):boolean {
+  const p=VILLAGE_BUILDINGS[villageAsset(row)];if(!p)return false;
+  const dx=x-(row.worldX??0),dy=y-(row.worldY??0),angle=row.rotationRad??0,c=Math.cos(angle),s=Math.sin(angle);
+  const u=dx*c+dy*s,v=-dx*s+dy*c,tile=collisionGeometry.village.tilePixels,half=p.width*tile/2,depth=p.depth*tile;
+  return p.form==='round'?(u/(half+padding))**2+((v+depth/2)/(depth/2+padding))**2<1
+    :Math.abs(u)<half+padding&&v<padding&&v>-depth-padding;
+}
+
 export function isVillageCampfire(row:PresentationEntity):boolean {
   const type=typeof row.monumentType==='object'&&row.monumentType&&'tag' in row.monumentType ? String(row.monumentType.tag) : String(row.monumentType??'');
   return type==='FishingVillage'&&Boolean(row.isCenter)

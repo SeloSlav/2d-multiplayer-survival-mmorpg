@@ -7,7 +7,8 @@ import { VILLAGE_BUILDINGS } from './villagePlans';
 import type { VillageBuildingPlan } from './villagePlans';
 import type { GroundPoint } from './buildingPlan';
 import { createProjectedRim } from './shelterCutaway';
-import { VILLAGE_DOOR_HALF_WIDTH } from '../../../config/villageGeometry';
+import { isInsideVillageBuilding, VILLAGE_DOOR_HALF_WIDTH } from '../../../config/villageGeometry';
+import { carveVillageEntrance } from './villageEntrance';
 
 const V=(x:number,y:number,z:number)=>new Vector3(x,y,z);
 function beam(kit:ModelKit,g:Group,c:number,a:number[],b:number[],r=.06):void{kit.beam(g,c,new Vector3(...a as [number,number,number]),new Vector3(...b as [number,number,number]),r);}
@@ -28,7 +29,7 @@ function floorAndFurniture(kit:ModelKit,g:Group,p:VillageBuildingPlan):void {
   for(let i=0;i<Math.ceil(p.width/.35);i++){
     const count=Math.ceil(p.width/.35),step=p.width/count;
     const x=-p.width/2+(i+.5)*step,depth=p.form==='round'?p.depth*Math.sqrt(Math.max(.02,1-(x/(p.width/2))**2)):p.depth;
-    kit.part(g,'box',i%3?0x554735:0x6b583e,[step-.008,.065,depth],[x,.035,0]);
+    kit.part(g,'box',i%3?0x342d25:0x403629,[step-.008,.065,depth],[x,.035,0]);
   }
   const table=new Group();table.position.set(-p.width*.26,0,-p.depth*.18);
   kit.part(table,'box',p.trim,[1.25,.1,.72],[0,.72,0]);
@@ -111,6 +112,7 @@ function roofAssembly(kit:ModelKit,g:Group,p:VillageBuildingPlan):void {
     }else for(let z=-length/2+.13;z<length/2;z+=.42){
       const snow=p.snow&&(Math.abs(x)<span*.31||random()<.3);
       const tuft=kit.part(piece,'rock',snow?0xd3e4e3:random()>.5?p.roof:p.roofLight,[.42,.12+random()*.07,.58],[x,y+.07,z]);tuft.rotation.y=random()*.5;
+      if(!snow)kit.markFoliage(tuft,.018);
     }
     g.add(piece);
   }
@@ -125,6 +127,7 @@ function roofAssembly(kit:ModelKit,g:Group,p:VillageBuildingPlan):void {
     for(let ring=1;ring<=4;ring++)for(let i=0;i<18;i++){
       const r=ring/4*.92,a=(i+random()*.35)/18*Math.PI*2,x=Math.sin(a)*span/2*r,z=Math.cos(a)*p.depth/2*r;
       const tuft=kit.part(g,'rock',random()<.3?p.roofLight:p.roof,[.4,.08,.35],[x,p.eave+p.rise*Math.sqrt(1-r*r)+.07,z]);tuft.rotation.y=a;
+      kit.markFoliage(tuft,.018);
     }
     for(let i=1;i<8;i++){
       const a=i/8*Math.PI*2,sx=Math.sin(a),sz=Math.cos(a);
@@ -258,8 +261,14 @@ export function createVillageModel(kit:ModelKit,asset:string):Group {
     else{plankWalls(kit,shell,p);roofAssembly(kit,roof,p);ornament(kit,shell,lamps,p);}
     const skin=kit.compileColored(kit.compile(shell));skin.name='village-shell';
     const roofMesh=kit.compileColored(kit.compile(roof));roofMesh.name='village-roof';
+    carveVillageEntrance(kit,skin,p.depth/2);carveVillageEntrance(kit,roofMesh,p.depth/2);
     const opaque=new Group();opaque.name='village-opaque';opaque.add(skin,roofMesh);
-    center.add(opaque,kit.compileColored(kit.compile(interior)));
+    const room=kit.compileColored(kit.compile(interior));
+    // An earthen sill reads as an open passage even from the high game camera;
+    // floorboards must not project up through the doorway like a closed door.
+    carveVillageEntrance(kit,room,p.depth/2,-.1);
+    const sill=new Group();kit.part(sill,'box',0x302d26,[(VILLAGE_DOOR_HALF_WIDTH-.1)*2,.025,1.15],[0,.012,p.depth/2-.54]);
+    center.add(opaque,room,kit.compileColored(kit.compile(sill)));
     const glow=kit.compile(lamps);glow.name='village-lamps';center.add(glow);
     if(glow.children.length)for(const side of [-1,1]){const anchor=new Group();anchor.name='village-window-anchor';anchor.position.set(side*p.width*.34,1.55,p.depth/2+.14);glow.add(anchor);}
     // Keep wind instruments as articulated groups; each fixed assembly is tiny.
@@ -314,10 +323,8 @@ export class VillageRig {
     this.root.traverse(o=>{if(o.name==='village-turbine'||o.name==='village-wind-rotor')this.rotors.push(o as Group);});
   }
   update(local:{x:number;y:number}|null|undefined,anchor:{x:number;y:number},rotation:number,time:number):void {
-    const p=VILLAGE_BUILDINGS[this.asset],dx=(local?.x??Infinity)-anchor.x,dy=(local?.y??Infinity)-anchor.y;
-    const x=(dx*Math.cos(rotation)+dy*Math.sin(rotation))/48,z=(-dx*Math.sin(rotation)+dy*Math.cos(rotation))/48;
-    const inside=Boolean(p&&local&&Math.abs(x)<p.width/2&&z<0&&z>-p.depth
-      && (p.form!=='round'||(x/(p.width/2))**2+((z+p.depth/2)/(p.depth/2))**2<1));
+    const p=VILLAGE_BUILDINGS[this.asset];
+    const inside=Boolean(local&&isInsideVillageBuilding({imagePath:this.asset,worldX:anchor.x,worldY:anchor.y,rotationRad:rotation},local.x,local.y));
     if(inside&&p&&this.opaque){
       let rim=this.rims.get(rotation);
       if(!rim){

@@ -8,6 +8,8 @@ import { bowDrawPhase, clamp01, recoilEnvelope, reloadHandPhase, smoothPhase } f
 import type { InteractionPose } from './actorAnimation';
 import { SurvivorArmor } from './survivorArmor';
 import type { WornArmor } from './survivorArmor';
+import { createSurvivorAppearance, createSurvivorBoot, createSurvivorHand, createSurvivorSleeve, updateSurvivorDrape } from './survivorAppearance';
+import type { SurvivorClothing } from './survivorAppearance';
 
 const UP = new Vector3(0, 1, 0);
 
@@ -89,6 +91,7 @@ export class SurvivorRig {
   private swimPhase = 0;
   private swimKickPhase = 0;
   private swimKickSprint = 0;
+  private swimMotionHold = 0;
   private yawInitialized = false;
   private readonly anchorCorrection = new Vector3();
   private readonly bounds = new Box3();
@@ -100,6 +103,7 @@ export class SurvivorRig {
   private readonly actionOrientation = new Quaternion();
   private readonly actionProps = new Group();
   private readonly armor: SurvivorArmor;
+  private readonly clothing: SurvivorClothing;
   private wasDown = false;
   private lifeInitialized = false;
   private recoveryAt = -Infinity;
@@ -123,7 +127,7 @@ export class SurvivorRig {
     return knee.localToWorld(target.set(0, -.35, .1));
   }
 
-  constructor(private readonly kit: ModelKit, coat: number = C.dress) {
+  constructor(private readonly kit: ModelKit, coat: number = 0x256b68) {
     const part = kit.part.bind(kit);
     this.body.name = 'survivor-body';
     this.root.add(this.body);
@@ -132,47 +136,21 @@ export class SurvivorRig {
     this.body.add(this.waterAnchor);
     this.torso.name = 'survivor-torso';
     this.body.add(this.torso, this.leftLeg, this.rightLeg); this.torso.add(this.head, this.leftArm, this.rightArm);
-    part(this.torso, 'rock', coat, [0.64, 0.7, 0.4], [0, 1.02, 0]);
     const skirt = new Group(); skirt.name = 'survivor-skirt'; this.body.add(skirt);
-    part(skirt, 'skirt', coat, [0.75, 0.42, 0.59], [0, 0.63, 0]);
-    part(this.torso, 'box', C.apron, [0.36, 0.39, 0.045], [0, 0.93, 0.193]);
-    part(skirt, 'box', C.apron, [0.45, 0.24, 0.045], [0, 0.64, 0.23]);
-    part(this.body, 'box', C.leather, [0.49, 0.055, 0.34], [0, 0.77, 0.01]);
-    part(this.body, 'box', C.woodDark, [0.22, 0.23, 0.14], [0.18, 0.77, -0.2]);
     this.head.position.y = 1.36;
-    // Preserve the canonical babushka's scarf, dress, apron and exposed face.
-    part(this.head, 'rock', C.scarf, [0.48, 0.5, 0.47], [0, 0.13, -0.015]);
-    part(this.head, 'box', C.skin, [0.29, 0.29, 0.085], [0, 0.1, 0.205]);
-    part(this.head, 'box', C.bone, [0.31, 0.045, 0.035], [0, 0.245, 0.248]);
-    for (const x of [-0.075, 0.075]) {
-      part(this.head, 'box', C.coal, [0.033, 0.035, 0.02], [x, 0.13, 0.253]);
-      part(this.head, 'box', C.bone, [0.065, 0.018, 0.02], [x, 0.18, 0.253]);
-    }
-    part(this.head, 'rock', C.skin, [0.065, 0.08, 0.075], [0, 0.075, 0.27]);
-    part(this.head, 'box', 0x8b5f54, [0.07, 0.018, 0.02], [0, 0.01, 0.253]);
-    const kerchief = part(this.head, 'cone', C.scarf, [0.3, 0.2, 0.15], [0, -0.105, 0.19]);
-    kerchief.rotation.x = Math.PI;
-    for (const sign of [-1, 1]) {
-      const tail = part(this.head, 'cone', C.scarfShadow, [0.17, 0.32, 0.1], [sign * 0.08, -0.09, -0.2]);
-      tail.rotation.z = Math.PI + sign * 0.35;
-    }
-    part(this.torso, 'rock', C.scarfShadow, [0.55, 0.19, 0.39], [0, 1.28, 0]);
+    const clothing = this.clothing = createSurvivorAppearance(kit, this.body, this.torso, this.head, skirt, coat);
     for (const [limb, forearm, hand, sign] of [[this.leftArm, this.leftForearm, this.leftHand, -1], [this.rightArm, this.rightForearm, this.rightHand, 1]] as const) {
       limb.position.set(sign * 0.32, 1.22, 0);
       limb.name = sign < 0 ? 'left-upper-arm' : 'right-upper-arm';
-      part(limb, 'rock', coat, [0.22, ARM_SEGMENT_LENGTH + .08, 0.23], [0, -ARM_SEGMENT_LENGTH / 2, 0]);
+      createSurvivorSleeve(kit, limb, coat, sign, false);
       forearm.position.y = -ARM_SEGMENT_LENGTH;
       forearm.name = sign < 0 ? 'left-forearm' : 'right-forearm';
       limb.add(forearm);
-      part(forearm, 'rock', coat, [.18, ARM_SEGMENT_LENGTH, .19], [0, -ARM_SEGMENT_LENGTH / 2 + .025, 0]);
+      createSurvivorSleeve(kit, forearm, coat, sign, true);
       hand.position.y = -ARM_SEGMENT_LENGTH;
       hand.name = sign < 0 ? 'left-hand' : 'right-hand';
       forearm.add(hand);
-      // The palm and curled fingers surround the grip origin rather than
-      // placing an item beside an unconnected mitten.
-      part(hand, 'rock', C.skin, [.13, .16, .14], [sign * .035, 0, -.015]);
-      for (const y of [-.04, .015, .06]) part(hand, 'box', C.skin, [.12, .033, .04], [0, y, .055]);
-      part(hand, 'rock', C.skin, [.055, .085, .07], [-sign * .055, .045, .025]);
+      clothing.hands.push(createSurvivorHand(kit, hand, sign));
     }
     this.handSocket.name = 'right-hand-socket';
     this.leftHandSocket.name = 'left-hand-socket';
@@ -189,15 +167,15 @@ export class SurvivorRig {
       limb.position.set(sign * 0.135, 0.75, 0);
       part(limb, 'box', 0x485450, [0.21, 0.37, 0.23], [0, -0.18, 0]);
       knee.position.y = -.39; knee.name = sign < 0 ? 'left-knee' : 'right-knee'; limb.add(knee);
-      part(knee, 'rock', 0x485450, [.22, .13, .24], [0, -.005, 0]);
-      part(knee, 'box', 0x485450, [.21, .25, .23], [0, -.12, 0]);
-      part(knee, 'box', C.leather, [0.24, 0.2, 0.37], [0, -0.25, 0.06]);
+      part(knee, 'rock', 0x485450, [.18, .10, .18], [0, -.005, 0]);
+      part(knee, 'rock', 0x485450, [.125, .25, .13], [0, -.12, 0]);
+      clothing.boots.push(createSurvivorBoot(kit, knee));
     }
     // Articulation stays in the anatomical groups; their rigid solids share
     // compiled geometry across players instead of adding a draw per finger.
     const groups: Group[] = []; this.root.traverse(object => { if (object instanceof Group) groups.push(object); });
     groups.forEach((group, index) => {
-      if (this.actionProps.getObjectById(group.id)) return;
+      if (group.userData.survivorAppearance || this.actionProps.getObjectById(group.id)) return;
       const solids = group.children.filter(object => object instanceof Mesh);
       if (!solids.length) return;
       const fixed = new Group(); solids.forEach(object => fixed.add(object));
@@ -205,7 +183,7 @@ export class SurvivorRig {
     });
     this.armor = new SurvivorArmor(kit, { head: this.head, torso: this.torso,
       arms: [this.leftArm, this.rightArm], hands: [this.leftHand, this.rightHand],
-      legs: [this.leftLeg, this.rightLeg], knees: [this.leftKnee, this.rightKnee] }, skirt);
+      legs: [this.leftLeg, this.rightLeg], knees: [this.leftKnee, this.rightKnee] }, skirt, clothing);
   }
 
   update(pose: SurvivorPose, dt: number, time: number): void {
@@ -238,7 +216,11 @@ export class SurvivorRig {
       (this.weapon.userData.primaryHand === 'left' ? this.leftHandSocket : this.handSocket).add(this.weapon);
       this.weaponName = pose.weapon;
     }
-    const moving = Math.min(1, pose.speed / 1.4);
+    // Movement samples can arrive less often than rendered frames. Hold the
+    // swimming gait through short sample gaps instead of repeatedly blending
+    // back to treading water midway through each stroke.
+    this.swimMotionHold = pose.swimming && pose.speed > .1 ? .18 : Math.max(0,this.swimMotionHold-dt);
+    const moving = pose.swimming ? Number(this.swimMotionHold > 0) : Math.min(1, pose.speed / 1.4);
     const grip = this.weapon.userData.gripStyle as GripStyle | undefined;
     if (weaponChanged || grip !== 'bow') { this.bowReleased = false; this.previousBowShotAge = Infinity; }
     if (grip === 'bow') {
@@ -265,12 +247,12 @@ export class SurvivorRig {
     }
     this.previousAttack = pose.attack;
     this.swimBlend += (Number(pose.swimming) - this.swimBlend) * (1 - Math.exp(-dt * 12));
-    const fastSwim = pose.sprinting ? 1 : Math.min(1, Math.max(0, (pose.speed - 2.1) / 2.5));
+    this.swimKickSprint += (Number(pose.sprinting) - this.swimKickSprint) * (1 - Math.exp(-dt * 5));
+    const fastSwim = this.swimKickSprint;
     const swimRate = 3.4 + this.stride * (2.8 + fastSwim * 3.6);
     this.swimPhase += dt * swimRate;
     // Normal kicks stay gentle even when measured movement speed fluctuates.
     // Ease sprint cadence and range together without resetting the leg cycle.
-    this.swimKickSprint += (Number(pose.sprinting) - this.swimKickSprint) * (1 - Math.exp(-dt * 5));
     const normalKickRate = 1.6 + this.stride * .6;
     const normalKickRange = .12 + this.stride * .06;
     this.swimKickPhase += dt * (normalKickRate + (swimRate - normalKickRate) * this.swimKickSprint);
@@ -358,6 +340,9 @@ export class SurvivorRig {
     this.actionProps.visible = Boolean(action && ['eat', 'drink', 'bandage'].includes(action.kind));
     if (action) this.updateInteraction(action);
     if (this.lifeAmount > .001 || pose.crouching || action?.kind === 'gather' || landing > 0) this.groundBody();
+    const draping = !down && this.lifeAmount < .001 && !pose.swimming && pose.roll <= 0 && !pose.crouching && action?.kind !== 'gather';
+    const leftStride = Math.sin(this.leftLeg.rotation.x), rightStride = Math.sin(this.rightLeg.rotation.x);
+    updateSurvivorDrape(this.clothing, draping ? Math.max(0,-leftStride,-rightStride) : 0, draping ? Math.max(0,leftStride,rightStride) : 0);
     if (swimmingWithTorch) {
       // Solve a fixed raised hand from the current shoulder, compensating for
       // torso pitch and the ground-depth scale. The other arm still swims.

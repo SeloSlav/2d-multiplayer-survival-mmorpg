@@ -70,6 +70,7 @@ pub fn spawn_wild_beehive_with_loot(
     pos_y: f32,
     chunk_index: u32,
 ) -> Result<u32, String> {
+    if crate::indoors::blocks_world_spawn(ctx, pos_x, pos_y) { return Err("World loot cannot spawn inside a building".into()); }
     // Verify position is on a forest tile
     if !is_position_on_forest_tile(ctx, pos_x, pos_y) {
         return Err("Wild beehives can only spawn on forest tiles".to_string());

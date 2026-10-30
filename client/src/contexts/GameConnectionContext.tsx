@@ -65,6 +65,7 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const isCleaningUpRef = useRef<boolean>(false);
+    const retryDelayRef = useRef(1000);
 
     // Batch state updates to prevent excessive re-renders
     const updateConnectionState = useCallback((
@@ -117,6 +118,7 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
         cleanupConnection();
         setRetryCount(prev => prev + 1);
         setConnectionError(null);
+        setConnectionState(ConnectionState.DISCONNECTED);
         // Don't set state here - let the effect handle it
     }, [cleanupConnection]);
 
@@ -129,17 +131,6 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
             console.log("[GameConn LOG] No token - cleaning up connection");
             cleanupConnection();
             updateConnectionState(ConnectionState.DISCONNECTED);
-            return;
-        }
-        
-        // Prevent multiple simultaneous connection attempts
-        if (connectionState === ConnectionState.CONNECTING) {
-            console.log("[GameConn LOG] Already connecting - skipping");
-            return;
-        }
-        
-        if (connectionState === ConnectionState.CONNECTED) {
-            console.log("[GameConn LOG] Already connected - skipping");
             return;
         }
         
@@ -192,7 +183,7 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
                     
                     connectionInstanceRef.current = conn;
                     updateConnectionState(ConnectionState.CONNECTED, conn, identity, null);
-                    setRetryCount(0);
+                    retryDelayRef.current=1000;
                 })
                 .onDisconnect((context: any, err?: Error) => {
                     if (abortController.signal.aborted) return;
@@ -306,6 +297,17 @@ export const GameConnectionProvider: React.FC<GameConnectionProviderProps> = ({ 
             cleanupConnection();
         };
     }, [spacetimeToken, invalidateCurrentToken, retryCount, cleanupConnection, updateConnectionState]);
+
+    // Recover from a transient local-server failure or module reconnect without
+    // stranding authenticated users on a permanent reconnecting screen.
+    useEffect(()=>{
+        if(!spacetimeToken||connectionState===ConnectionState.CONNECTING||connectionState===ConnectionState.CONNECTED)return;
+        if(connectionError?.includes('Please refresh your browser'))return;
+        const delay=retryDelayRef.current;
+        retryDelayRef.current=Math.min(10000,delay*2);
+        const timer=setTimeout(retryConnection,delay);
+        return ()=>clearTimeout(timer);
+    },[spacetimeToken,connectionState,connectionError,retryConnection]);
 
     // Player registration function (SpacetimeDB 2.0: registerPlayer returns Promise)
     const registerPlayer = useCallback(async (username: string): Promise<void> => {

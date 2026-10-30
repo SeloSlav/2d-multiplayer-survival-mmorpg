@@ -3,6 +3,7 @@ import './utils/productionLogger';
 
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { clearDevelopmentServiceWorker } from './services/developmentServiceWorker';
 
 const EXPECTED_SILENT_SENDER_ERRORS = [
   'Too far away to interact with this resource',
@@ -79,7 +80,9 @@ window.addEventListener('error', (event) => {
 });
 
 // Register Service Worker for asset caching
-if ('serviceWorker' in navigator) {
+if (import.meta.env.DEV) {
+  void clearDevelopmentServiceWorker().catch(error=>console.warn('[SW] Local worker cleanup failed:',error));
+} else if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {

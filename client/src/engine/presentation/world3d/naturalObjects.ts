@@ -1,12 +1,19 @@
 import { Group, Vector3 } from 'three/webgpu';
+import type { MeshStandardMaterial } from 'three/webgpu';
 import { COLORS as C, ModelKit } from './modelKit';
 import { seededRandom } from './visualContract';
+import { RUNE_PALETTES, RUNE_STONE_SCALE, runeType } from './runeStoneProfile';
 
 export const NATURAL_OBJECT_TABLES = ['runeStones', 'cairns', 'livingCorals', 'seaStacks', 'basaltColumns', 'fumaroles', 'roadLampposts'] as const;
 
-export function createRuneStone(kit: ModelKit, type: string, seed: number): Group {
+export function createRuneStone(kit: ModelKit, type: string, seed: number, glyphMaterial?: MeshStandardMaterial): Group {
   const g = new Group(), random = seededRandom(seed);
-  const glow = type === 'Green' ? 0x9dbd58 : type === 'Red' ? 0xd17b51 : 0x6faec7;
+  const glow = RUNE_PALETTES[runeType(type)].glow;
+  const glyph = (a: Vector3, b: Vector3, radius: number) => {
+    const beam = kit.beam(g, glow, a, b, radius);
+    if (glyphMaterial) beam.material = glyphMaterial;
+  };
+  g.scale.setScalar(RUNE_STONE_SCALE);
   kit.part(g, 'rock', C.stoneDark, [1.65, .35, 1.05], [0, .13, 0]);
   const slab = kit.prism(g, 0x768b87, [[-.53, -.22], [.51, -.22], [.57, .17], [-.56, .2]], .23, 2.18);
   slab.rotation.z = -.035;
@@ -18,12 +25,12 @@ export function createRuneStone(kit: ModelKit, type: string, seed: number): Grou
       const y = .49 + i * .17, x = s * .43;
       kit.beam(g, 0x4d6867, new Vector3(x - .06, y, face * .24), new Vector3(x + .05, y + .07 * (i % 2 ? 1 : -1), face * .24), .015);
     }
-    kit.beam(g, glow, new Vector3(0, .65, face * .253), new Vector3(0, 1.75, face * .253), .026);
+    glyph(new Vector3(0, .65, face * .253), new Vector3(0, 1.75, face * .253), .026);
     for (const s of [-1, 1]) for (let i = 0; i < 2; i++) {
       const a = new Vector3(0, .95 + i * .35, face * .253), b = new Vector3(s * .28, 1.18 + i * .35, face * .253);
-      kit.beam(g, glow, a, b, .025);
-      if (type === 'Red') kit.beam(g, glow, b, new Vector3(s * .2, .9 + i * .35, face * .253), .025);
-      if (type === 'Blue') kit.beam(g, glow, b, new Vector3(0, 1.55 + i * .15, face * .253), .025);
+      glyph(a, b, .025);
+      if (type === 'Red') glyph(b, new Vector3(s * .2, .9 + i * .35, face * .253), .025);
+      if (type === 'Blue') glyph(b, new Vector3(0, 1.55 + i * .15, face * .253), .025);
     }
   }
   for (let i = 0; i < 12; i++) kit.part(g, 'rock', i % 2 ? 0x6d8051 : 0x89965b,
@@ -84,6 +91,7 @@ export function createKelp(kit: ModelKit, seed: number): Group {
       leaf.rotation.set(-.85, a + j * .7, .15 * (i % 2 ? 1 : -1));
     }
   }
+  g.userData.vegetation={height:1.3,base:.12,flexibility:.15};
   const result = kit.compile(g); result.userData.naturalObject = 'kelp'; return result;
 }
 

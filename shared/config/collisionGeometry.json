@@ -22,5 +22,31 @@
       "ws_station.png": { "form": "station", "width": 8, "depth": 5.9 }
     }
   },
-  "shelter": { "width": 300, "height": 125, "centerOffsetY": -200 }
+  "shelter": { "width": 300, "height": 125, "centerOffsetY": -200 },
+  "alk": {
+    "tilePixels": 48,
+    "buildings": {
+      "central": { "width": 7.1, "depth": 3.2, "height": 4.1, "centerOffsetY": -140 },
+      "station": { "width": 7.1, "depth": 3.2, "height": 3.5, "centerOffsetY": -80 },
+      "barracks": { "width": 5.5, "depth": 3.0, "height": 4.2, "centerOffsetY": 0 },
+      "fuel_depot": { "width": 5.1, "depth": 2.9, "height": 3.8, "centerOffsetY": 0 },
+      "garage": { "width": 4.5, "depth": 2.9, "height": 3.5, "centerOffsetY": 0 },
+      "shed": { "width": 3.8, "depth": 2.7, "height": 3.6, "centerOffsetY": 0 },
+      "compost": { "width": 7.0, "depth": 3.1, "height": 3.1, "centerOffsetY": -40 },
+      "food": { "width": 7.0, "depth": 3.1, "height": 3.2, "centerOffsetY": -40 },
+      "weapons": { "width": 7.0, "depth": 3.1, "height": 3.1, "centerOffsetY": -40 },
+      "furnace": { "width": 7.0, "depth": 3.1, "height": 3.2, "centerOffsetY": -44 },
+      "water": { "width": 7.0, "depth": 3.1, "height": 3.2, "centerOffsetY": -44 }
+    },
+    "turrets": {
+      "monument": { "diameter": 2.8, "height": 1.5, "centerOffsetY": 40 },
+      "player": { "diameter": 1.25, "height": 1.5, "centerOffsetY": 70 }
+    },
+    "landmarks": [
+      { "asset": "barracks", "offsetX": 450, "offsetY": -300 },
+      { "asset": "fuel_depot", "offsetX": 450, "offsetY": 400 },
+      { "asset": "garage", "offsetX": -350, "offsetY": -680 },
+      { "asset": "shed", "offsetX": 350, "offsetY": -680 }
+    ]
+  }
 }

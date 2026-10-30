@@ -135,6 +135,7 @@ pub fn spawn_mine_cart_with_loot(
     pos_y: f32,
     chunk_index: u32,
 ) -> Result<u32, String> {
+    if crate::indoors::blocks_world_spawn(ctx, pos_x, pos_y) { return Err("World loot cannot spawn inside a building".into()); }
     let loot_table = get_mine_cart_loot_table();
     let item_defs = ctx.db.item_definition();
     let inventory_items = ctx.db.inventory_item();

@@ -1601,6 +1601,7 @@ pub fn validate_spawn_location(
     tree_positions: &[(f32, f32)],
     stone_positions: &[(f32, f32)]
 ) -> bool {
+    if crate::indoors::blocks_world_spawn(ctx, pos_x, pos_y) { return false; }
     // Convert pixel position to tile coordinates (shared logic)
     let tile_x = (pos_x / TILE_SIZE_PX as f32).floor() as i32;
     let tile_y = (pos_y / TILE_SIZE_PX as f32).floor() as i32;

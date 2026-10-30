@@ -145,6 +145,7 @@ mod sea_stack; // <<< ADDED: Sea stack decorative entities
 mod memory_grid; // <<< ADDED: Memory Grid tech tree system
 mod building; // <<< ADDED: Building system (foundations, walls, doors)
 mod building_enclosure; // <<< ADDED: Building enclosure detection (rain protection, "inside" logic)
+mod indoors;
 mod door; // <<< ADDED: Door system for building entrances
 mod fence; // <<< ADDED: Fence system for crop/base protection
 mod fumarole; // <<< ADDED: Fumarole module for quarry geothermal vents
@@ -1405,6 +1406,7 @@ pub fn identity_connected(ctx: &ReducerContext) -> Result<(), String> {
     })?;
 
     crate::monument::repair_alpine_fire_entrance(ctx);
+    crate::indoors::repair_world_spawns(ctx);
 
     log::info!("[Connect] Tracking active connection for identity {:?} with connection ID {:?}", 
         client_identity, connection_id);

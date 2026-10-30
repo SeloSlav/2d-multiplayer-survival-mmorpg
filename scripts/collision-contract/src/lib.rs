@@ -4,3 +4,9 @@ mod shared_config { include!(concat!(env!("OUT_DIR"), "/config.rs")); }
 #[allow(dead_code)]
 #[path = "../../../server/src/collision_geometry.rs"]
 mod collision_geometry;
+#[allow(dead_code)]
+#[path = "../../../server/src/wild_animal_npc/alk_wildlife.rs"]
+mod alk_wildlife;
+#[allow(dead_code)]
+#[path = "../../../server/src/wild_animal_npc/bird_motion.rs"]
+mod bird_motion;

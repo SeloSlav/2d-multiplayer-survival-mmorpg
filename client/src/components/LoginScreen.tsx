@@ -925,7 +925,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                         {/* Display based on authentication and player existence */}
                         {authIsLoading ? (
                             <p>Loading...</p>
-                        ) : (authError || (connectionError && (loggedInPlayer || storedUsername))) ? (
+                        ) : (authError || connectionError) ? (
                             <>
                                 <p style={{
                                     color: 'white',
@@ -937,7 +937,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                     marginBottom: '20px',
                                     textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
                                 }}>
-                                    {connectionError || 'Connection failed. Please ensure you have an internet connection and try again.'}<br />
+                                    {connectionError || authError || 'Connection failed. Please ensure you have an internet connection and try again.'}<br />
                                     {!connectionError && 'If the problem persists, please try signing out and signing in.'}
                                 </p>
                                 <div style={{ display: 'flex', flexDirection: 'row', gap: '15px', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
@@ -1010,33 +1010,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
                                         `Welcome back, ${storedUsername}!`
                                     }
                                 </p>
-                            ) : connectionError ? (
-                                // Connection error without stored username: Show generic authenticated message
-                                <div style={{
-                                    marginBottom: '20px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: '12px'
-                                }}>
-                                    {/* Loading Spinner */}
-                                    <div style={{
-                                        width: '32px',
-                                        height: '32px',
-                                        border: '3px solid rgba(255, 165, 0, 0.3)',
-                                        borderTop: '3px solid #ff8c00',
-                                        borderRadius: '50%',
-                                        animation: 'spin 1s linear infinite',
-                                    }} />
-                                    <p style={{
-                                        fontSize: '14px',
-                                        margin: '0',
-                                        color: 'rgba(255, 255, 255, 0.9)',
-                                        textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-                                    }}>
-                                        Authenticated - Reconnecting to game...
-                                    </p>
-                                </div>
                             ) : !authError && !connectionError && !localError && !loggedInPlayer && !storedUsername ? (
                                 // New Player: Always show username input (don't wait for SpacetimeDB)
                                 <div style={{
@@ -2700,4 +2673,4 @@ const LoginScreen: React.FC<LoginScreenProps> = ({
     );
 };
 
-export default LoginScreen; 
+export default LoginScreen;

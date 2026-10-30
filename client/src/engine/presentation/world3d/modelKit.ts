@@ -1,6 +1,6 @@
 import {
   BoxGeometry, BufferGeometry, ConeGeometry, CylinderGeometry, DodecahedronGeometry,
-  EqualDepth, Float32BufferAttribute, Group, Matrix3, Mesh, MeshStandardMaterial, Quaternion, ShapeUtils, Vector2, Vector3,
+  EqualDepth, Float32BufferAttribute, Group, Matrix3, Mesh, MeshStandardMaterial, Quaternion, ShapeUtils, Texture, Vector2, Vector3,
 } from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { GroundPoint } from './buildingPlan';
@@ -15,10 +15,28 @@ export class ModelKit {
   private readonly materials = new Map<string, MeshStandardMaterial>();
   private readonly compiled = new Set<BufferGeometry>();
   private readonly assemblies = new Map<string, Group>();
+  private readonly textures = new Set<Texture>();
   private debugMode: 'lit' | 'unlit' | 'wireframe' = 'lit';
 
   /** Register a derived, shared geometry for disposal with this kit. */
   ownGeometry(geometry:BufferGeometry):BufferGeometry { this.compiled.add(geometry); return geometry; }
+
+  /** A shared cloth/paint map is created once and disposed with its material. */
+  texturedMaterial(key: string, createTexture: () => Texture): MeshStandardMaterial {
+    const cacheKey=`texture:${key}`;let material=this.materials.get(cacheKey);
+    if(!material){
+      const texture=createTexture();this.textures.add(texture);
+      material=new MeshStandardMaterial({map:texture,roughness:.96,flatShading:true,wireframe:this.debugMode==='wireframe'});
+      this.materials.set(cacheKey,material);
+    }
+    return material;
+  }
+
+  /** Local attachment weights allow leaves to move within a rigid assembly. */
+  markFoliage(mesh:Mesh,flexibility:number):void {
+    if(!mesh.geometry.boundingBox)mesh.geometry.computeBoundingBox();
+    mesh.userData.vegetation={base:mesh.geometry.boundingBox!.min.y,height:mesh.geometry.boundingBox!.max.y,flexibility};
+  }
 
   material(color: number, emissive = false): MeshStandardMaterial {
     const key = `${color}:${emissive}`;
@@ -206,16 +224,20 @@ export class ModelKit {
     const result = new Group(), normalMatrix = new Matrix3();
     result.name = group.name; result.userData = { ...group.userData };
     const vegetation = group.userData.vegetation as { height: number; base: number; flexibility: number } | undefined;
+    const hasVegetation=Boolean(vegetation)||[...slots.values()].some(meshes=>meshes.some(mesh=>mesh.userData.vegetation||mesh.geometry.hasAttribute('windData')));
+    if(hasVegetation)result.userData.hasVegetation=true;
     for (const [material, meshes] of slots) {
       const count=meshes.reduce((n,mesh)=>n+(mesh.geometry.index?.count??mesh.geometry.attributes.position.count),0);
       const positions=new Float32Array(count*3),normals=new Float32Array(count*3);let offset=0;
-      const wind = vegetation ? new Float32Array(count * 4) : undefined;
+      const wind = hasVegetation ? new Float32Array(count * 4) : undefined;
       // Write transformed vertices straight into their final material slot.
       // Cloning/transforming/discarding one BufferGeometry per leaf generated
       // thousands of short-lived buffers when a new tree variant entered view.
       for(const source of meshes){
         const geometry=source.geometry,p=geometry.getAttribute('position'),n=geometry.getAttribute('normal'),index=geometry.index;
         const matrix=source.matrixWorld.elements;normalMatrix.getNormalMatrix(source.matrixWorld);const normal=normalMatrix.elements;
+        const localVegetation=source.userData.vegetation as {height:number;base:number;flexibility:number}|undefined;
+        const response=localVegetation??vegetation;
         const length=index?.count??p.count;
         for(let i=0;i<length;i++){
           const v=index?index.getX(i):i,x=p.getX(v),y=p.getY(v),z=p.getZ(v);
@@ -223,12 +245,16 @@ export class ModelKit {
           positions[offset]=(matrix[0]*x+matrix[4]*y+matrix[8]*z+matrix[12])*w;
           positions[offset+1]=(matrix[1]*x+matrix[5]*y+matrix[9]*z+matrix[13])*w;
           positions[offset+2]=(matrix[2]*x+matrix[6]*y+matrix[10]*z+matrix[14])*w;
-          if (wind && vegetation) {
+          if (wind && response) {
             const vertex = offset / 3, leaf = geometry === this.geometries.get('leaf');
-            wind[vertex * 4] = Math.min(1, Math.max(0, (positions[offset + 1] - vegetation.base) / Math.max(.1, vegetation.height - vegetation.base))) ** 2;
+            const height=localVegetation?y:positions[offset+1];
+            wind[vertex * 4] = Math.min(1, Math.max(0, (height - response.base) / Math.max(.1, response.height - response.base))) ** 2;
             wind[vertex * 4 + 1] = leaf ? Math.max(0, z) : 0;
             wind[vertex * 4 + 2] = matrix[12] * 17 + matrix[13] * 11 + matrix[14] * 7;
-            wind[vertex * 4 + 3] = vegetation.flexibility;
+            wind[vertex * 4 + 3] = response.flexibility;
+          } else if(wind&&geometry.hasAttribute('windData')) {
+            const old=geometry.getAttribute('windData'),vertex=offset/3;
+            wind.set([old.getX(v),old.getY(v),old.getZ(v),old.getW(v)],vertex*4);
           }
           const nx=n.getX(v),ny=n.getY(v),nz=n.getZ(v);
           const ax=normal[0]*nx+normal[3]*ny+normal[6]*nz,ay=normal[1]*nx+normal[4]*ny+normal[7]*nz,az=normal[2]*nx+normal[5]*ny+normal[8]*nz;
@@ -257,12 +283,20 @@ export class ModelKit {
     group.traverse(object=>{
       if(!(object instanceof Mesh)||Array.isArray(object.material))return;
       const material=object.material as MeshStandardMaterial;
-      if(material.emissive.getHex()!==0||material.transparent||material.map){
+      // Deformed cloth must keep its own target buffers and influences when a
+      // settled survivor is compiled; it cannot merge with rigid scenery.
+      if(material.emissive.getHex()!==0||material.transparent||material.map||object.morphTargetInfluences){
         const copy=object.clone();copy.matrix.copy(object.matrixWorld);copy.matrix.decompose(copy.position,copy.quaternion,copy.scale);result.add(copy);return;
       }
       const geometry=object.geometry.clone().applyMatrix4(object.matrixWorld);
       const colors=new Float32Array(geometry.attributes.position.count*3);
-      for(let i=0;i<colors.length;i+=3){colors[i]=material.color.r;colors[i+1]=material.color.g;colors[i+2]=material.color.b;}
+      const pigment=geometry.getAttribute('color');
+      for(let i=0;i<colors.length;i+=3){
+        const vertex=i/3;
+        colors[i]=material.color.r*(pigment?.getX(vertex)??1);
+        colors[i+1]=material.color.g*(pigment?.getY(vertex)??1);
+        colors[i+2]=material.color.b*(pigment?.getZ(vertex)??1);
+      }
       geometry.setAttribute('color',new Float32BufferAttribute(colors,3));geometries.push(geometry);
     });
     if(geometries.length){
@@ -271,14 +305,14 @@ export class ModelKit {
       geometry.computeBoundingSphere();this.compiled.add(geometry);
       let material=this.materials.get('static-vertex-colors');
       if(!material){material=new MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.92,flatShading:true,wireframe:this.debugMode==='wireframe'});this.materials.set('static-vertex-colors',material);}
-      const mesh=new Mesh(geometry,group.userData.vegetation ? this.wind.material : material);mesh.castShadow=mesh.receiveShadow=true;result.add(mesh);
+      const mesh=new Mesh(geometry,group.userData.vegetation||group.userData.hasVegetation ? this.wind.material : material);mesh.castShadow=mesh.receiveShadow=true;result.add(mesh);
     }
     return result;
   }
 
   setDebug(mode: 'lit' | 'unlit' | 'wireframe'): void {
     this.debugMode = mode;
-    this.wind.material.wireframe = mode === 'wireframe';
+    this.wind.setWireframe(mode === 'wireframe');
     for (const material of this.materials.values()) {
       material.wireframe = mode === 'wireframe';
       material.needsUpdate = true;
@@ -290,10 +324,12 @@ export class ModelKit {
     this.geometries.forEach((geometry) => geometry.dispose());
     this.compiled.forEach((geometry) => geometry.dispose());
     this.materials.forEach((material) => material.dispose());
+    this.textures.forEach(texture => texture.dispose());
     this.geometries.clear();
     this.compiled.clear();
     this.assemblies.clear();
     this.materials.clear();
+    this.textures.clear();
   }
 }
 

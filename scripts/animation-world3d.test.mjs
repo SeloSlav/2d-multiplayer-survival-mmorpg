@@ -26,6 +26,54 @@ import { WORLD_3D, worldToScene } from '../client/src/engine/presentation/world3
 const rest = { speed: 0, sprinting: false, crouching: false, swimming: false, dead: false, jump: 0, roll: 0, attack: 0, yaw: 0, weapon: '' };
 const stamp = ms => ({ microsSinceUnixEpoch: BigInt(ms) * 1000n });
 
+test('stationary crows and terns keep their body heading and hover with a slow continuous wing cycle',()=>{
+  const kit=new ModelKit();
+  for(const species of ['Crow','Tern'])for(const fps of [30,60]){
+    const rig=new AnimalRig(kit,species,4);rig.update(0,.7,0,0,true);const start=rig.root.userData.animation.flightPhase;
+    const wing=rig.joints[0].pivot;
+    let min=Infinity,max=-Infinity;
+    for(let i=0;i<fps*6;i++){
+      rig.update(0,i%2?Math.PI:-Math.PI/2,1/fps,i/fps,true,false,{state:'Fleeing'});
+      assert.ok(Math.abs(rig.root.rotation.y-.7)<1e-9,'changing AI intent cannot spin a stationary bird');
+      // The rig's authored joint transforms must visibly keep moving.
+      min=Math.min(min,wing.rotation.z);max=Math.max(max,wing.rotation.z);
+    }
+    assert.equal(rig.root.userData.animation.state,'hover');
+    assert.ok(max-min>.95,'hovering wings visibly flap through a restrained range');
+    assert.ok(Math.abs(rig.root.userData.animation.flightPhase-start-6*4.2)<1e-8,'hover cadence is about 0.67 cycles/s at both frame rates');
+    const phase=rig.root.userData.animation.flightPhase;rig.update(0,-2,1/fps,7,true);
+    assert.ok(rig.root.userData.animation.flightPhase>phase,'hover animation never restarts at a network/state change');
+    const grounded=new AnimalRig(kit,species,5);grounded.update(0,.4,0,0,false);
+    for(let i=0;i<fps*2;i++){grounded.update(0,i%2?2:-2,1/fps,i/fps,false,false,{state:'Grounded'});assert.equal(grounded.root.rotation.y,.4,'blocked ground intent cannot rotate the body');}
+  }
+  kit.dispose();
+});
+
+test('bird flight follows real travel, limits turn speed and eases wing cadence when coming to a hover',()=>{
+  const kit=new ModelKit();
+  for(const species of ['Crow','Tern']){
+    const arriving=new AnimalRig(kit,species);arriving.update(3,-2,0,0,true,false,{travelYaw:Math.PI/2});assert.equal(arriving.root.rotation.y,Math.PI/2,'a newly visible bird starts aligned with travel');
+    const rig=new AnimalRig(kit,species);rig.update(0,0,0,0,true);let previous=0,previousPhase=rig.root.userData.animation.flightPhase;
+    for(let i=0;i<300;i++){
+      rig.update(4,i%2?Math.PI:-Math.PI/2,1/60,i/60,true,false,{travelYaw:Math.PI/2,state:'Flying'});
+      assert.ok(Math.abs(rig.root.rotation.y-previous)<=4/60+1e-10,'flight turns stay bounded while following real travel');
+      previous=rig.root.rotation.y;
+      assert.ok(rig.root.userData.animation.flightPhase>previousPhase);previousPhase=rig.root.userData.animation.flightPhase;
+    }
+    assert.ok(Math.abs(rig.root.rotation.y-Math.PI/2)<1e-8,'travel wins over alternating intended directions');
+    const heading=rig.root.rotation.y;let phase=rig.root.userData.animation.flightPhase;
+    for(let i=0;i<180;i++){
+      rig.update(0,Math.PI,1/60,5+i/60,true);
+      const next=rig.root.userData.animation.flightPhase;
+      assert.ok(next>phase&&next-phase<=12/60+1e-9,'no wing-cycle resets or speed jumps at rest');phase=next;
+      assert.equal(rig.root.rotation.y,heading);
+    }
+    const start=phase;for(let i=0;i<60;i++)rig.update(0,-Math.PI,1/60,8+i/60,true);
+    assert.ok(Math.abs(rig.root.userData.animation.flightPhase-start-4.2)<.001,'flight settles to slow hovering');
+  }
+  kit.dispose();
+});
+
 test('worn armor resolves instance IDs and changes articulated equipment independently', () => {
   const kit = new ModelKit(), rig = new SurvivorRig(kit), other = new SurvivorRig(kit);
   const equipment = { headItemInstanceId: 101n, chestItemInstanceId: 102n, legsItemInstanceId: 103n };
@@ -329,8 +377,9 @@ test('vegetation wind keeps ground roots and leaf petioles fixed and retains pro
   }
   const pile = kit.compileColored(createPlant(kit, 'StonePile', 0));
   assert.notEqual(pile.children[0].material, kit.wind.material, 'inanimate resource piles never sway');
-  kit.wind.update(2, 0, false); const calm = kit.wind.strength.value;
-  kit.wind.update(2, 1, true); assert.ok(kit.wind.strength.value > calm * 2);
+  kit.wind.update(0,undefined,{currentWeather:{tag:'Clear'}}); const calm=kit.wind.intensity;
+  for(let i=1;i<=600;i++)kit.wind.update(i/60,undefined,{currentWeather:{tag:'HeavyStorm'}});
+  assert.ok(kit.wind.intensity>calm*2);
   kit.dispose();
 });
 

@@ -149,6 +149,7 @@ pub fn spawn_storm_debris_on_beaches(ctx: &ReducerContext, chunk_index: u32) -> 
             continue;
         }
         
+        if crate::indoors::blocks_world_spawn(ctx, pos_x, pos_y) { continue; }
         // Determine what to spawn (REBALANCED with Memory Shards)
         // Distribution: 20% driftwood, 30% seaweed, 35% coral, 10% shell, 5% memory shard
         let spawn_roll = rng.gen::<f32>();

@@ -32,26 +32,15 @@ pub struct CompoundBuildingCollision {
 /// 
 /// NOTE: Monument collisions (shipwrecks, fishing villages, whale bone graveyards) are handled separately
 /// via monument_part table since monuments are dynamically placed during world generation.
-pub const COMPOUND_BUILDING_COLLISIONS: &[CompoundBuildingCollision] = &[
-    // ===== GUARD POSTS (4 corners) =====
-    // NOTE: Server collision DISABLED - this is just for reference/consistency with client
-    CompoundBuildingCollision { offset_x: -600.0, offset_y: -600.0, collision_radius: 30.0, collision_y_offset: 0.0, aabb: None },
-    CompoundBuildingCollision { offset_x: 600.0, offset_y: -600.0, collision_radius: 30.0, collision_y_offset: 0.0, aabb: None },
-    CompoundBuildingCollision { offset_x: -600.0, offset_y: 650.0, collision_radius: 30.0, collision_y_offset: 0.0, aabb: None },
-    CompoundBuildingCollision { offset_x: 600.0, offset_y: 650.0, collision_radius: 30.0, collision_y_offset: 0.0, aabb: None },
-    
-    // ===== MAIN BUILDINGS =====
-    // Barracks
-    CompoundBuildingCollision { offset_x: 450.0, offset_y: -300.0, collision_radius: 150.0, collision_y_offset: 0.0, aabb: None },
-    // Fuel Depot
-    CompoundBuildingCollision { offset_x: 450.0, offset_y: 400.0, collision_radius: 140.0, collision_y_offset: 0.0, aabb: None },
-    // Garage (north-west area)
-    CompoundBuildingCollision { offset_x: -350.0, offset_y: -680.0, collision_radius: 120.0, collision_y_offset: 0.0, aabb: None },
-    // Shed (north-east area, symmetric with garage)
-    CompoundBuildingCollision { offset_x: 350.0, offset_y: -680.0, collision_radius: 100.0, collision_y_offset: 0.0, aabb: None },
-    // ALK Food Processor and Weapons Depot are monument placeables (WoodenStorageBox entities),
-    // not compound buildings. Their collision is handled by the entity system.
-];
+lazy_static::lazy_static! {
+    pub static ref COMPOUND_BUILDING_COLLISIONS: Vec<CompoundBuildingCollision> =
+        crate::collision_geometry::COLLISION_GEOMETRY.alk.landmarks.iter().map(|landmark| {
+            let bounds = crate::collision_geometry::alk_building_bounds(&landmark.asset, 0.0, 0.0).expect("valid ALK landmark");
+            CompoundBuildingCollision { offset_x:landmark.offset_x, offset_y:landmark.offset_y,
+                collision_radius:0.0, collision_y_offset:0.0,
+                aabb:Some((bounds.half_width,bounds.half_depth,bounds.y)) }
+        }).collect();
+}
 
 /// Calculate the world center coordinates in pixels.
 #[inline]
@@ -78,7 +67,7 @@ pub fn check_compound_building_collision(pos_x: f32, pos_y: f32, entity_radius: 
     
     let (center_x, center_y) = get_world_center();
     
-    for building in COMPOUND_BUILDING_COLLISIONS {
+    for building in COMPOUND_BUILDING_COLLISIONS.iter() {
         if let Some((hw, hh, cy_off)) = building.aabb {
             // AABB collision (expand by entity_radius)
             let building_x = center_x + building.offset_x;
@@ -134,7 +123,7 @@ pub fn resolve_compound_building_collision(
     let mut resolved_y = pos_y;
     let mut any_collision = false;
     
-    for building in COMPOUND_BUILDING_COLLISIONS {
+    for building in COMPOUND_BUILDING_COLLISIONS.iter() {
         if let Some((hw, hh, cy_off)) = building.aabb {
             // AABB collision - push to nearest edge
             let building_x = center_x + building.offset_x;
@@ -232,7 +221,7 @@ pub fn line_intersects_compound_building(
     
     let (center_x, center_y) = get_world_center();
     
-    for building in COMPOUND_BUILDING_COLLISIONS {
+    for building in COMPOUND_BUILDING_COLLISIONS.iter() {
         if let Some((hw, hh, cy_off)) = building.aabb {
             let building_x = center_x + building.offset_x;
             let building_y = center_y + building.offset_y + cy_off;

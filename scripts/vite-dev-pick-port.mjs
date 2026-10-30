@@ -9,8 +9,9 @@ import path from 'node:path';
 import process from 'node:process';
 
 const LOOPBACK_HOSTS = ['127.0.0.1', '::1'];
-const START_PORT = Number.parseInt(process.env.DEV_PORT ?? '3008', 10);
-const MAX_TRIES = Number.parseInt(process.env.DEV_PORT_TRIES ?? '50', 10);
+const START_PORT = Number.parseInt(process.env.DEV_PORT ?? '3009', 10);
+// Keep the advertised game URL stable. Port scanning is an explicit opt-in.
+const MAX_TRIES = Number.parseInt(process.env.DEV_PORT_TRIES ?? '1', 10);
 
 function tryListen(port, host) {
   return new Promise((resolve, reject) => {
@@ -58,13 +59,19 @@ if (port !== START_PORT) {
   console.info(`[dev] Port ${START_PORT} is in use; starting Vite on ${port}`);
 }
 const viteJs = path.join(process.cwd(), 'node_modules', 'vite', 'bin', 'vite.js');
-const child = spawn(
-  process.execPath,
-  [viteJs, '--port', String(port), '--strictPort'],
-  { stdio: 'inherit', cwd: process.cwd(), env: process.env }
-);
-
-child.on('exit', (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  process.exit(code ?? 1);
-});
+let child, stopping=false, restarts=0;
+for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>{stopping=true;child?.kill(signal);});
+while(!stopping) {
+  const started=Date.now();
+  child=spawn(process.execPath,[viteJs,'--port',String(port),'--strictPort'],
+    {stdio:'inherit',cwd:process.cwd(),env:process.env});
+  const {code,signal}=await new Promise((resolve,reject)=>{
+    child.once('error',reject);child.once('exit',(code,signal)=>resolve({code,signal}));
+  });
+  if(stopping||signal||code===0){process.exitCode=code??0;break;}
+  if(Date.now()-started>60000)restarts=0;
+  if(++restarts>5){process.exitCode=code??1;break;}
+  const delay=Math.min(1000*2**(restarts-1),10000);
+  console.error(`[dev] Web server exited (${code}); restarting on the same port ${port} in ${delay/1000}s (${restarts}/5).`);
+  await new Promise(resolve=>setTimeout(resolve,delay));
+}

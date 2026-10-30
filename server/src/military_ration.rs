@@ -217,6 +217,7 @@ pub fn spawn_military_ration_with_loot(
     pos_y: f32,
     chunk_index: u32,
 ) -> Result<u32, String> {
+    if crate::indoors::blocks_world_spawn(ctx, pos_x, pos_y) { return Err("World loot cannot spawn inside a building".into()); }
     // Check if position is on water - military rations cannot spawn in water
     if crate::environment::is_position_on_water(ctx, pos_x, pos_y) {
         return Err("Cannot spawn military ration on water".to_string());
@@ -562,6 +563,7 @@ pub fn spawn_military_crate_with_loot(
     pos_y: f32,
     chunk_index: u32,
 ) -> Result<u32, String> {
+    if crate::indoors::blocks_world_spawn(ctx, pos_x, pos_y) { return Err("World loot cannot spawn inside a building".into()); }
     if crate::environment::is_position_on_water(ctx, pos_x, pos_y) {
         return Err("Cannot spawn military crate on water".to_string());
     }

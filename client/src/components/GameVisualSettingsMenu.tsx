@@ -360,7 +360,7 @@ const GameVisualSettingsMenu: React.FC<GameVisualSettingsMenuProps> = ({
                             textAlign: 'left',
                             lineHeight: 1.55,
                         }}>
-                            Sshadows, weather, clouds, water FX, full particles, and grass animation.
+                            Shadows, weather, clouds, water FX, full particles, and vegetation animation.
                             Choose <strong style={{ color: '#7cd8ff' }}>Performance</strong>
                             {' '}for a lighter GPU load. You can still fine-tune every option below.
                         </div>
@@ -927,18 +927,18 @@ const GameVisualSettingsMenu: React.FC<GameVisualSettingsMenuProps> = ({
                         </label>
                     </div>
 
-                    {/* Grass animation (sway + beach filmstrip) */}
+                    {/* Shared vegetation wind */}
                     <div style={settingCardStyle}>
                         <div style={{ fontFamily: '"Press Start 2P", cursive', fontSize: '16px', color: '#88cc44', marginBottom: '12px', textShadow: '0 0 8px #88cc44', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <FontAwesomeIcon icon={faLeaf} style={{ color: '#88cc44', textShadow: '0 0 8px #88cc44', fontSize: '14px' }} />
-                            GRASS ANIMATION: {grassAnimationEnabled ? 'ON' : 'OFF'}
+                            VEGETATION ANIMATION: {grassAnimationEnabled ? 'ON' : 'OFF'}
                         </div>
                         <div style={{ fontFamily: '"Press Start 2P", cursive', fontSize: '12px', color: '#aaffaa', marginBottom: '8px', opacity: 0.75, letterSpacing: '0.5px', textAlign: 'left' }}>
-                            Wind sway on grass and animated beach grass. Off uses a static pose (first filmstrip frame; no sway).
+                            Weather-driven wind on grass, bushes, crops, tree foliage, and kelp. Turn off for a static pose.
                         </div>
                         <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontFamily: '"Press Start 2P", cursive', fontSize: '14px', color: grassAnimationEnabled ? '#88cc44' : '#666', textShadow: grassAnimationEnabled ? '0 0 5px #88cc44' : 'none' }}>
                             <input type="checkbox" checked={grassAnimationEnabled} onChange={(e) => onGrassAnimationEnabledChange(e.target.checked)} style={{ marginRight: '10px', transform: 'scale(1.5)', accentColor: '#88cc44' }} />
-                            ENABLE GRASS ANIMATION
+                            ENABLE VEGETATION ANIMATION
                         </label>
                     </div>
 
@@ -1357,4 +1357,4 @@ const GameVisualSettingsMenu: React.FC<GameVisualSettingsMenuProps> = ({
     );
 };
 
-export default GameVisualSettingsMenu; 
+export default GameVisualSettingsMenu;

@@ -119,7 +119,7 @@ export class WaterWorld3d {
       const key = `${doodad.type}:${doodad.variant}`;
       let prototype = this.prototypes.get(key);
       if (!prototype) {
-        if (doodad.type === 'kelp') { prototype = createKelp(this.kit, doodad.variant); prototype.scale.setScalar(.45); }
+        if (doodad.type === 'kelp') { prototype = this.kit.compileColored(createKelp(this.kit, doodad.variant)); prototype.scale.setScalar(.45); }
         else if (doodad.type === 'coral') prototype = createCoral(this.kit, doodad.variant, doodad.variant, true);
         else {
           const shell = new Group(); this.kit.part(shell, 'rock', 0x9fb2a3, [.18, .06, .14], [0, .03, 0]);
@@ -159,9 +159,7 @@ export class WaterWorld3d {
     this.hotSpringEffects.update(time, daylight, diving);
     this.decorationBatches.beginFrame();
     this.decorations.children.forEach(object => {
-      // Root stays on the seabed. Only the fronds lean with the current.
-      const phase = object.position.x * .71 + object.position.z * .37;
-      if (object.userData.naturalObject === 'kelp') { object.rotation.z = Math.sin(time * 1.3 + phase) * .06; object.rotation.x = Math.sin(time * 1.1 + phase) * .045; }
+      // Kelp's rooted fronds use the same field as terrestrial vegetation.
       this.decorationBatches.submit(object as Group);
     });
     this.decorationBatches.flush();

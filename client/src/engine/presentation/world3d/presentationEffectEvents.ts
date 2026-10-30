@@ -7,6 +7,19 @@ let itemBreakSequence = 0;
 export interface WorldGrassCut { sequence: number; id: string; x: number; y: number; appearance: string; at: number }
 const grassCuts: WorldGrassCut[] = [];
 let grassCutSequence = 0;
+export interface WorldBarrelBreak { sequence: number; id: string; x: number; y: number; variant: number; deathKey: string; at: number }
+const barrelBreaks: WorldBarrelBreak[] = [];
+let barrelBreakSequence = 0;
+
+export function recordWorldBarrelBreak(id: string, x: number, y: number, variant: number, deathKey: string, at = Date.now()): void {
+  if (variant === 6 || !Number.isFinite(x) || !Number.isFinite(y)) return;
+  if (barrelBreaks.some(event => event.id === id && (event.deathKey === deathKey || Math.abs(at - event.at) < 200))) return;
+  barrelBreaks.push({ sequence: ++barrelBreakSequence, id, x, y, variant, deathKey, at });
+  while (barrelBreaks.length > 64) barrelBreaks.shift();
+}
+export function worldBarrelBreaksAfter(cursor: number, now: number): WorldBarrelBreak[] {
+  return barrelBreaks.filter(event => event.sequence > cursor && now >= event.at && now - event.at < 2000);
+}
 
 /** Only actual state changes produce cuts; subscription eviction is not damage. */
 export function isGrassDestructionDelete(context: unknown): boolean {

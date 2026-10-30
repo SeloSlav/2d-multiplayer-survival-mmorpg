@@ -72,6 +72,7 @@ pub fn get_distance_squared(x1: f32, y1: f32, x2: f32, y2: f32) -> f32 {
 /// Checks if a target position is clear of players, campfires, and wooden storage boxes
 /// within a given squared radius. Returns true if clear, false otherwise.
 pub fn is_respawn_position_clear(ctx: &ReducerContext, target_x: f32, target_y: f32, check_radius_sq: f32) -> bool {
+    if crate::indoors::blocks_world_spawn(ctx, target_x, target_y) { return false; }
     // Check players
     let players = ctx.db.player();
     for player in players.iter() {

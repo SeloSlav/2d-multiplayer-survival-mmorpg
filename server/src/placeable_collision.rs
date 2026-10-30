@@ -19,6 +19,8 @@ use crate::homestead_hearth::homestead_hearth as HomesteadHearthTableTrait;
 use crate::wooden_storage_box::{wooden_storage_box as WoodenStorageBoxTableTrait, get_box_collision_radius, get_box_collision_y_offset};
 use crate::shelter::{shelter as ShelterTableTrait, SHELTER_AABB_HALF_WIDTH, SHELTER_AABB_HALF_HEIGHT, SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y};
 use crate::broth_pot::broth_pot as BrothPotTableTrait;
+use crate::alk::alk_station as AlkStationTableTrait;
+use crate::collision_geometry::{alk_building_bounds, alk_turret_bounds};
 
 /// Check if placing a new structure at (center_x, center_y) with given half-width and half-height
 /// would overlap any existing placeable. Returns Err if blocked.
@@ -64,9 +66,10 @@ pub fn check_placeable_overlap(
     for e in ctx.db.furnace().iter() {
         if e.is_destroyed { continue; }
         let ex = e.pos_x;
-        let ey = e.pos_y - get_furnace_collision_y_offset(e.furnace_type);
-        let r = get_furnace_collision_radius(e.furnace_type);
-        if rects_overlap(center_x, center_y, half_width, half_height, ex, ey, r, r) {
+        let compound = e.is_monument && e.furnace_type == 1 && crate::environment::is_position_in_central_compound(e.pos_x,e.pos_y);
+        let (ey,hw,hd) = if compound { let b=alk_building_bounds("furnace",ex,e.pos_y).unwrap();(b.y,b.half_width,b.half_depth) }
+            else { let r=get_furnace_collision_radius(e.furnace_type);(e.pos_y-get_furnace_collision_y_offset(e.furnace_type),r,r) };
+        if rects_overlap(center_x, center_y, half_width, half_height, ex, ey, hw, hd) {
             return Err("Blocked by existing structure.".to_string());
         }
     }
@@ -91,9 +94,8 @@ pub fn check_placeable_overlap(
     // Turrets
     for e in ctx.db.turret().iter() {
         if e.is_destroyed { continue; }
-        let ex = e.pos_x;
-        let ey = e.pos_y - 48.0;
-        if rects_overlap(center_x, center_y, half_width, half_height, ex, ey, 48.0, 48.0) {
+        let b=alk_turret_bounds(e.is_monument,e.pos_x,e.pos_y);
+        if rects_overlap(center_x, center_y, half_width, half_height, b.x, b.y, b.half_width, b.half_depth) {
             return Err("Blocked by existing structure.".to_string());
         }
     }
@@ -119,8 +121,10 @@ pub fn check_placeable_overlap(
     for e in ctx.db.rain_collector().iter() {
         if e.is_destroyed { continue; }
         let ex = e.pos_x;
-        let ey = e.pos_y - 48.0;
-        if rects_overlap(center_x, center_y, half_width, half_height, ex, ey, 48.0, 48.0) {
+        let (ey,hw,hd) = if e.is_monument && crate::environment::is_position_in_central_compound(ex,e.pos_y) {
+            let b=alk_building_bounds("water",ex,e.pos_y).unwrap();(b.y,b.half_width,b.half_depth)
+        } else {(e.pos_y-48.0,48.0,48.0)};
+        if rects_overlap(center_x, center_y, half_width, half_height, ex, ey, hw, hd) {
             return Err("Blocked by existing structure.".to_string());
         }
     }
@@ -137,9 +141,12 @@ pub fn check_placeable_overlap(
     for e in ctx.db.wooden_storage_box().iter() {
         if e.is_destroyed { continue; }
         let ex = e.pos_x;
-        let ey = e.pos_y - get_box_collision_y_offset(e.box_type);
-        let r = get_box_collision_radius(e.box_type);
-        if rects_overlap(center_x, center_y, half_width, half_height, ex, ey, r, r) {
+        let compound=e.is_monument && [3,5,6].contains(&e.box_type) && crate::environment::is_position_in_central_compound(ex,e.pos_y);
+        let (ey,hw,hd)=if compound {
+            let asset=match e.box_type {3=>"compost",5=>"weapons",_=>"food"};
+            let b=alk_building_bounds(asset,ex,e.pos_y).unwrap();(b.y,b.half_width,b.half_depth)
+        } else {let r=get_box_collision_radius(e.box_type);(e.pos_y-get_box_collision_y_offset(e.box_type),r,r)};
+        if rects_overlap(center_x, center_y, half_width, half_height, ex, ey, hw, hd) {
             return Err("Blocked by existing structure.".to_string());
         }
     }
@@ -164,5 +171,14 @@ pub fn check_placeable_overlap(
         }
     }
 
+    for station in ctx.db.alk_station().iter().filter(|station| station.is_active) {
+        let b=alk_building_bounds(if station.station_id==0 {"central"} else {"station"},station.world_pos_x,station.world_pos_y).unwrap();
+        if rects_overlap(center_x,center_y,half_width,half_height,b.x,b.y,b.half_width,b.half_depth) {return Err("Blocked by ALK building.".into());}
+    }
+    let (cx,cy)=crate::compound_buildings::get_world_center();
+    for landmark in &crate::collision_geometry::COLLISION_GEOMETRY.alk.landmarks {
+        let b=alk_building_bounds(&landmark.asset,cx+landmark.offset_x,cy+landmark.offset_y).unwrap();
+        if rects_overlap(center_x,center_y,half_width,half_height,b.x,b.y,b.half_width,b.half_depth) {return Err("Blocked by ALK building.".into());}
+    }
     Ok(())
 }

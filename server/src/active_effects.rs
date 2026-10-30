@@ -240,100 +240,11 @@ fn process_hot_combat_ladle_self_burn(ctx: &ReducerContext) {
 /// This runs every tick regardless of active effects to ensure the is_inside_building flag
 /// is properly set/cleared when entering/leaving shelters, buildings, and shipwreck zones
 fn update_all_players_indoor_status(ctx: &ReducerContext) {
-    use crate::environment::{
-        calculate_chunk_index, CHUNK_SIZE_PX, WORLD_HEIGHT_CHUNKS, WORLD_WIDTH_CHUNKS,
-    };
-    use crate::player as PlayerTableTrait;
-    use crate::shelter::{Shelter, SHELTER_AABB_HALF_WIDTH};
-
-    // Single shelter scan + chunk buckets — avoids O(players × shelters) every tick.
-    let mut shelters_by_chunk: HashMap<u32, Vec<Shelter>> = HashMap::new();
-    for shelter in ctx.db.shelter().iter() {
-        if shelter.is_destroyed {
-            continue;
-        }
-        shelters_by_chunk
-            .entry(shelter.chunk_index)
-            .or_default()
-            .push(shelter);
-    }
-
-    let chunk_neighbor_radius = ((SHELTER_AABB_HALF_WIDTH / CHUNK_SIZE_PX).ceil() as i32 + 1)
-        .max(1)
-        .min(12);
-
-    #[inline]
-    fn chunk_xy(chunk_index: u32) -> (i32, i32) {
-        (
-            (chunk_index % WORLD_WIDTH_CHUNKS) as i32,
-            (chunk_index / WORLD_WIDTH_CHUNKS) as i32,
-        )
-    }
-
-    for player in ctx.db.player().iter() {
-        // Skip offline or dead players
-        if !player.is_online || player.is_dead {
-            continue;
-        }
-
-        // Shelters only need checking in chunks within horizontal reach of the shelter AABB.
-        let mut is_inside_shelter = false;
-        let player_chunk = calculate_chunk_index(player.position_x, player.position_y);
-        let (pcx, pcy) = chunk_xy(player_chunk);
-        'shelter_scan: for dy in -chunk_neighbor_radius..=chunk_neighbor_radius {
-            for dx in -chunk_neighbor_radius..=chunk_neighbor_radius {
-                let ncx = pcx + dx;
-                let ncy = pcy + dy;
-                if ncx < 0 || ncy < 0 {
-                    continue;
-                }
-                let ncx = ncx as u32;
-                let ncy = ncy as u32;
-                if ncx >= WORLD_WIDTH_CHUNKS || ncy >= WORLD_HEIGHT_CHUNKS {
-                    continue;
-                }
-                let idx = ncy * WORLD_WIDTH_CHUNKS + ncx;
-                if let Some(list) = shelters_by_chunk.get(&idx) {
-                    for shelter in list {
-                        if crate::shelter::is_player_inside_shelter(
-                            player.position_x,
-                            player.position_y,
-                            shelter,
-                        ) {
-                            is_inside_shelter = true;
-                            break 'shelter_scan;
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Only check building perimeter if NOT already in shelter (optimization)
-        let is_inside_building = if is_inside_shelter {
-            false
-        } else {
-            crate::building_enclosure::is_player_inside_building(ctx, player.position_x, player.position_y)
-        };
-        
-        // Check if inside a shipwreck protection zone
-        let is_inside_shipwreck = if is_inside_shelter || is_inside_building {
-            false
-        } else {
-            crate::shipwreck::is_position_protected_by_shipwreck(ctx, player.position_x, player.position_y)
-        };
-        
-        let is_indoors = is_inside_shelter || is_inside_building || is_inside_shipwreck;
-        
-        // Only update if state changed to avoid unnecessary DB writes
-        if player.is_inside_building != is_indoors {
-            let mut updated_player = player.clone();
-            updated_player.is_inside_building = is_indoors;
-            ctx.db.player().identity().update(updated_player);
-            log::debug!(
-                "Player {:?} indoor state changed: {} -> {} (shelter={}, building={}, shipwreck={})",
-                player.identity, player.is_inside_building, is_indoors, 
-                is_inside_shelter, is_inside_building, is_inside_shipwreck
-            );
+    for mut player in ctx.db.player().iter().filter(|p| p.is_online && !p.is_dead) {
+        let indoors = crate::indoors::is_position_indoors(ctx, player.position_x, player.position_y);
+        if player.is_inside_building != indoors {
+            player.is_inside_building = indoors;
+            ctx.db.player().identity().update(player);
         }
     }
 }
@@ -1812,27 +1723,8 @@ pub fn check_and_extinguish_burns_from_environment(ctx: &ReducerContext) -> Resu
 
 /// Checks if a player is protected from rain (inside shelter or near trees)
 fn is_player_protected_from_rain(ctx: &ReducerContext, player: &crate::Player) -> bool {
-    // Check if player is inside any shelter
-    for shelter in ctx.db.shelter().iter() {
-        if shelter.is_destroyed {
-            continue;
-        }
-        
-        // Use the same shelter collision detection logic as in shelter.rs
-        let shelter_aabb_center_x = shelter.pos_x;
-        let shelter_aabb_center_y = shelter.pos_y - crate::shelter::SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
-        let aabb_left = shelter_aabb_center_x - crate::shelter::SHELTER_AABB_HALF_WIDTH;
-        let aabb_right = shelter_aabb_center_x + crate::shelter::SHELTER_AABB_HALF_WIDTH;
-        let aabb_top = shelter_aabb_center_y - crate::shelter::SHELTER_AABB_HALF_HEIGHT;
-        let aabb_bottom = shelter_aabb_center_y + crate::shelter::SHELTER_AABB_HALF_HEIGHT;
-        
-        // Check if player position is inside shelter AABB
-        if player.position_x >= aabb_left && player.position_x <= aabb_right &&
-           player.position_y >= aabb_top && player.position_y <= aabb_bottom {
-            return true;
-        }
-    }
-    
+    if crate::indoors::is_position_indoors(ctx, player.position_x, player.position_y) { return true; }
+
     // Check if player is within 100px of any tree (protected by tree cover)
     const TREE_PROTECTION_DISTANCE_SQ: f32 = 100.0 * 100.0; // 100px protection radius
     

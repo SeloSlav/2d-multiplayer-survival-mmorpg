@@ -1,8 +1,9 @@
-import { COLLISION_OFFSETS as O, MONUMENT_BUILDING_COLLISION, SHELTER_DIMS, getTreeCollisionOffset, getBarrelCollisionOffset } from '../../../config/entityGroundGeometry';
+import { COLLISION_OFFSETS as O, SHELTER_DIMS, getTreeCollisionOffset, getBarrelCollisionOffset } from '../../../config/entityGroundGeometry';
 import { isCompoundMonument } from '../../../config/compoundBuildings';
 import { BUILDING } from './buildingPlan';
 import { isVillageCampfire, VILLAGE_CAMPFIRE_Y_OFFSET } from '../../../config/villageGeometry';
 import type { PresentationEntity as Row } from './presentationEntity';
+import { ALK_GEOMETRY } from '../../../config/alkGeometry';
 
 const ORIGIN = { x: 0, y: 0 };
 
@@ -16,12 +17,10 @@ export function isCompoundBuilding(kind: string, row: Row): boolean {
 /** The model origin is the existing predicted ground/collision center. Sprite
  * padding never becomes model height or an additional ground displacement. */
 export function groundOffset(kind: string, row: Row, onSea = false): { x: number; y: number } {
-  if (isCompoundBuilding(kind, row)) return { x: 0, y: kind === 'woodenStorageBoxes' ? -40
-    : kind === 'furnaces' ? MONUMENT_BUILDING_COLLISION.CENTER_Y_OFFSET - 60
-    : MONUMENT_BUILDING_COLLISION.RAIN_COLLECTOR_CENTER_Y_OFFSET };
+  if (isCompoundBuilding(kind, row)) return { x: 0, y: ALK_GEOMETRY.buildings[kind==='woodenStorageBoxes'?'food':kind==='furnaces'?'furnace':'water'].centerOffsetY };
   switch (kind) {
-    case 'alkStations': return {x:0,y:row.stationId===0?MONUMENT_BUILDING_COLLISION.ALK_CENTER_Y_OFFSET:-80};
-    case 'turrets': return {x:0,y:row.isMonument?40:O.TURRET.y};
+    case 'alkStations': return {x:0,y:ALK_GEOMETRY.buildings[row.stationId===0?'central':'station'].centerOffsetY};
+    case 'turrets': return {x:0,y:ALK_GEOMETRY.turrets[row.isMonument?'monument':'player'].centerOffsetY};
     case 'monumentParts': return isVillageCampfire(row) ? {x:0,y:VILLAGE_CAMPFIRE_Y_OFFSET} : ORIGIN;
     case 'trees': return getTreeCollisionOffset(row);
     case 'stones': return O.STONE;

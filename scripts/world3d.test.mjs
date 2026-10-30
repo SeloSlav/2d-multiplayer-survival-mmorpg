@@ -1,6 +1,9 @@
 import test from 'node:test';
+import './fracture-runes-world3d.test.mjs';
 import { TerrainWindow3d } from '../client/src/engine/presentation/world3d/TerrainWindow3d.ts';
 import { GroundDetail3d, scatterForTile } from '../client/src/engine/presentation/world3d/GroundDetail3d.ts';
+import { VegetationWind3d } from '../client/src/engine/presentation/world3d/VegetationWind3d.ts';
+import { VegetationWindField, VEGETATION_WIND_PROFILES } from '../client/src/engine/presentation/vegetationWind.ts';
 import { GrassCutEffects3d } from '../client/src/engine/presentation/world3d/GrassCutEffects3d.ts';
 import { isGrassDestructionDelete, recordWorldGrassCut, worldGrassCutsAfter } from '../client/src/engine/presentation/world3d/presentationEffectEvents.ts';
 import { bindGrassCutEvents } from '../client/src/engine/runtime/grassCutEventRuntime.ts';
@@ -13,6 +16,80 @@ import { movementPredictionRuntime } from '../client/src/engine/runtime/movement
 import { advanceTurretYaw, turretDesiredYaw, turretRecoil } from '../client/src/engine/presentation/world3d/turretAnimation.ts';
 import { interactionBounds, interactionVisualKey } from '../client/src/engine/presentation/world3d/interactionHighlight.ts';
 import { ALK_FACILITY_LABELS } from '../client/src/engine/presentation/world3d/facilitySigns.ts';
+import { ALK_GEOMETRY, alkBuildingFootprint, alkTurretFootprint } from '../client/src/config/alkGeometry.ts';
+import { weatherAtPosition, weatherForChunk } from '../client/src/engine/presentation/weatherState.ts';
+import { renderScreenSpaceWeather } from '../client/src/engine/frame/renderScreenSpaceWeather.ts';
+import { clearRain, getRainDropCount } from '../client/src/utils/renderers/rainRenderingUtils.ts';
+import { ADVANCED_VISUAL_DEFAULTS, PERFORMANCE_VISUAL_DEFAULTS, migrateVisualSettingsSchemaIfNeeded } from '../client/src/constants/visualSettingsPresets.ts';
+import { isDevWatchIgnored, resilientDevWatcher } from './dev-server-policy.ts';
+import { clearDevelopmentServiceWorker } from '../client/src/services/developmentServiceWorker.ts';
+import { EventEmitter } from 'node:events';
+
+test('native Windows and nested Rust build paths cannot crash the web watcher',()=>{
+  assert.ok(isDevWatchIgnored('C:\\game\\scripts\\collision-contract\\target\\debug\\build\\locked.exe'));
+  assert.ok(isDevWatchIgnored('C:/game/server/target/debug/incremental/dep-graph.bin'));
+  assert.ok(isDevWatchIgnored('C:/game/.local-spacetimedb/replicas/log'));
+  assert.ok(!isDevWatchIgnored('C:/game/client/src/engine/runtime/movement.ts'));
+  assert.ok(!isDevWatchIgnored('C:/game/shared/config/collisionGeometry.json'));
+  const watcher=new EventEmitter(),unwatched=[],warnings=[],errors=[];watcher.unwatch=path=>unwatched.push(path);
+  resilientDevWatcher().configureServer({watcher,config:{logger:{warn:message=>warnings.push(message),error:message=>errors.push(message)}}});
+  watcher.emit('error',Object.assign(new Error('file locked'),{code:'EBUSY',path:'C:\\game\\scripts\\collision-contract\\target\\debug\\locked.exe'}));
+  assert.equal(unwatched.length,1);assert.equal(warnings.length,1);
+  assert.doesNotThrow(()=>watcher.emit('error',new Error('temporary watcher failure')));assert.equal(errors.length,1);
+});
+
+test('local development removes only the game service worker and its own cached modules',async()=>{
+  const saved={navigator:Object.getOwnPropertyDescriptor(globalThis,'navigator'),window:Object.getOwnPropertyDescriptor(globalThis,'window'),caches:Object.getOwnPropertyDescriptor(globalThis,'caches')};
+  const removed=[],deleted=[];
+  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{serviceWorker:{getRegistrations:async()=>[
+    {active:{scriptURL:'http://localhost:3009/sw.js'},unregister:async()=>removed.push('game')},
+    {active:{scriptURL:'http://localhost:3009/another-worker.js'},unregister:async()=>removed.push('other')},
+  ]}}});
+  const cache={keys:async()=>['game-assets-v4','unrelated-cache'],delete:async name=>deleted.push(name)};
+  Object.defineProperty(globalThis,'caches',{configurable:true,value:cache});
+  Object.defineProperty(globalThis,'window',{configurable:true,value:{location:{origin:'http://localhost:3009'},caches:cache}});
+  try{await clearDevelopmentServiceWorker();assert.deepEqual(removed,['game']);assert.deepEqual(deleted,['game-assets-v4']);}
+  finally{for(const [key,value] of Object.entries(saved)){if(value)Object.defineProperty(globalThis,key,value);else delete globalThis[key];}}
+});
+
+test('weather visuals follow the local chunk, recover rainy intensity and retain clear boundaries',()=>{
+  const world={currentWeather:{tag:'HeavyStorm'},rainIntensity:1.2};
+  const chunks=new Map([['0',{currentWeather:{tag:'ModerateRain'},rainIntensity:0}],['1',{currentWeather:{tag:'Clear'},rainIntensity:0}]]);
+  assert.equal(weatherAtPosition(chunks,12,12,world).rainIntensity,.6);
+  assert.equal(weatherForChunk(chunks,1,world).rainIntensity,0,'a known clear chunk never inherits a distant storm');
+  assert.equal(weatherForChunk(chunks,2,world).rainIntensity,1.2,'missing streamed weather can use the world fallback');
+  const detail=new GroundDetail3d(),grass=new Map([['a',{currentRenderPosX:12,currentRenderPosY:12,appearanceType:{tag:'PatchA'},swaySpeed:1}]]);
+  detail.update(grass,new Map([['0,0','Grass']]),1,true,()=>0,chunks,'Clear');
+  const mesh=detail.root.getObjectByName('gameplay-grass');
+  assert.equal(detail.windSystem.field.cells[0].strength,.55,'grass without a stored chunk id samples its position in the shared weather field');
+  assert.ok(mesh.geometry.hasAttribute('windData'));
+  detail.dispose();
+});
+
+test('moderate rain actually creates precipitation even before its intensity value arrives',()=>{
+  const gradient={addColorStop(){}};
+  const ctx=new Proxy({},{get:(_,key)=>key==='createLinearGradient'||key==='createRadialGradient'?()=>gradient:()=>{}});
+  const options={ctx,localPlayer:{positionX:12,positionY:12},currentPredictedPosition:{x:12,y:12},worldState:{currentWeather:{tag:'Clear'},rainIntensity:0},
+    showPrecipitation:true,isSnorkeling:false,currentCameraOffsetX:388,currentCameraOffsetY:288,currentCanvasWidth:800,currentCanvasHeight:600,deltaTimeMs:16.7,stormAtmosphereEnabled:false,currentCycleProgress:.4};
+  clearRain();renderScreenSpaceWeather({...options,chunkWeather:new Map([['0',{currentWeather:{tag:'ModerateRain'},rainIntensity:0}]])});
+  assert.ok(getRainDropCount()>500,'moderate rain produces visible precipitation');
+  clearRain();renderScreenSpaceWeather({...options,isSnorkeling:true,chunkWeather:new Map([['0',{currentWeather:{tag:'HeavyRain'},rainIntensity:.9}]])});
+  assert.equal(getRainDropCount(),0,'surface precipitation stays hidden underwater');
+  clearRain();renderScreenSpaceWeather({...options,localPlayer:{positionX:12,positionY:12,isInsideBuilding:true},chunkWeather:new Map([['0',{currentWeather:{tag:'HeavyRain'},rainIntensity:.9}]])});
+  assert.equal(getRainDropCount(),0,'rain does not fall through indoor cover');
+  clearRain();
+});
+
+test('both presets retain weather, and migration restores only disabled rain and grass motion',()=>{
+  assert.equal(PERFORMANCE_VISUAL_DEFAULTS.weatherOverlayEnabled,true);assert.equal(PERFORMANCE_VISUAL_DEFAULTS.grassAnimationEnabled,true);
+  assert.equal(ADVANCED_VISUAL_DEFAULTS.weatherOverlayEnabled,true);
+  const previous=globalThis.localStorage,values=new Map([['visualSettingsSchemaVersion','2'],['weatherOverlayEnabled','false'],['grassAnimationEnabled','false'],['cloudsEnabled','false'],['musicVolume','.1']]);
+  globalThis.localStorage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+  try{migrateVisualSettingsSchemaIfNeeded();assert.equal(values.get('weatherOverlayEnabled'),'true');assert.equal(values.get('grassAnimationEnabled'),'true');
+    assert.equal(values.get('cloudsEnabled'),'false');assert.equal(values.get('musicVolume'),'.1');
+    values.set('grassAnimationEnabled','false');migrateVisualSettingsSchemaIfNeeded();assert.equal(values.get('grassAnimationEnabled'),'false','later manual settings remain respected');
+  }finally{if(previous===undefined)delete globalThis.localStorage;else globalThis.localStorage=previous;}
+});
 import { preferNearestRelatedTargets, selectHighestPriorityTarget } from '../client/src/types/interactions.ts';
 
 test('turret heads aim and scan independently of the platform, and recoil only briefly', () => {
@@ -41,6 +118,48 @@ test('compound interaction selection chooses the closest facility and model boun
   const box=interactionBounds(model,camera,800,800,{x:400,y:400});
   assert.ok(box && box.width>16 && box.height>16 && Math.abs(box.x-400)<10);
   kit.dispose();
+});
+
+test('ALK movement collisions match 3D building bases and turret platforms, including wide-building edge approaches', () => {
+  const center=getWorldCenter(),localId='alk-collision-test';
+  const empty=()=>Object.fromEntries(['trees','stones','runeStones','cairns','boxes','rainCollectors','furnaces','barbecues','shelters',
+    'players','wildAnimals','barrels','seaStacks','wallCells','foundationCells','homesteadHearths','basaltColumns','doors','livingCorals','turrets','alkStations'].map(key=>[key,new Map()]));
+  const cases=[['boxes',{id:1,boxType:3,isMonument:true},'compost'],['boxes',{id:1,boxType:5,isMonument:true},'weapons'],
+    ['boxes',{id:1,boxType:6,isMonument:true},'food'],['furnaces',{id:1,furnaceType:1,isMonument:true},'furnace'],
+    ['rainCollectors',{id:1,isMonument:true},'water'],['alkStations',{stationId:0,isActive:true},'central'],['alkStations',{stationId:1,isActive:true},'station']];
+  for(const [table,properties,asset] of cases){
+    const entities=empty(),row={posX:center.x,posY:center.y,worldPosX:center.x,worldPosY:center.y,...properties};
+    entities[table].set(table==='alkStations'?String(row.stationId):'1',row);
+    const b=alkBuildingFootprint(asset,center.x,center.y);
+    const shape=getCollisionShapesForDebug(entities,center.x,center.y,localId).find(shape=>shape.type=== (table==='alkStations'?`alk_station-${row.stationId}`:`${table==='boxes'?'box':table==='furnaces'?'furnace':'rain_collector'}-1`));
+    assert.ok(shape,asset);
+    for(const property of ['x','y','width','height'])assert.ok(Math.abs(shape[property]-b[property])<1e-6,`${asset} ${property}`);
+    let x=b.x-b.width/2-80;
+    for(let i=0;i<35;i++)x=resolveClientCollision(x,b.y,x+4,b.y,localId,entities).x;
+    assert.ok(x<=b.x-b.width/2-31,`${asset} blocks at its visible left side`);
+    let clearX=b.x-b.width/2-80;
+    const clearY=b.y-b.height/2-34;
+    for(let i=0;i<35;i++)clearX=resolveClientCollision(clearX,clearY,clearX+4,clearY,localId,entities).x;
+    assert.ok(clearX>b.x-b.width/2+40,`${asset} has no old sprite collision beyond its rear edge`);
+  }
+  for(const monument of [false,true]){
+    const entities=empty();entities.turrets.set('1',{id:1,isMonument:monument,posX:center.x,posY:center.y});
+    const b=alkTurretFootprint(monument,center.x,center.y);
+    const shape=getCollisionShapesForDebug(entities,b.x,b.y,localId).find(s=>s.type==='turret-1');
+    assert.equal(shape.radius,b.radius);assert.equal(shape.width,undefined);assert.equal(shape.y,b.y);
+    let x=b.x-b.radius-70;
+    for(let i=0;i<30;i++)x=resolveClientCollision(x,b.y,x+4,b.y,localId,entities).x;
+    assert.ok(x<=b.x-b.radius-31,'the platform blocks movement');
+    const clear=resolveClientCollision(b.x+110,b.y-2,b.x+110,b.y+2,localId,entities);
+    assert.equal(clear.collided,false,'the old monument turret rectangle no longer blocks empty ground');
+  }
+  for(const landmark of COMPOUND_BUILDINGS){
+    const p=getBuildingWorldPosition(landmark),b=alkBuildingFootprint(landmark.id,p.x,p.y);
+    assert.equal(landmark.collisionAabb.width,b.width);assert.equal(landmark.collisionAabb.height,b.height);
+  }
+  for(const [asset,p] of Object.entries(ALK_PLANS)){
+    assert.equal(p.width,ALK_GEOMETRY.buildings[asset].width);assert.equal(p.depth,ALK_GEOMETRY.buildings[asset].depth);
+  }
 });
 
 test('terrain scatter is deterministic, terrain-specific and absent from water and tilled ground', () => {
@@ -93,29 +212,55 @@ test('biome grass colors follow the 2D species and tall clumps remain authoritat
   detail.dispose();
 });
 
-test('grass wind uses each chunk weather, preserves beach motion phase and honors animation settings', () => {
-  const detail = new GroundDetail3d(), kinds = new Map([['0,0','Grass'],['1,0','Grass'],['2,0','Beach']]);
-  const grass = new Map([
-    ['calm',{currentRenderPosX:12,currentRenderPosY:12,appearanceType:{tag:'PatchA'},chunkIndex:1,swaySpeed:1,swayOffsetSeed:250}],
-    ['storm',{currentRenderPosX:60,currentRenderPosY:12,appearanceType:{tag:'TallGrassA'},chunkIndex:2,swaySpeed:1.7,swayOffsetSeed:500}],
-    ['beach',{currentRenderPosX:108,currentRenderPosY:12,appearanceType:{tag:'BeachGrassA'},chunkIndex:1,swayOffsetSeed:700}],
-  ]);
-  const weather = new Map([['1',{currentWeather:{tag:'Clear'}}],['2',{currentWeather:{tag:'HeavyStorm'}}]]);
-  const update = (time, animated = true, map = weather) => detail.update(grass,kinds,time,animated,()=>0,map);
-  update(3);
-  const small = detail.root.getObjectByName('gameplay-grass').geometry.getAttribute('grassWind');
-  const tall = detail.root.getObjectByName('gameplay-tall-grass').geometry.getAttribute('grassWind');
-  assert.ok(Math.abs(small.getX(0)-.15)<1e-6 && Math.abs(tall.getX(0)-1.35)<1e-6, 'different chunks receive their own wind');
-  assert.ok(Math.abs(small.getY(0)-2*Math.PI)<1e-6, 'the authoritative sway speed is used');
-  const beachFrequency=tall.getY(1), beachPhase=tall.getZ(1), previousMatrix=detail.root.getObjectByName('gameplay-tall-grass').instanceMatrix.array.slice(0,32);
-  weather.get('1').currentWeather.tag='HeavyRain'; update(4);
-  assert.ok(Math.abs(small.getX(0)-1)<1e-6 && Math.abs(tall.getX(0)-1.35)<1e-6);
-  assert.ok(tall.getY(1)>beachFrequency, 'beach grass moves faster in stronger weather');
-  assert.ok(Math.abs((beachFrequency*4+beachPhase)-(tall.getY(1)*4+tall.getZ(1)))<1e-5, 'weather speed changes do not snap beach grass');
-  assert.deepEqual(detail.root.getObjectByName('gameplay-tall-grass').instanceMatrix.array.slice(0,32), previousMatrix, 'wind does not move placement anchors');
-  update(5,false); assert.equal(detail.wind.value,0); update(6,true); assert.equal(detail.wind.value,1);
-  weather.delete('1'); update(7); assert.ok(Math.abs(small.getX(0)-.15)<1e-6, 'missing chunk weather falls back to clear');
-  detail.dispose();
+test('all vegetation shares normalized weather clocks, anchored weights, and a modest grass cadence multiplier', () => {
+  const kit=new ModelKit(),detail=new GroundDetail3d(kit.wind),weather=new Map([['0',{currentWeather:{tag:'LightRain'}}],['1',{currentWeather:{tag:'HeavyStorm'}}]]);
+  const grass=new Map([['grass',{currentRenderPosX:12,currentRenderPosY:12,appearanceType:{tag:'PatchA'},swaySpeed:500}],
+    ['tall',{currentRenderPosX:60,currentRenderPosY:12,appearanceType:{tag:'TallGrassA'},swaySpeed:200}],
+    ['bush',{currentRenderPosX:108,currentRenderPosY:12,appearanceType:{tag:'BushA'}}]]);
+  const kinds=new Map([['0,0','Grass'],['1,0','Grass'],['2,0','Grass']]);
+  kit.wind.update(0,weather);detail.update(grass,kinds,0,true,()=>0,weather);
+  assert.equal(detail.windSystem,kit.wind);
+  assert.equal(kit.wind.field.cells[0].cadenceHz,.125,'light rain takes eight seconds per base cycle');
+  assert.equal(kit.wind.field.cells[1].cadenceHz,.28,'a distant storm keeps its own local weather response');
+  for(const name of ['gameplay-grass','gameplay-tall-grass','gameplay-bushes']){
+    const mesh=detail.root.getObjectByName(name),p=mesh.geometry.getAttribute('position'),weights=mesh.geometry.getAttribute('windData');
+    assert.ok(weights&&mesh.material.positionNode,`${name} uses the shared wind shader`);
+    const min=Math.min(...Array.from({length:p.count},(_,i)=>p.getY(i)));
+    for(let i=0;i<p.count;i++)if(p.getY(i)===min)assert.equal(weights.getX(i),0,'roots stay anchored');
+    assert.ok(mesh.material.userData.vegetationCadenceScale<=1.15,'no per-patch speed can accelerate the weather clock');
+  }
+  const matrix=detail.root.getObjectByName('gameplay-tall-grass').instanceMatrix.array.slice(0,16);
+  const phase=kit.wind.field.cells[0].phase;
+  weather.get('0').currentWeather.tag='HeavyRain';kit.wind.update(1/60,weather);detail.update(grass,kinds,1/60,true,()=>0,weather);
+  assert.ok(kit.wind.field.cells[0].phase>phase&&kit.wind.field.cells[0].phase-phase<.03,'weather changes preserve the current cycle');
+  assert.ok(kit.wind.field.cells[0].cadenceHz>.125&&kit.wind.field.cells[0].cadenceHz<.21,'cadence changes ease in');
+  assert.deepEqual(detail.root.getObjectByName('gameplay-tall-grass').instanceMatrix.array.slice(0,16),matrix,'wind never moves placement anchors');
+  detail.update(grass,kinds,2,false,()=>0,weather);assert.equal(kit.wind.enabled.value,0);
+  detail.update(grass,kinds,3,true,()=>0,weather);assert.equal(kit.wind.enabled.value,1);
+  detail.dispose();kit.dispose();
+});
+
+test('normalized vegetation clocks remain stable across frame rates and wind-force transitions',()=>{
+  assert.ok(VEGETATION_WIND_PROFILES.LightRain.cadenceHz*1.15<.15,'light-rain grass remains slower than one cycle per six seconds');
+  const run=fps=>{const field=new VegetationWindField();field.update(0,undefined,{currentWeather:{tag:'LightRain'}});
+    for(let i=1;i<=fps*8;i++)field.update(i/fps,undefined,{currentWeather:{tag:'LightRain'}});return field.cells[0].phase;};
+  assert.ok(Math.abs(run(30)-Math.PI*2)<1e-9);assert.ok(Math.abs(run(60)-run(30))<1e-9);
+});
+
+test('trees, crops, aquatic fronds and attached foliage share wind while rigid building parts stay fixed',()=>{
+  const kit=new ModelKit(),detail=new GroundDetail3d(kit.wind);
+  for(const model of [createTree(kit,'SiberianBirch',3),createPlant(kit,'BorealNettle',2),createKelp(kit,1)]){
+    const compiled=kit.compileColored(model);let animated=0;
+    compiled.traverse(object=>{if(object.isMesh&&object.geometry.hasAttribute('windData')){assert.equal(object.material,kit.wind.material);animated++;}});
+    assert.ok(animated>0,'each living family uses the shared material');
+  }
+  const wall=createAlkBuilding(kit,'barracks');let living=0,rigid=0;
+  wall.traverse(object=>{if(!object.isMesh)return;const wind=object.geometry.getAttribute('windData');if(!wind)return;
+    for(let i=0;i<wind.count;i++){if(wind.getW(i)>0)living++;else rigid++;}
+  });
+  assert.ok(living>0&&rigid>0,'attached foliage bends while the industrial shell keeps zero response');
+  assert.equal(detail.root.getObjectByName('terrain-pebbles').geometry.hasAttribute('windData'),false,'ground stones remain inert');
+  detail.dispose();kit.dispose();
 });
 
 test('grass cut callbacks handle filtered deletes and full-state updates without treating unsubscribe as a cut', () => {
@@ -199,6 +344,7 @@ import './placement.test.mjs';
 import './hot-springs.test.mjs';
 import './collectible-glitter.test.mjs';
 import './animation-world3d.test.mjs';
+import './survivor-appearance.test.mjs';
 import assert from 'node:assert/strict';
 
 function streamingChunks() {
@@ -478,7 +624,7 @@ import { createFoundationModel as createFoundation, createWallModel, createFence
 import { planFoundation, planBoundary, pointOnFoundation, polygonArea, BUILDING } from '../client/src/engine/presentation/world3d/buildingPlan.ts';
 import { createStorageModel, STORAGE_MODELS } from '../client/src/engine/presentation/world3d/storageModels.ts';
 import { createAlkBuilding, createAlkTurret, ALK_PLANS } from '../client/src/engine/presentation/world3d/alkModels.ts';
-import { COMPOUND_BUILDINGS, getWorldCenter } from '../client/src/config/compoundBuildings.ts';
+import { COMPOUND_BUILDINGS, getWorldCenter, getBuildingWorldPosition } from '../client/src/config/compoundBuildings.ts';
 import { createFurnace, createBarbecue, createLantern, createHearth, createBrothPot, createSleepingBag, createStash, createShelter, createRainCollector } from '../client/src/engine/presentation/world3d/campModels.ts';
 import { SurvivorRig } from '../client/src/engine/presentation/world3d/survivor.ts';
 import { AnimalRig, AUTHORED_ANIMAL_SPECIES } from '../client/src/engine/presentation/world3d/animals.ts';
@@ -504,7 +650,45 @@ import { createTerrainGround } from '../client/src/engine/presentation/world3d/t
 import { createBuoy, floatingPose } from '../client/src/engine/presentation/world3d/buoy.ts';
 import { resolveClientCollision, getCollisionShapesForDebug } from '../client/src/utils/clientCollision.ts';
 import { getVillageCampfireCollisionShapes } from '../client/src/utils/monumentCollision.ts';
-import { villageWallSegments } from '../client/src/config/villageGeometry.ts';
+import { villageWallSegments, isInsideVillageBuilding } from '../client/src/config/villageGeometry.ts';
+import { ambientOcclusionTarget, fadeAudioParam } from '../client/src/engine/runtime/ambientOcclusion.ts';
+
+test('village openings contain no planks, window panels, braces or low roof across a player-sized passage',()=>{
+  const kit=new ModelKit();
+  for(const asset of Object.keys(VILLAGE_BUILDINGS)){
+    const model=createVillageModel(kit,asset);model.updateMatrixWorld(true);
+    for(const x of [-.65,0,.65])for(const y of [.25,1,1.85]){
+      const ray=new Raycaster(new Vector3(x,y,1),new Vector3(0,0,-1),0,1.7);
+      assert.equal(ray.intersectObject(model,true).length,0,`${asset}: clear at x=${x}, height=${y}`);
+    }
+    const p=VILLAGE_BUILDINGS[asset],row={imagePath:asset,worldX:1000,worldY:2000};
+    for(const rotation of [0,Math.PI/2,.73]){
+      row.rotationRad=rotation;const c=Math.cos(rotation),s=Math.sin(rotation);
+      const contains=(x,y,padding=0)=>isInsideVillageBuilding(row,1000+x*c-y*s,2000+x*s+y*c,padding);
+      assert.ok(contains(0,-p.depth*24),`${asset}: center inside`);
+      assert.equal(contains(0,10),false,`${asset}: doorstep outside`);
+      assert.equal(contains(p.width*24+5,-p.depth*24),false,`${asset}: beside wall outside`);
+      assert.ok(contains(p.width*24+5,-p.depth*24,32),`${asset}: spawn clearance`);
+      if(p.form==='round')assert.equal(contains(p.width*24*.9,-p.depth*48*.9),false,'elliptical corners outside');
+    }
+  }
+  assert.equal(isInsideVillageBuilding({imagePath:'fv_drying_rack.png'},0,-20),false);
+  kit.dispose();
+});
+
+test('indoor ambient gain and underwater filtering have one owner with continuous reversible fades',()=>{
+  const indoor=ambientOcclusionTarget(false,true),outdoor=ambientOcclusionTarget(false,false);
+  assert.equal(indoor.gain,.18);assert.equal(indoor.seconds,1);assert.equal(outdoor.gain,1);
+  assert.equal(ambientOcclusionTarget(true,true).frequency,400,'underwater takes precedence');
+  assert.deepEqual(ambientOcclusionTarget(false,true),indoor,'surfacing inside restores indoor attenuation');
+  assert.equal(ambientOcclusionTarget(false,true,true).gain,1,'underwater-specific ambience is exempt');
+  assert.equal(ambientOcclusionTarget(false,true,false,true).gain,1,'entrainment stays audible');
+  const calls=[],param={value:.6,cancelAndHoldAtTime:time=>calls.push(['hold',time]),setValueAtTime:(v,t)=>calls.push(['current',v,t]),linearRampToValueAtTime:(value,time)=>calls.push(['ramp',value,time])};
+  fadeAudioParam(param,indoor.gain,10,indoor.seconds);fadeAudioParam(param,outdoor.gain,10.4,outdoor.seconds);
+  assert.deepEqual(calls,[['hold',10],['current',.6,10],['ramp',.18,11],['hold',10.4],['current',.6,10.4],['ramp',1,11.4]],'doorway reversals hold the current ramp value');
+  const fallback=[];fadeAudioParam({value:.6,cancelScheduledValues:t=>fallback.push(['cancel',t]),setValueAtTime:(v,t)=>fallback.push(['current',v,t]),linearRampToValueAtTime:(v,t)=>fallback.push(['target',v,t])},.18,5,1);
+  assert.deepEqual(fallback,[['cancel',5],['current',.6,5],['target',.18,6]]);
+});
 
 test('surface swimmers pass over coral; only the local diver collides, including after surfacing and harvest', () => {
   const localId = 'coral-swimmer';
@@ -983,6 +1167,22 @@ test('normal swimming keeps a gentle continuous kick across speeds and eases int
     previous = rig.leftLeg.rotation.x;
   }
   kit.dispose();
+});
+
+test('ordinary swimming completes strokes through sparse movement samples and returns to treading only after stopping',()=>{
+  const kit=new ModelKit(),rig=new SurvivorRig(kit),pose={speed:0,sprinting:false,swimming:true,crouching:false,dead:false,jump:0,roll:0,attack:0,yaw:0,weapon:''};
+  let low=Infinity,high=-Infinity,previous=0;
+  for(let i=0;i<600;i++){
+    rig.update({...pose,speed:i%6===0?7:0},1/60,i/60);
+    if(i<120)continue;
+    assert.ok(rig.stride>.99,'sample gaps never restart the swimming/treading blend');
+    assert.ok(rig.swimPhase>previous,'stroke phase always advances');previous=rig.swimPhase;
+    low=Math.min(low,Math.sin(rig.swimKickPhase));high=Math.max(high,Math.sin(rig.swimKickPhase));
+    assert.ok(Math.abs(rig.body.rotation.x-1)<.002,'normal swimming never inherits sprint pitch from sample speed spikes');
+  }
+  assert.ok(low<-.99&&high>.99,'normal kicks finish their entire alternating cycle');
+  for(let i=0;i<120;i++)rig.update(pose,1/60,10+i/60);
+  assert.ok(rig.stride<.001,'stopping still returns to treading water');kit.dispose();
 });
 
 test('world mesh wakes emit while treading and moving, remain behind after movement and expire', () => {
@@ -1488,7 +1688,10 @@ function auditMeshes(group) {
       const values = object.geometry.getAttribute(attribute).array;
       assert.ok(values.every(Number.isFinite), `non-finite ${attribute}`);
     }
-    assert.equal(object.material.map, null, 'initial meshes must not depend on sprite textures');
+    if (object.material.map) {
+      assert.equal(object.material.map.name, 'babushka-painted-floral-cotton', 'only painted cloth uses a surface map');
+      assert.ok(object.geometry.getAttribute('uv'), 'painted cloth owns its UV coordinates');
+    }
   });
   assert.ok(meshes > 0);
   const box = new Box3().setFromObject(group);

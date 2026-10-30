@@ -6,6 +6,7 @@ export { COLLISION_OFFSETS, SHELTER_DIMS, MONUMENT_BUILDING_COLLISION } from '..
 // StormPile removed - storms now spawn HarvestableResources and DroppedItems directly
 import { gameConfig, FOUNDATION_TILE_SIZE, foundationCellToWorldCenter } from '../config/gameConfig';
 import { COMPOUND_BUILDINGS, getBuildingWorldPosition, isCompoundMonument } from '../config/compoundBuildings';
+import { alkBuildingFootprint, alkTurretFootprint } from '../config/alkGeometry';
 
 // Add at top after imports:
 // Spatial filtering constants
@@ -378,7 +379,7 @@ function getCollisionCandidates(
     entities.boxes,
     playerX,
     playerY,
-    COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ,
+    350 * 350,
     COLLISION_PERF.MAX_STRUCTURES_TO_CHECK,
     collisionDebugViewport
   );
@@ -387,16 +388,12 @@ function getCollisionCandidates(
     // Skip backpacks - they don't have collision
     if (box.boxType === BOX_TYPE_BACKPACK) continue;
     
-    // Compound monument cooking stations, repair benches, and compost use AABB collision
-    // Smaller than 480px monuments (384px sprite), positioned to cover building content
+    // Compound facilities use the same ground rectangle as their 3D model base.
     if (isCompoundMonument(box.isMonument, box.posX, box.posY) && (box.boxType === BOX_TYPE_COOKING_STATION_COLLISION || box.boxType === BOX_TYPE_REPAIR_BENCH_COLLISION || box.boxType === BOX_TYPE_COMPOST_COLLISION)) {
       shapes.push({
         id: box.id.toString(),
         type: `box-${box.id.toString()}`,
-        x: box.posX,
-        y: box.posY - 40,  // Pushed down 20px from previous (-60) to better align with building
-        width: 280,         // Narrower than standard monument (350) - 384px sprite is smaller
-        height: 120,        // Less tall (120 vs 160) - proportional to 384px sprite
+        ...alkBuildingFootprint(box.boxType===3?'compost':box.boxType===5?'weapons':'food',box.posX,box.posY),
       });
     } else {
       // Beehives: same size as other boxes, collision 30px higher to allow access from bottom
@@ -445,7 +442,7 @@ function getCollisionCandidates(
     entities.furnaces,
     playerX,
     playerY,
-    COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ,
+    350 * 350,
     COLLISION_PERF.MAX_STRUCTURES_TO_CHECK,
     collisionDebugViewport
   );
@@ -456,14 +453,11 @@ function getCollisionCandidates(
     const isLargeFurnace = furnace.furnaceType === 1;
     
     if (isLargeFurnace && isCompoundMonument(furnace.isMonument, furnace.posX, furnace.posY)) {
-      // Monument large furnaces use custom AABB collision (narrower + shifted up vs standard monument)
+      // The compound furnace shares its footprint with the rendered shell.
       shapes.push({
         id: furnace.id.toString(),
         type: `furnace-${furnace.id.toString()}`,
-        x: furnace.posX,
-        y: furnace.posY + MONUMENT_BUILDING_COLLISION.CENTER_Y_OFFSET - 60, // 50px higher than standard
-        width: MONUMENT_BUILDING_COLLISION.WIDTH - 60,  // 20px narrower (330px)
-        height: MONUMENT_BUILDING_COLLISION.HEIGHT,
+        ...alkBuildingFootprint('furnace',furnace.posX,furnace.posY),
       });
     } else {
       // Regular/large furnaces use circular collision
@@ -485,7 +479,7 @@ function getCollisionCandidates(
       entities.rainCollectors,
       playerX,
       playerY,
-      COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ,
+      350 * 350,
       COLLISION_PERF.MAX_STRUCTURES_TO_CHECK,
       collisionDebugViewport
     );
@@ -498,10 +492,7 @@ function getCollisionCandidates(
         shapes.push({
           id: rainCollector.id.toString(),
           type: `rain_collector-${rainCollector.id.toString()}`,
-          x: rainCollector.posX,
-          y: rainCollector.posY + MONUMENT_BUILDING_COLLISION.RAIN_COLLECTOR_CENTER_Y_OFFSET,
-          width: MONUMENT_BUILDING_COLLISION.WIDTH,
-          height: MONUMENT_BUILDING_COLLISION.HEIGHT,
+          ...alkBuildingFootprint('water',rainCollector.posX,rainCollector.posY),
         });
       } else {
         // Regular rain collectors use circular collision
@@ -648,27 +639,8 @@ function getCollisionCandidates(
     for (const turret of nearbyTurrets) {
       if (turret.isDestroyed) continue;
       
-      if (turret.isMonument) {
-        // Monument turrets are 2x size (512x512) - use AABB collision like other monument structures
-        // AABB centered on turret position, covering the solid structure portion
-        shapes.push({
-          id: turret.id.toString(),
-          type: `turret-${turret.id.toString()}`,
-          x: turret.posX,
-          y: turret.posY + 40,  // Shifted down to align with visual base/platform
-          width: 280,            // ~55% of 512px sprite width - covers solid structure
-          height: 160,           // Covers the base/platform area
-        });
-      } else {
-        // Regular player-placed turrets use circle collision
-        shapes.push({
-          id: turret.id.toString(),
-          type: `turret-${turret.id.toString()}`,
-          x: turret.posX + COLLISION_OFFSETS.TURRET.x,
-          y: turret.posY + COLLISION_OFFSETS.TURRET.y,
-          radius: COLLISION_RADII.TURRET
-        });
-      }
+      shapes.push({id:turret.id.toString(),type:`turret-${turret.id.toString()}`,
+        ...alkTurretFootprint(turret.isMonument,turret.posX,turret.posY)});
     }
   }
   
@@ -704,11 +676,6 @@ function getCollisionCandidates(
   // Filter ALK delivery stations (large industrial structures)
   // Use AABB (rectangular) collision at the building base, same as compound buildings
   if (entities.alkStations && entities.alkStations.size > 0) {
-    // ALK stations use worldPosX/worldPosY, filter manually
-    const ALK_STATION_WIDTH = 480;  // Sprite width
-    const ALK_STATION_HEIGHT = 480;  // Sprite height
-    const ALK_STATION_Y_OFFSET = 0;  // Anchor point offset (worldPosY is the anchor)
-    
     for (const station of entities.alkStations.values()) {
       if (!station.isActive) continue;
 
@@ -720,38 +687,12 @@ function getCollisionCandidates(
         const dx = station.worldPosX - playerX;
         const dy = station.worldPosY - playerY;
         const distSq = dx * dx + dy * dy;
-        if (distSq > COLLISION_PERF.STRUCTURE_CULL_DISTANCE_SQ * 2) continue;
+        if (distSq > 450 * 450) continue;
       }
       
-      // AABB collision at the building base
-      // Central compound uses standardized monument building collision (260px wide, 80px tall)
-      // Substations use wider 350px collision width, taller 1/3 height
-      const isCentralCompound = station.stationId === 0;
-      if (isCentralCompound) {
-        // Central compound: standardized monument building AABB
-        shapes.push({
-          id: `alk_station-${station.stationId.toString()}`,
-          type: `alk_station-${station.stationId.toString()}`,
-          x: station.worldPosX,
-          y: station.worldPosY + MONUMENT_BUILDING_COLLISION.ALK_CENTER_Y_OFFSET,
-          width: MONUMENT_BUILDING_COLLISION.WIDTH,
-          height: MONUMENT_BUILDING_COLLISION.HEIGHT,
-        });
-      } else {
-        // Substations: wider collision, taller box
-        const collisionWidth = 350;
-        const collisionHeight = ALK_STATION_HEIGHT / 3; // bottom 1/3
-        const spriteBottom = station.worldPosY + ALK_STATION_Y_OFFSET;
-        const collisionCenterY = spriteBottom - collisionHeight / 2;
-        shapes.push({
-          id: `alk_station-${station.stationId.toString()}`,
-          type: `alk_station-${station.stationId.toString()}`,
-          x: station.worldPosX,
-          y: collisionCenterY,
-          width: collisionWidth,
-          height: collisionHeight,
-        });
-      }
+      // Both station variants use their shared model plan and ground anchor.
+      shapes.push({id:`alk_station-${station.stationId}`,type:`alk_station-${station.stationId}`,
+        ...alkBuildingFootprint(station.stationId===0?'central':'station',station.worldPosX,station.worldPosY)});
     }
   }
   
@@ -783,8 +724,7 @@ function getCollisionCandidates(
     });
   }
   
-  // COMPOUND BUILDINGS - collision at visual base (like trees/stones)
-  // Buildings with collisionAabb use AABB (e.g. warehouse, like compound water facility)
+  // Decorative compound buildings use their shared 3D ground rectangles.
   for (const building of COMPOUND_BUILDINGS) {
     const worldPos = getBuildingWorldPosition(building);
     const buildingX = worldPos.x;
@@ -803,7 +743,7 @@ function getCollisionCandidates(
     if (building.id.startsWith('wall_')) continue;
     
     if (building.collisionAabb) {
-      // AABB collision (warehouse, etc. - like compound water facility)
+      // Ground rectangle from the shared model plan.
       shapes.push({
         id: `compound_building-${building.id}`,
         type: `compound_building-${building.id}`,

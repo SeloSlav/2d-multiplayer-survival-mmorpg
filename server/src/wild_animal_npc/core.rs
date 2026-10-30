@@ -59,6 +59,7 @@ use crate::rune_stone::{rune_stone as RuneStoneTableTrait, RUNE_STONE_DETERRENCE
 // Monument safe zone imports - hostile NPCs actively avoid these areas
 use crate::alk::alk_station as AlkStationTableTrait;
 use super::alk_wildlife::{find_clear_position, WildlifeExclusionZone};
+use super::bird_motion::{event_probability, flight_goal, flight_step};
 use crate::monument_part as MonumentPartTableTrait;
 use crate::world_state::world_state as WorldStateTableTrait; // ADDED: For world_state table access
 use crate::MonumentType;
@@ -1006,6 +1007,11 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
             
             // Find nearby players for perception checks (uses pre-fetched data)
             let mut nearby_players = find_nearby_players_prefetched(&prefetched.all_players, &animal, &stats);
+            nearby_players.retain(|p| !p.is_inside_building);
+            if animal.target_player_id.is_some_and(|id| prefetched.all_players.iter().any(|p| p.identity == id && p.is_inside_building)) {
+                animal.target_player_id = None; animal.target_structure_id = None; animal.target_structure_type = None;
+                transition_to_state(&mut animal, AnimalState::Patrolling, current_time, None, "target indoors");
+            }
             if !is_tamed {
                 nearby_players.retain(|player| !prefetched.alk_wildlife_zones.iter().any(|zone| zone.contains(player.position_x, player.position_y)));
                 clear_alk_target(&mut animal, &prefetched.all_players, &prefetched.alk_wildlife_zones, current_time);
@@ -1358,6 +1364,14 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
                     update_animal_position(&mut animal, previous_position.0, previous_position.1);
                     animal.flying_target_x = None;
                     animal.flying_target_y = None;
+                    if is_flying_species(&animal.species) {
+                        let zone=prefetched.alk_wildlife_zones.iter().find(|zone|zone.blocks_movement(previous_position,(previous_position.0+animal.direction_x*80.0,previous_position.1+animal.direction_y*80.0)));
+                        let heading=zone.map(|z|(previous_position.1-z.y).atan2(previous_position.0-z.x)).unwrap_or_else(||(-animal.direction_y).atan2(-animal.direction_x));
+                        if let Some((x,y))=flight_goal(previous_position,heading,600.0,&prefetched.alk_wildlife_zones,(WORLD_WIDTH_PX,WORLD_HEIGHT_PX)) {
+                            animal.is_flying=true;animal.investigation_x=Some(x);animal.investigation_y=Some(y);
+                            transition_to_state(&mut animal,AnimalState::Fleeing,current_time,None,"fly away from ALK boundary");
+                        }
+                    }
                 }
             }
             
@@ -2231,6 +2245,12 @@ fn execute_attack(
     current_time: Timestamp,
     rng: &mut impl Rng,
 ) -> Result<(), String> {
+    if crate::indoors::is_position_indoors(ctx, target_player.position_x, target_player.position_y) {
+        animal.target_player_id = None;
+        animal.target_structure_id = None; animal.target_structure_type = None;
+        transition_to_state(animal, AnimalState::Patrolling, current_time, None, "target indoors");
+        return Ok(());
+    }
     // Apply damage to player
     if let Some(mut target) = ctx.db.player().identity().find(&target_player.identity) {
         // <<< LINE OF SIGHT CHECK - Attacks cannot go through walls or closed doors >>>
@@ -3537,6 +3557,7 @@ pub fn try_npc_ranged_counter_attack(
         _ => return Ok(false),
     };
     
+    if crate::indoors::is_position_indoors(ctx, attacker_player_x, attacker_player_y) { return Ok(false); }
     // Calculate distance to target
     let dx = attacker_player_x - animal.pos_x;
     let dy = attacker_player_y - animal.pos_y;
@@ -3675,7 +3696,7 @@ pub fn try_npc_proactive_ranged_attack(
     }
     
     // Check if player is inside a building - don't fire ranged into buildings
-    if target_player.is_inside_building {
+    if crate::indoors::is_position_indoors(ctx, target_player.position_x, target_player.position_y) {
         log::debug!("🎯 [RANGED BLOCK] {:?} {} - player is inside building", animal.species, animal.id);
         return Ok(false);
     }
@@ -5394,6 +5415,12 @@ pub fn set_flee_destination_away_from_threat(
     flee_distance: f32,
     rng: &mut impl Rng,
 ) {
+    if is_flying_species(&animal.species) && animal.state==AnimalState::Fleeing {
+        if let (Some(x),Some(y))=(animal.investigation_x,animal.investigation_y) {
+            let (dx,dy)=(x-animal.pos_x,y-animal.pos_y);
+            if dx.hypot(dy)>60.0 && dx*(animal.pos_x-threat_x)+dy*(animal.pos_y-threat_y)>0.0 {return;}
+        }
+    }
     // Calculate direction away from threat
     let dx_from_threat = animal.pos_x - threat_x;
     let dy_from_threat = animal.pos_y - threat_y;
@@ -5417,6 +5444,12 @@ pub fn set_flee_destination_away_from_threat(
         
         log::debug!("{:?} {} fleeing {:.0}px in random direction (threat position unknown)", 
                    animal.species, animal.id, flee_distance);
+    }
+    if is_flying_species(&animal.species) {
+        animal.is_flying=true;
+        let heading=(animal.investigation_y.unwrap_or(animal.pos_y)-animal.pos_y).atan2(animal.investigation_x.unwrap_or(animal.pos_x)-animal.pos_x);
+        let goal=flight_goal((animal.pos_x,animal.pos_y),heading,flee_distance.max(150.0),&[],(WORLD_WIDTH_PX,WORLD_HEIGHT_PX));
+        animal.investigation_x=goal.map(|g|g.0);animal.investigation_y=goal.map(|g|g.1);
     }
 }
 
@@ -5620,220 +5653,96 @@ pub fn execute_standard_flee(
 // FLYING BIRD SYSTEM - Reusable for Terns, Crows, and future bird types
 // ============================================================================
 
-/// Flying patrol constants
-const FLYING_PATROL_MIN_DISTANCE: f32 = 150.0;  // Minimum distance to fly when patrolling
-const FLYING_PATROL_MAX_DISTANCE: f32 = 400.0;  // Maximum distance to fly when patrolling  
-const FLYING_SPEED_MULTIPLIER: f32 = 1.8;       // Birds fly faster than they walk
-const FLYING_HEIGHT_VISUAL: f32 = 32.0;         // Visual height offset for flying birds (not actual collision)
-const GROUNDED_PATROL_RADIUS: f32 = 150.0;      // Walking patrol radius for grounded birds
-const CHANCE_TO_LAND: f32 = 0.15;               // 15% chance per tick to land while flying (increased - birds should land more often)
-const CHANCE_TO_TAKE_OFF: f32 = 0.008;          // 0.8% chance per tick to take off while grounded (much lower - birds should stay grounded longer)
+/// Birds commit to a flight leg instead of landing/replanning every tick.
+const FLYING_PATROL_MIN_DISTANCE: f32 = 450.0;
+const FLYING_PATROL_MAX_DISTANCE: f32 = 1000.0;
+const FLYING_SPEED_MULTIPLIER: f32 = 1.8;
 
-/// **FLYING PATROL** - Birds fly around the island but frequently land to walk
-pub fn execute_flying_patrol(
-    ctx: &ReducerContext,
-    animal: &mut WildAnimal,
-    stats: &AnimalStats,
-    dt: f32,
-    rng: &mut impl Rng,
-) {
-    // CRITICAL: Set flying flag to true when flying - this controls sprite selection on client
-    animal.is_flying = true;
-    
-    // Random chance to land each tick (high chance - birds should land often)
-    // At 8 ticks/second, 15% = roughly 120% per second, so they land quickly
-    if rng.gen::<f32>() < CHANCE_TO_LAND {
-        // Check if current position is valid for landing (not water)
-        if !is_water_tile(ctx, animal.pos_x, animal.pos_y) && 
-           !is_position_in_shelter(ctx, animal.pos_x, animal.pos_y) {
-            animal.is_flying = false;
-            animal.state = AnimalState::Grounded;
-            animal.flying_target_x = None;
-            animal.flying_target_y = None;
-            log::info!("🐦 {:?} {} LANDED at ({:.0}, {:.0}) - now walking", 
-                       animal.species, animal.id, animal.pos_x, animal.pos_y);
-            return;
+fn bird_state_age(ctx:&ReducerContext,animal:&WildAnimal)->f32 {
+    (ctx.timestamp.to_micros_since_unix_epoch()-animal.state_change_time.to_micros_since_unix_epoch()) as f32/1_000_000.0
+}
+fn bird_can_land(ctx:&ReducerContext,animal:&WildAnimal)->bool {
+    bird_state_age(ctx,animal)>=2.5 && !is_water_tile(ctx,animal.pos_x,animal.pos_y)
+        && !crate::indoors::blocks_world_spawn(ctx,animal.pos_x,animal.pos_y)
+}
+fn bird_takeoff(ctx:&ReducerContext,animal:&mut WildAnimal) {
+    animal.is_flying=true;
+    animal.flying_target_x=None;animal.flying_target_y=None;
+    transition_to_state(animal,AnimalState::Flying,ctx.timestamp,None,"bird takeoff");
+}
+
+pub fn execute_flying_patrol(ctx:&ReducerContext,animal:&mut WildAnimal,stats:&AnimalStats,dt:f32,rng:&mut impl Rng) {
+    animal.is_flying=true;
+    if animal.flying_target_x.is_none() || animal.flying_target_y.is_none() {
+        if bird_can_land(ctx,animal) && rng.gen::<f32>()<event_probability(0.18,dt) {
+            animal.is_flying=false;
+            transition_to_state(animal,AnimalState::Grounded,ctx.timestamp,None,"bird landing");return;
+        }
+        let distance=rng.gen_range(FLYING_PATROL_MIN_DISTANCE..=FLYING_PATROL_MAX_DISTANCE);
+        // Favor forward travel; a new leg is not an arbitrary 180-degree flip.
+        let heading=animal.direction_y.atan2(animal.direction_x)+rng.gen_range(-0.8..0.8);
+        if let Some((x,y))=flight_goal((animal.pos_x,animal.pos_y),heading,distance,&alk_wildlife_zones(ctx),(WORLD_WIDTH_PX,WORLD_HEIGHT_PX)) {
+            animal.flying_target_x=Some(x);animal.flying_target_y=Some(y);
         }
     }
-    
-    // Set a flying destination if we don't have one
-    if animal.flying_target_x.is_none() || animal.flying_target_y.is_none() {
-        let fly_distance = FLYING_PATROL_MIN_DISTANCE + rng.gen::<f32>() * (FLYING_PATROL_MAX_DISTANCE - FLYING_PATROL_MIN_DISTANCE);
-        let fly_angle = rng.gen::<f32>() * 2.0 * PI;
-        
-        let target_x = animal.pos_x + fly_distance * fly_angle.cos();
-        let target_y = animal.pos_y + fly_distance * fly_angle.sin();
-        
-        // Clamp to world bounds (birds can fly anywhere, including over water)
-        let clamped_x = target_x.clamp(50.0, WORLD_WIDTH_PX - 50.0);
-        let clamped_y = target_y.clamp(50.0, WORLD_HEIGHT_PX - 50.0);
-        
-        animal.flying_target_x = Some(clamped_x);
-        animal.flying_target_y = Some(clamped_y);
-        
-        log::debug!("{:?} {} set flying patrol destination to ({:.0}, {:.0})", 
-                   animal.species, animal.id, clamped_x, clamped_y);
-    }
-    
-    // Move toward flying destination at high speed (ignore ground obstacles)
-    if let (Some(target_x), Some(target_y)) = (animal.flying_target_x, animal.flying_target_y) {
-        let fly_speed = stats.sprint_speed * FLYING_SPEED_MULTIPLIER;
-        
-        // Calculate direction to target
-        let dx = target_x - animal.pos_x;
-        let dy = target_y - animal.pos_y;
-        let distance = (dx * dx + dy * dy).sqrt();
-        
-        if distance > 20.0 {
-            // Move toward target (flying ignores water/shelter collision)
-            let norm_dx = dx / distance;
-            let norm_dy = dy / distance;
-            
-            let move_amount = fly_speed * dt;
-            let new_x = (animal.pos_x + norm_dx * move_amount).clamp(10.0, WORLD_WIDTH_PX - 10.0);
-            let new_y = (animal.pos_y + norm_dy * move_amount).clamp(10.0, WORLD_HEIGHT_PX - 10.0);
-            
-            animal.pos_x = new_x;
-            animal.pos_y = new_y;
-            animal.direction_x = norm_dx;
-            animal.direction_y = norm_dy;
-            
-            // Update facing direction
-            update_facing_direction(animal);
-            
-            // Update chunk index
-            animal.chunk_index = crate::environment::calculate_chunk_index(animal.pos_x, animal.pos_y);
-        } else {
-            // Reached flying destination - high chance to land
-            animal.flying_target_x = None;
-            animal.flying_target_y = None;
-            
-            // 40% chance to land when reaching destination
-            if rng.gen::<f32>() < 0.40 {
-                // Check if current position is valid for landing (not water)
-                if !is_water_tile(ctx, animal.pos_x, animal.pos_y) && 
-                   !is_position_in_shelter(ctx, animal.pos_x, animal.pos_y) {
-                    animal.is_flying = false;
-                    animal.state = AnimalState::Grounded;
-                    log::debug!("{:?} {} landed after reaching flying destination", 
-                               animal.species, animal.id);
-                }
+    if let (Some(x),Some(y))=(animal.flying_target_x,animal.flying_target_y) {
+        let distance=(x-animal.pos_x).hypot(y-animal.pos_y);
+        if distance>0.5 {
+            let next=flight_step((animal.pos_x,animal.pos_y),(x,y),stats.sprint_speed*FLYING_SPEED_MULTIPLIER,dt);
+            animal.direction_x=(x-animal.pos_x)/distance;animal.direction_y=(y-animal.pos_y)/distance;
+            update_animal_position(animal,next.0,next.1);update_facing_direction(animal);
+        }
+        if (x-animal.pos_x).hypot(y-animal.pos_y)<=0.5 {
+            animal.flying_target_x=None;animal.flying_target_y=None;
+            if bird_can_land(ctx,animal) && rng.gen::<f32>()<0.35 {
+                animal.is_flying=false;
+                transition_to_state(animal,AnimalState::Grounded,ctx.timestamp,None,"bird reached landing spot");
             }
         }
     }
 }
 
-/// **GROUNDED PATROL** - Birds on the ground walk around using direction-based movement like crabs
-/// This uses the same pattern as execute_standard_patrol for smooth, organic walking
-pub fn execute_grounded_idle(
-    ctx: &ReducerContext,
-    animal: &mut WildAnimal,
-    stats: &AnimalStats,
-    dt: f32,
-    rng: &mut impl Rng,
-) {
-    // CRITICAL: Ensure bird is NOT flying - this flag controls sprite selection on client
-    animal.is_flying = false;
-    
-    // Very low random chance to take off - birds should stay grounded and walk more
-    // At ~10 ticks/second, 0.8% ≈ 8% chance per second to take off
-    if rng.gen::<f32>() < CHANCE_TO_TAKE_OFF {
-        animal.is_flying = true;
-        animal.state = AnimalState::Flying;
-        animal.flying_target_x = None;
-        animal.flying_target_y = None;
-        log::info!("🐦 {:?} {} TOOK OFF from ground - now flying", animal.species, animal.id);
-        return;
+pub fn execute_grounded_idle(ctx:&ReducerContext,animal:&mut WildAnimal,stats:&AnimalStats,dt:f32,rng:&mut impl Rng) {
+    animal.is_flying=false;
+    if bird_state_age(ctx,animal)>=3.0 && rng.gen::<f32>()<event_probability(0.06,dt) {bird_takeoff(ctx,animal);return;}
+    if rng.gen::<f32>()<event_probability(0.12,dt) {
+        let angle=animal.direction_y.atan2(animal.direction_x)+rng.gen_range(-0.6..0.6);
+        animal.direction_x=angle.cos();animal.direction_y=angle.sin();
     }
-    
-    let prev_x = animal.pos_x;
-    let prev_y = animal.pos_y;
-    
-    // Use DIRECTION-BASED movement like crabs, not destination-based
-    // This prevents the jittery back-and-forth behavior
-    
-    // Small chance to randomly change direction (3% per tick = ~24% per second)
-    if rng.gen::<f32>() < 0.03 {
-        let new_angle = rng.gen::<f32>() * 2.0 * PI;
-        animal.direction_x = new_angle.cos();
-        animal.direction_y = new_angle.sin();
+    let before=(animal.pos_x,animal.pos_y);let heading=animal.direction_y.atan2(animal.direction_x);
+    let speed=stats.movement_speed*0.6;
+    let next=(before.0+animal.direction_x*speed*dt,before.1+animal.direction_y*speed*dt);
+    if !is_water_tile(ctx,next.0,next.1) && !is_position_in_shelter(ctx,next.0,next.1) {
+        move_towards_target(ctx,animal,next.0,next.1,speed,dt);
     }
-    
-    // Ground walking speed - slower than flying, similar to crabs
-    let ground_speed = stats.movement_speed * 0.6;
-    
-    // Calculate next position based on current direction
-    let next_x = animal.pos_x + animal.direction_x * ground_speed * dt;
-    let next_y = animal.pos_y + animal.direction_y * ground_speed * dt;
-    
-    // Check if next position is valid (not water, not in shelter)
-    if !is_water_tile(ctx, next_x, next_y) && !is_position_in_shelter(ctx, next_x, next_y) {
-        // Position is valid - move there
-        move_towards_target(ctx, animal, next_x, next_y, ground_speed, dt);
-    } else {
-        // Blocked! Pick a new random direction away from obstacle
-        let new_angle = rng.gen::<f32>() * 2.0 * PI;
-        animal.direction_x = new_angle.cos();
-        animal.direction_y = new_angle.sin();
+    animal.flying_target_x=None;animal.flying_target_y=None;
+    let moved=(animal.pos_x-before.0).hypot(animal.pos_y-before.1);
+    if moved<(speed*dt*0.15).max(0.25) {
+        // A blocked walking bird takes off, keeping its heading. Randomizing a
+        // new ground direction every tick produced dozens of stationary spins.
+        bird_takeoff(ctx,animal);
+        if let Some((x,y))=flight_goal(before,heading,600.0,&alk_wildlife_zones(ctx),(WORLD_WIDTH_PX,WORLD_HEIGHT_PX)) {
+            animal.flying_target_x=Some(x);animal.flying_target_y=Some(y);
+            execute_flying_patrol(ctx,animal,stats,dt,rng);
+        }
     }
-    
-    // Check if stuck (didn't move enough) and pick new direction
-    let distance_moved = ((animal.pos_x - prev_x).powi(2) + (animal.pos_y - prev_y).powi(2)).sqrt();
-    if distance_moved < 1.0 {
-        // Stuck - pick a new random direction
-        let new_angle = rng.gen::<f32>() * 2.0 * PI;
-        animal.direction_x = new_angle.cos();
-        animal.direction_y = new_angle.sin();
-    }
-    
-    // Clear any flying target since we're using direction-based movement now
-    animal.flying_target_x = None;
-    animal.flying_target_y = None;
 }
 
-/// **FLYING CHASE** - Birds aggressively fly-chase players for food/items
-pub fn execute_flying_chase(
-    ctx: &ReducerContext,
-    animal: &mut WildAnimal,
-    stats: &AnimalStats,
-    target_x: f32,
-    target_y: f32,
-    dt: f32,
-) {
-    // Ensure bird is flying
-    animal.is_flying = true;
-    
-    // Chase at high flying speed
-    let chase_speed = stats.sprint_speed * FLYING_SPEED_MULTIPLIER;
-    
-    // Calculate direction to target
-    let dx = target_x - animal.pos_x;
-    let dy = target_y - animal.pos_y;
-    let distance = (dx * dx + dy * dy).sqrt();
-    
-    if distance > 10.0 {
-        let norm_dx = dx / distance;
-        let norm_dy = dy / distance;
-        
-        let move_amount = chase_speed * dt;
-        let new_x = (animal.pos_x + norm_dx * move_amount).clamp(10.0, WORLD_WIDTH_PX - 10.0);
-        let new_y = (animal.pos_y + norm_dy * move_amount).clamp(10.0, WORLD_HEIGHT_PX - 10.0);
-        
-        animal.pos_x = new_x;
-        animal.pos_y = new_y;
-        animal.direction_x = norm_dx;
-        animal.direction_y = norm_dy;
-        
-        // Update facing direction
-        update_facing_direction(animal);
-        
-        // Update chunk index
-        animal.chunk_index = crate::environment::calculate_chunk_index(animal.pos_x, animal.pos_y);
+pub fn execute_flying_chase(ctx:&ReducerContext,animal:&mut WildAnimal,stats:&AnimalStats,target_x:f32,target_y:f32,dt:f32) {
+    animal.is_flying=true;
+    let target=(target_x.clamp(50.0,WORLD_WIDTH_PX-50.0),target_y.clamp(50.0,WORLD_HEIGHT_PX-50.0));
+    if animal.state==AnimalState::Fleeing {
+        // Completion checks must use the same reachable point as movement,
+        // including legacy/random flee goals outside the world boundary.
+        animal.investigation_x=Some(target.0);animal.investigation_y=Some(target.1);
     }
-    
-    // Clear any flying target since we're chasing
-    animal.flying_target_x = None;
-    animal.flying_target_y = None;
+    let distance=(target.0-animal.pos_x).hypot(target.1-animal.pos_y);
+    if distance>0.5 {
+        let next=flight_step((animal.pos_x,animal.pos_y),target,stats.sprint_speed*FLYING_SPEED_MULTIPLIER,dt);
+        animal.direction_x=(target.0-animal.pos_x)/distance;animal.direction_y=(target.1-animal.pos_y)/distance;
+        update_animal_position(animal,next.0,next.1);update_facing_direction(animal);
+    }
+    animal.flying_target_x=None;animal.flying_target_y=None;
 }
 
 /// Check if a bird is currently flying

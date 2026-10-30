@@ -91,7 +91,7 @@ export function renderGameCanvasUiFrame(context: GameCanvasRuntimeRenderContext,
     currentPredictedPosition: position, isSnorkeling: Boolean(args.localPlayer?.isSnorkeling),
     currentCameraOffsetX: camera.x, currentCameraOffsetY: camera.y, currentCanvasWidth: width, currentCanvasHeight: height,
     deltaTimeMs: args.deltaTimeRef.current, currentCycleProgress: args.cycleProgressRef.current,
-    showPrecipitation: Boolean(args.showPrecipitation), stormAtmosphereEnabled: Boolean(args.stormAtmosphereEnabled) });
+    showPrecipitation: args.showPrecipitation !== false, stormAtmosphereEnabled: Boolean(args.stormAtmosphereEnabled) });
   const weatherMs = performance.now() - weatherStart;
   renderStatusOverlayPasses({ ctx, localPlayer: args.localPlayer, isSnorkeling: Boolean(args.localPlayer?.isSnorkeling),
     canvasWidth: width, canvasHeight: height, showStatusOverlays: Boolean(args.showStatusOverlays),

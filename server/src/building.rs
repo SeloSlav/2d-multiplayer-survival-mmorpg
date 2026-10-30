@@ -1052,6 +1052,7 @@ pub fn place_foundation(
         );
     }
     
+    crate::indoors::repair_world_spawns(ctx);
     // Destroy harvestable resources within foundation bounds (only active ones, not respawning)
     let resources_to_destroy: Vec<u64> = ctx.db.harvestable_resource().iter()
         .filter(|resource| {

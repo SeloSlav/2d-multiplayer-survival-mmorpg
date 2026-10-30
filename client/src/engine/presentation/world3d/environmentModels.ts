@@ -64,9 +64,12 @@ export function createCrate(kit: ModelKit): Group {
   return kit.compile(group);
 }
 
+export function barrelPaint(variant: number): number {
+  return variant % 3 === 0 ? 0x906447 : variant % 3 === 1 ? 0x667d75 : 0x8b8a78;
+}
 export function createBarrel(kit: ModelKit, variant = 0): Group {
   const group = new Group();
-  const color = variant % 3 === 0 ? 0x906447 : variant % 3 === 1 ? 0x667d75 : 0x8b8a78;
+  const color = barrelPaint(variant);
   kit.part(group, 'cylinder', color, [0.71, 1.06, 0.71], [0, 0.53, 0]);
   for (const y of [0.1, 0.85, 1.04]) kit.part(group, 'cylinder', C.iron, [0.74, 0.055, 0.74], [0, y, 0]);
   kit.part(group, 'box', C.bone, [0.24, 0.25, 0.035], [0, 0.57, 0.36]);

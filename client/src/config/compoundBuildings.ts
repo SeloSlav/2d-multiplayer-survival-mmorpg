@@ -6,6 +6,13 @@
 // ------------------------------------
 
 import { gameConfig } from './gameConfig';
+import { alkBuildingFootprint } from './alkGeometry';
+import type { AlkBuildingAsset } from './alkGeometry';
+
+function compoundFootprint(asset:AlkBuildingAsset) {
+  const {width,height,y}=alkBuildingFootprint(asset,0,0);
+  return {width,height,centerYOffset:y};
+}
 
 /**
  * Light source definition for buildings that emit light at night.
@@ -210,7 +217,8 @@ export const COMPOUND_BUILDINGS: CompoundBuilding[] = [
     width: 480,
     height: 480,
     anchorYOffset: 96,
-    collisionRadius: 150,
+    collisionRadius: 0,
+    collisionAabb: compoundFootprint('barracks'),
     collisionYOffset: 0,
   },
   
@@ -223,7 +231,8 @@ export const COMPOUND_BUILDINGS: CompoundBuilding[] = [
     width: 480,
     height: 480,
     anchorYOffset: 96,
-    collisionRadius: 140,
+    collisionRadius: 0,
+    collisionAabb: compoundFootprint('fuel_depot'),
     collisionYOffset: 0,
   },
   
@@ -236,7 +245,8 @@ export const COMPOUND_BUILDINGS: CompoundBuilding[] = [
     width: 480,
     height: 480,
     anchorYOffset: 84,
-    collisionRadius: 120,
+    collisionRadius: 0,
+    collisionAabb: compoundFootprint('garage'),
     collisionYOffset: 0,
   },
   
@@ -249,7 +259,8 @@ export const COMPOUND_BUILDINGS: CompoundBuilding[] = [
     width: 384,
     height: 480,
     anchorYOffset: 84,
-    collisionRadius: 100,
+    collisionRadius: 0,
+    collisionAabb: compoundFootprint('shed'),
     collisionYOffset: 0,
   },
   

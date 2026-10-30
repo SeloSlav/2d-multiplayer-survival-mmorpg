@@ -4900,6 +4900,7 @@ pub fn spawn_reed_marsh_resources(ctx: &ReducerContext) -> Result<(), String> {
                 false // Not player planted
             );
             
+            if crate::indoors::blocks_world_spawn(ctx, reed.pos_x, reed.pos_y) { continue; }
             ctx.db.harvestable_resource().insert(reed);
             marsh_reeds += 1;
         }
@@ -4951,6 +4952,7 @@ pub fn spawn_reed_marsh_resources(ctx: &ReducerContext) -> Result<(), String> {
                 false // Not player planted
             );
             
+            if crate::indoors::blocks_world_spawn(ctx, shard.pos_x, shard.pos_y) { continue; }
             ctx.db.harvestable_resource().insert(shard);
             marsh_shards += 1;
         }
@@ -5016,6 +5018,7 @@ pub fn spawn_tide_pool_resources(ctx: &ReducerContext) -> Result<(), String> {
             
             let chunk_idx = calculate_chunk_index(spawn_x, spawn_y);
             let reed = create_harvestable_resource(PlantType::Reed, spawn_x, spawn_y, chunk_idx, false);
+            if crate::indoors::blocks_world_spawn(ctx, reed.pos_x, reed.pos_y) { continue; }
             ctx.db.harvestable_resource().insert(reed);
             pool_reeds += 1;
         }

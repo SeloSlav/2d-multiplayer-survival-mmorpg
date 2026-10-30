@@ -10,18 +10,19 @@ export const VISUAL_SETTINGS_SCHEMA_STORAGE_KEY = 'visualSettingsSchemaVersion';
  * Schema history:
  * - 1 = one-time apply PERFORMANCE_VISUAL_DEFAULTS to all persisted visual keys.
  * - 2 = one-time apply ADVANCED_VISUAL_DEFAULTS (new product default).
+ * - 3 = restore precipitation and grass motion disabled by the old performance preset.
  * Increment for future migrations; extend `migrateVisualSettingsSchemaIfNeeded` when behavior differs.
  */
-export const VISUAL_SETTINGS_SCHEMA_VERSION = 2;
+export const VISUAL_SETTINGS_SCHEMA_VERSION = 3;
 
 export const PERFORMANCE_VISUAL_DEFAULTS = {
     allShadowsEnabled: false,
     treeShadowsEnabled: false,
-    weatherOverlayEnabled: false,
+    weatherOverlayEnabled: true,
     stormAtmosphereEnabled: false,
     statusOverlaysEnabled: false,
     grassEnabled: true,
-    grassAnimationEnabled: false,
+    grassAnimationEnabled: true,
     alwaysShowPlayerNames: true,
     cloudsEnabled: false,
     waterSurfaceEffectsEnabled: false,
@@ -88,6 +89,13 @@ export function migrateVisualSettingsSchemaIfNeeded(): void {
     if (!Number.isNaN(parsed) && parsed >= VISUAL_SETTINGS_SCHEMA_VERSION) {
         return;
     }
-    writeVisualPresetToLocalStorage(ADVANCED_VISUAL_DEFAULTS);
+    if (!Number.isNaN(parsed) && parsed >= 2) {
+        // Restore the two weather effects without changing the rest of a saved
+        // graphics preset. Both remain individually configurable afterwards.
+        localStorage.setItem('weatherOverlayEnabled','true');
+        localStorage.setItem('grassAnimationEnabled','true');
+    } else {
+        writeVisualPresetToLocalStorage(ADVANCED_VISUAL_DEFAULTS);
+    }
     localStorage.setItem(VISUAL_SETTINGS_SCHEMA_STORAGE_KEY, String(VISUAL_SETTINGS_SCHEMA_VERSION));
 }

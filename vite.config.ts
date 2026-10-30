@@ -3,11 +3,12 @@ import react from '@vitejs/plugin-react'
 import Prerender from '@prerenderer/rollup-plugin'
 import PuppeteerRenderer from '@prerenderer/renderer-puppeteer'
 import prerenderRoutes from './prerender-routes.json'
+import { isDevWatchIgnored, resilientDevWatcher } from './scripts/dev-server-policy';
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
   // Base plugins for all modes
-  const plugins: any[] = [react()];
+  const plugins: any[] = [react(),resilientDevWatcher()];
   
   // Only add prerenderer during production build (skip if SKIP_PRERENDER=1 to avoid statuses module resolution issues)
   const skipPrerender = process.env.SKIP_PRERENDER === '1';
@@ -44,15 +45,15 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     server: {
-      port: 3008,
+      host: '127.0.0.1',
+      port: 3009,
       // Rust builds and the local database contain locked, rapidly changing files;
       // neither belongs in the client hot-reload watcher.
-      watch: { ignored: ['**/server/target/**', '**/.local-spacetimedb/**', '**/.cache/**'] },
-      // Prefer 3008; if busy (e.g. another dev server), use the next free port (3009, …).
-      strictPort: false,
+      watch: { ignored: isDevWatchIgnored },
+      strictPort: true,
       hmr: {
         // Omit clientPort so HMR matches whichever port Vite actually binds (important when port increments).
-        host: 'localhost',
+        host: '127.0.0.1',
       },
     },
     root: '.',

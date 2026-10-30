@@ -315,6 +315,7 @@ pub fn place_shelter(ctx: &ReducerContext, item_instance_id: u64, world_x: f32, 
             
             // Clear all natural resources within the shelter's footprint
             clear_resources_in_shelter_footprint(ctx, world_x, adjusted_world_y);
+            crate::indoors::repair_world_spawns(ctx);
             
             // Track quest progress for structure placement (generic)
             if let Err(e) = crate::quests::track_quest_progress(

@@ -1,23 +1,25 @@
 import { Group, Vector3 } from 'three/webgpu';
 import { ModelKit } from './modelKit';
 import { addFacilitySign, ALK_FACILITY_LABELS } from './facilitySigns';
+import { ALK_GEOMETRY } from '../../../config/alkGeometry';
+import type { AlkBuildingAsset } from '../../../config/alkGeometry';
 
-export type AlkAsset = 'station'|'central'|'barracks'|'fuel_depot'|'garage'|'shed'|'compost'|'food'|'weapons'|'furnace'|'water';
+export type AlkAsset = AlkBuildingAsset;
 interface AlkPlan { width:number; depth:number; height:number; shell:number; trim:number; accent:number; roof:'flat'|'tank'|'stack'; front:'door'|'service'|'vault'; }
 
 /** Dimensions are ground-space tiles, centered on the existing collision anchor. */
 export const ALK_PLANS:Record<AlkAsset,AlkPlan>={
-  station:{width:7.1,depth:3.2,height:3.5,shell:0x515c65,trim:0x86979c,accent:0x7dd8da,roof:'flat',front:'service'},
-  central:{width:7.1,depth:3.2,height:4.1,shell:0x515c65,trim:0x99a9ac,accent:0x8de3dc,roof:'stack',front:'service'},
-  barracks:{width:5.5,depth:3.0,height:4.2,shell:0x66554d,trim:0x8f7770,accent:0xd9a665,roof:'stack',front:'door'},
-  fuel_depot:{width:5.1,depth:2.9,height:3.8,shell:0x514d51,trim:0x956654,accent:0xd6a764,roof:'tank',front:'door'},
-  garage:{width:4.5,depth:2.9,height:3.5,shell:0x75564b,trim:0xa4836a,accent:0xe0ae6e,roof:'stack',front:'service'},
-  shed:{width:3.8,depth:2.7,height:3.6,shell:0x4d4d55,trim:0x9c6b59,accent:0x82d0d5,roof:'tank',front:'door'},
-  compost:{width:7.0,depth:3.1,height:3.1,shell:0x56636a,trim:0xa4b9b5,accent:0xd09a62,roof:'stack',front:'service'},
-  food:{width:7.0,depth:3.1,height:3.2,shell:0x454f58,trim:0x84979a,accent:0xefad68,roof:'flat',front:'service'},
-  weapons:{width:7.0,depth:3.1,height:3.1,shell:0x414a55,trim:0x758b91,accent:0x72c5c9,roof:'flat',front:'vault'},
-  furnace:{width:7.0,depth:3.1,height:3.2,shell:0x5a5955,trim:0x899395,accent:0xe8934b,roof:'stack',front:'service'},
-  water:{width:7.0,depth:3.1,height:3.2,shell:0x8195a0,trim:0xb5c4c4,accent:0x67e1ee,roof:'tank',front:'service'},
+  station:{...ALK_GEOMETRY.buildings.station,shell:0x515c65,trim:0x86979c,accent:0x7dd8da,roof:'flat',front:'service'},
+  central:{...ALK_GEOMETRY.buildings.central,shell:0x515c65,trim:0x99a9ac,accent:0x8de3dc,roof:'stack',front:'service'},
+  barracks:{...ALK_GEOMETRY.buildings.barracks,shell:0x66554d,trim:0x8f7770,accent:0xd9a665,roof:'stack',front:'door'},
+  fuel_depot:{...ALK_GEOMETRY.buildings.fuel_depot,shell:0x514d51,trim:0x956654,accent:0xd6a764,roof:'tank',front:'door'},
+  garage:{...ALK_GEOMETRY.buildings.garage,shell:0x75564b,trim:0xa4836a,accent:0xe0ae6e,roof:'stack',front:'service'},
+  shed:{...ALK_GEOMETRY.buildings.shed,shell:0x4d4d55,trim:0x9c6b59,accent:0x82d0d5,roof:'tank',front:'door'},
+  compost:{...ALK_GEOMETRY.buildings.compost,shell:0x56636a,trim:0xa4b9b5,accent:0xd09a62,roof:'stack',front:'service'},
+  food:{...ALK_GEOMETRY.buildings.food,shell:0x454f58,trim:0x84979a,accent:0xefad68,roof:'flat',front:'service'},
+  weapons:{...ALK_GEOMETRY.buildings.weapons,shell:0x414a55,trim:0x758b91,accent:0x72c5c9,roof:'flat',front:'vault'},
+  furnace:{...ALK_GEOMETRY.buildings.furnace,shell:0x5a5955,trim:0x899395,accent:0xe8934b,roof:'stack',front:'service'},
+  water:{...ALK_GEOMETRY.buildings.water,shell:0x8195a0,trim:0xb5c4c4,accent:0x67e1ee,roof:'tank',front:'service'},
 };
 
 /** Emit a closed industrial shell, visible façade bays and roof equipment.
@@ -101,7 +103,8 @@ export function createAlkBuilding(kit:ModelKit,asset:AlkAsset):Group {
   if(['barracks','fuel_depot','garage','shed'].includes(asset)){
     for(let i=0;i<9;i++){
       const x=-w*.48+(i%3)*.17,y=.35+Math.floor(i/3)*.38;
-      kit.part(g,'rock',i%2?0x668454:0x476a48,[.28,.32,.18],[x,y,front+.20]);
+      const foliage=kit.part(g,'rock',i%2?0x668454:0x476a48,[.28,.32,.18],[x,y,front+.20]);
+      kit.markFoliage(foliage,.025);
     }
   }
   // Collapse the many painted metal colors into one opaque draw per building.
@@ -122,7 +125,7 @@ export function createAlkBuilding(kit:ModelKit,asset:AlkAsset):Group {
 
 /** Two distinct defensive machines with a solid plinth and raised barrel. */
 export function createAlkTurret(kit:ModelKit,monument:boolean):Group {
-  const g=new Group(),platform=new Group(),head=new Group(),base=monument?2.8:1.25,body=monument?0x667c84:0x755443;
+  const g=new Group(),platform=new Group(),head=new Group(),base=ALK_GEOMETRY.turrets[monument?'monument':'player'].diameter,body=monument?0x667c84:0x755443;
   kit.part(platform,'cylinder',0x303c42,[base,.32,base],[0,.16,0]);
   kit.part(platform,'cylinder',0x87979a,[base*.77,.18,base*.77],[0,.41,0]);
   kit.part(head,'cylinder',body,[base*.55,.68,base*.55],[0,.78,0]);

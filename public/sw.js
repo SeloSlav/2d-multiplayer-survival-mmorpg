@@ -88,6 +88,9 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache or network
 self.addEventListener('fetch', (event) => {
+    // A worker from an earlier local session may still control this page until
+    // it reloads. Never cache or intercept development modules and Vite traffic.
+    if (!IS_PRODUCTION) return;
     const url = event.request.url;
     
     // Skip non-HTTP(S) schemes - Cache API only supports http/https

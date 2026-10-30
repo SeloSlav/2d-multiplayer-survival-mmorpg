@@ -258,7 +258,7 @@ pub fn process_grass_respawn_batch(ctx: &spacetimedb::ReducerContext, _schedule:
         }
         
         // Check for blockers before respawning
-        let mut blocked = false;
+        let mut blocked = crate::indoors::blocks_world_spawn(ctx, grass.pos_x, grass.pos_y);
         
         // Check trees
         for tree in trees.iter() {
@@ -495,6 +495,7 @@ pub fn spawn_grass_entity(
     sway_offset_seed: u32,
     sway_speed: f32,
 ) -> Result<u64, String> {
+    if crate::indoors::blocks_world_spawn(ctx, pos_x, pos_y) { return Err("Grass cannot spawn inside a building".into()); }
     let grass_table = ctx.db.grass();
     let grass_state_table = ctx.db.grass_state();
     

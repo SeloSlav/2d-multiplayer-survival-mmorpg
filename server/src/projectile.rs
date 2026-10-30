@@ -1,3 +1,4 @@
+use crate::alk::alk_station as AlkStationTableTrait;
 use spacetimedb::{table, reducer, SpacetimeType, Identity, Timestamp, ReducerContext, Table, TimeDuration, ScheduleAt};
 use std::f32::consts::PI;
 use rand::{Rng, SeedableRng};
@@ -308,19 +309,6 @@ fn first_flight_hit(ctx: &ReducerContext, projectile: &Projectile, start: crate:
                 (segment.ax, segment.ay), (segment.bx, segment.by), 8.0, 0.0, 130.0));
         }
     }
-    let (center_x, center_y) = crate::compound_buildings::get_world_center();
-    for building in crate::compound_buildings::COMPOUND_BUILDING_COLLISIONS {
-        let x = center_x + building.offset_x;
-        let y = center_y + building.offset_y;
-        let contact = if let Some((half_x, half_y, offset_y)) = building.aabb {
-            crate::projectile_geometry::box_surface_impact(start, end,
-                crate::projectile_geometry::Point3 { x: x - half_x, y: y + offset_y - half_y, height: 0.0 },
-                crate::projectile_geometry::Point3 { x: x + half_x, y: y + offset_y + half_y, height: 180.0 })
-        } else {
-            cylinder_impact(start, end, (x, y - building.collision_y_offset), building.collision_radius, 0.0, 180.0)
-        };
-        add(FlightHit::World, contact);
-    }
     macro_rules! circle { ($kind:expr, $id:expr, $x:expr, $y:expr, $radius:expr, $bottom:expr, $top:expr) => {
         add(FlightHit::Entity($kind, $id as u64), cylinder_impact(start, end, ($x, $y), $radius, $bottom, $top));
     }; }
@@ -356,9 +344,9 @@ fn first_flight_hit(ctx: &ReducerContext, projectile: &Projectile, start: crate:
         for item in ctx.db.wooden_storage_box().chunk_index().filter(*chunk) {
             if item.is_destroyed || item.box_type == crate::wooden_storage_box::BOX_TYPE_BACKPACK { continue; }
             if item.is_monument && [3, 5, 6].contains(&item.box_type) && crate::environment::is_position_in_central_compound(item.pos_x, item.pos_y) {
-                let min = crate::projectile_geometry::Point3 { x: item.pos_x - 175.0, y: item.pos_y - 120.0, height: 0.0 };
-                let max = crate::projectile_geometry::Point3 { x: item.pos_x + 175.0, y: item.pos_y + 40.0, height: 150.0 };
-                add(FlightHit::Entity("box", item.id as u64), crate::projectile_geometry::box_surface_impact(start, end, min, max));
+                let asset=match item.box_type {3=>"compost",5=>"weapons",_=>"food"};
+                let b=crate::collision_geometry::alk_building_bounds(asset,item.pos_x,item.pos_y).unwrap();
+                add(FlightHit::Entity("box", item.id as u64), alk_box_impact(start,end,b));
             } else {
                 let offset = match item.box_type { 11 | 12 => 82.0, 14..=17 => 48.0, _ => 50.0 };
                 circle!("box", item.id, item.pos_x, item.pos_y - offset, 28.0, 0.0, 45.0);
@@ -380,18 +368,30 @@ fn first_flight_hit(ctx: &ReducerContext, projectile: &Projectile, start: crate:
             if item.health != 0 { circle!("corpse", item.id, item.pos_x, item.pos_y - CORPSE_COLLISION_Y_OFFSET, 25.0, 0.0, 20.0); }
         }
         for item in ctx.db.rain_collector().chunk_index().filter(*chunk) {
-            if !item.is_destroyed { circle!("collector", item.id, item.pos_x, item.pos_y - RAIN_COLLECTOR_COLLISION_Y_OFFSET, 35.0, 0.0, 75.0); }
+            if !item.is_destroyed {
+                if item.is_monument && crate::environment::is_position_in_central_compound(item.pos_x,item.pos_y) {
+                    let b=crate::collision_geometry::alk_building_bounds("water",item.pos_x,item.pos_y).unwrap();
+                    add(FlightHit::Entity("collector",item.id as u64),alk_box_impact(start,end,b));
+                } else {circle!("collector", item.id, item.pos_x, item.pos_y - RAIN_COLLECTOR_COLLISION_Y_OFFSET, 35.0, 0.0, 75.0);}
+            }
         }
         for item in ctx.db.furnace().chunk_index().filter(*chunk) {
-            if !item.is_destroyed { circle!("furnace", item.id, item.pos_x, item.pos_y - FURNACE_COLLISION_Y_OFFSET, 40.0, 0.0, 70.0); }
+            if !item.is_destroyed {
+                if item.is_monument && item.furnace_type==1 && crate::environment::is_position_in_central_compound(item.pos_x,item.pos_y) {
+                    let b=crate::collision_geometry::alk_building_bounds("furnace",item.pos_x,item.pos_y).unwrap();
+                    add(FlightHit::Entity("furnace",item.id as u64),alk_box_impact(start,end,b));
+                } else {circle!("furnace", item.id, item.pos_x, item.pos_y - FURNACE_COLLISION_Y_OFFSET, 40.0, 0.0, 70.0);}
+            }
         }
         for item in ctx.db.lantern().chunk_index().filter(*chunk) {
             if !item.is_destroyed { circle!("lantern", item.id, item.pos_x, item.pos_y - 34.0, PROJECTILE_LANTERN_HIT_RADIUS, 0.0, 45.0); }
         }
         for item in ctx.db.homestead_hearth().chunk_index().filter(*chunk) { circle!("hearth", item.id, item.pos_x, item.pos_y - HEARTH_COLLISION_Y_OFFSET, 60.0, 0.0, 100.0); }
         for item in ctx.db.turret().chunk_index().filter(*chunk) {
-            if !item.is_destroyed { let radius = if item.is_monument { crate::turret::MONUMENT_TURRET_COLLISION_RADIUS } else { crate::turret::TURRET_COLLISION_RADIUS };
-                circle!("turret", item.id, item.pos_x, item.pos_y + if item.is_monument { 40.0 } else { 70.0 }, radius, 0.0, 85.0); }
+            if !item.is_destroyed {
+                let b=crate::collision_geometry::alk_turret_bounds(item.is_monument,item.pos_x,item.pos_y);
+                circle!("turret",item.id,b.x,b.y,b.half_width,0.0,b.height);
+            }
         }
         for item in ctx.db.barbecue().chunk_index().filter(*chunk) {
             if !item.is_destroyed { circle!("barbecue", item.id, item.pos_x, item.pos_y - BARBECUE_COLLISION_Y_OFFSET, BARBECUE_COLLISION_RADIUS + 8.0, 0.0, 55.0); }
@@ -404,6 +404,15 @@ fn first_flight_hit(ctx: &ReducerContext, projectile: &Projectile, start: crate:
             let (bottom, top) = animal_vertical_bounds(ctx, &animal);
             circle!("animal", animal.id, animal.pos_x, animal.pos_y, 32.0, bottom, top);
         }
+    }
+    for station in ctx.db.alk_station().iter().filter(|station| station.is_active) {
+        let b=crate::collision_geometry::alk_building_bounds(if station.station_id==0 {"central"} else {"station"},station.world_pos_x,station.world_pos_y).unwrap();
+        add(FlightHit::World,alk_box_impact(start,end,b));
+    }
+    let (cx,cy)=crate::compound_buildings::get_world_center();
+    for landmark in &crate::collision_geometry::COLLISION_GEOMETRY.alk.landmarks {
+        let b=crate::collision_geometry::alk_building_bounds(&landmark.asset,cx+landmark.offset_x,cy+landmark.offset_y).unwrap();
+        add(FlightHit::World,alk_box_impact(start,end,b));
     }
     for player in ctx.db.player().iter() {
         if player.identity == projectile.owner_id || player.is_dead { continue; }
@@ -429,6 +438,12 @@ fn first_flight_hit(ctx: &ReducerContext, projectile: &Projectile, start: crate:
     }
     if start.height > 0.0 && end.height <= 0.0 { add(FlightHit::Ground, Some(start.height / (start.height - end.height))); }
     best
+}
+
+fn alk_box_impact(start:crate::projectile_geometry::Point3,end:crate::projectile_geometry::Point3,b:crate::collision_geometry::AlkBounds) -> Option<f32> {
+    use crate::projectile_geometry::{Point3,box_surface_impact};
+    box_surface_impact(start,end,Point3{x:b.x-b.half_width,y:b.y-b.half_depth,height:0.0},
+        Point3{x:b.x+b.half_width,y:b.y+b.half_depth,height:b.height})
 }
 
 fn selected_impact(flight_3d: bool, x: f32, y: f32, legacy: Option<(f32, f32)>) -> Option<(f32, f32)> {
@@ -3055,12 +3070,9 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     }
                 }
 
-                let turret_hit_radius = if turret_entity.is_monument {
-                    crate::turret::MONUMENT_TURRET_COLLISION_RADIUS
-                } else {
-                    crate::turret::TURRET_COLLISION_RADIUS
-                };
-                let turret_hit_y = turret_entity.pos_y - crate::turret::TURRET_COLLISION_Y_OFFSET;
+                let turret_bounds=crate::collision_geometry::alk_turret_bounds(turret_entity.is_monument,turret_entity.pos_x,turret_entity.pos_y);
+                let turret_hit_radius=turret_bounds.half_width;
+                let turret_hit_y=turret_bounds.y;
 
                 if projectile.flight_3d || line_intersects_circle(
                     prev_x,
@@ -3491,7 +3503,8 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                              player_to_check.identity, current_x, current_y);
                     
                     // <<< SAFE ZONE CHECK - Players in safe zones are immune to NPC projectile damage >>>
-                    if crate::active_effects::player_has_safe_zone_effect(ctx, player_to_check.identity) {
+                    if crate::indoors::is_position_indoors(ctx, player_to_check.position_x, player_to_check.position_y)
+                        || crate::active_effects::player_has_safe_zone_effect(ctx, player_to_check.identity) {
                         log::info!("[NPC Projectile] Blocked - Target player {:?} is in a safe zone", 
                             player_to_check.identity);
                         projectiles_to_delete.push(projectile.id);

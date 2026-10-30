@@ -14,6 +14,7 @@
 
 use spacetimedb::{ReducerContext, Table};
 use std::collections::{HashSet, VecDeque};
+use crate::collision_geometry::{foundation_contains, foundation_edges, foundation_edge_key, foundation_perimeter};
 use crate::building::{
     foundation_cell as FoundationCellTableTrait,
     wall_cell as WallCellTableTrait,
@@ -29,8 +30,6 @@ use crate::models::BuildingEdge;
 /// 0.70 = 70% coverage allows for 30% door/window gaps
 pub const ENCLOSURE_THRESHOLD: f32 = 0.70;
 
-/// Maximum distance to search for adjacent foundations (in foundation cells)
-const ADJACENT_FOUNDATION_MAX_DISTANCE: i32 = 1;
 
 // --- Core Data Structures ---
 
@@ -80,8 +79,8 @@ pub fn is_position_inside_building(
     let cell_y = (world_y / FOUNDATION_TILE_SIZE_PX as f32).floor() as i32;
     
     // Find the foundation at this position (if any)
-    let foundation_opt = ctx.db.foundation_cell().iter()
-        .find(|f| !f.is_destroyed && f.cell_x == cell_x && f.cell_y == cell_y);
+    let foundation_opt = ctx.db.foundation_cell().idx_cell_coords().filter((cell_x, cell_y))
+        .find(|f| !f.is_destroyed && foundation_contains(f.shape, world_x / FOUNDATION_TILE_SIZE_PX as f32 - cell_x as f32, world_y / FOUNDATION_TILE_SIZE_PX as f32 - cell_y as f32));
     
     let foundation = match foundation_opt {
         Some(f) => f,
@@ -190,7 +189,7 @@ fn find_connected_foundations(
         cluster.push(current_foundation.clone());
         
         // Find all adjacent foundations and add them to the queue
-        for other_foundation in ctx.db.foundation_cell().iter() {
+        for dx in -1..=1 { for dy in -1..=1 { for other_foundation in ctx.db.foundation_cell().idx_cell_coords().filter((current_foundation.cell_x+dx, current_foundation.cell_y+dy)) {
             // Skip if already visited or destroyed
             if visited.contains(&other_foundation.id) || other_foundation.is_destroyed {
                 continue;
@@ -200,7 +199,7 @@ fn find_connected_foundations(
             if are_foundations_adjacent(&current_foundation, &other_foundation) {
                 to_visit.push_back(other_foundation.id);
             }
-        }
+        }}}
     }
     
     log::debug!(
@@ -214,14 +213,10 @@ fn find_connected_foundations(
 
 /// Checks if two foundations are adjacent (share an edge or are within 1 cell)
 fn are_foundations_adjacent(a: &FoundationCell, b: &FoundationCell) -> bool {
-    let dx = (a.cell_x - b.cell_x).abs();
-    let dy = (a.cell_y - b.cell_y).abs();
-    
-    // Foundations are adjacent if they are:
-    // - Horizontally adjacent (dx=1, dy=0)
-    // - Vertically adjacent (dx=0, dy=1)
-    // - Diagonally adjacent (dx=1, dy=1)
-    dx <= ADJACENT_FOUNDATION_MAX_DISTANCE && dy <= ADJACENT_FOUNDATION_MAX_DISTANCE && (dx + dy) > 0
+    foundation_edges(a.shape).iter().any(|&edge| {
+        let key=foundation_edge_key(a.cell_x,a.cell_y,a.shape,edge);
+        foundation_edges(b.shape).iter().any(|&other| key==foundation_edge_key(b.cell_x,b.cell_y,b.shape,other))
+    })
 }
 
 /// Calculates all perimeter edges of a building cluster
@@ -231,39 +226,10 @@ fn calculate_perimeter_edges(
     ctx: &ReducerContext,
     foundation_cluster: &[FoundationCell],
 ) -> Vec<PerimeterEdge> {
-    let mut perimeter_edges = Vec::new();
-    
-    // Create a set of all foundation cell coordinates for fast lookup
-    let foundation_coords: HashSet<(i32, i32)> = foundation_cluster
-        .iter()
-        .map(|f| (f.cell_x, f.cell_y))
-        .collect();
-    
-    // Check each foundation's edges
-    for foundation in foundation_cluster {
-        // Check each of the 4 cardinal edges (N, E, S, W)
-        for edge in [BuildingEdge::N, BuildingEdge::E, BuildingEdge::S, BuildingEdge::W] {
-            // Get the coordinates of the adjacent cell in this direction
-            let (adjacent_x, adjacent_y) = get_adjacent_cell_coords(foundation.cell_x, foundation.cell_y, edge);
-            
-            // If there's no foundation in that direction, this edge is on the perimeter
-            if !foundation_coords.contains(&(adjacent_x, adjacent_y)) {
-                perimeter_edges.push(PerimeterEdge {
-                    cell_x: foundation.cell_x,
-                    cell_y: foundation.cell_y,
-                    edge,
-                });
-            }
-        }
-    }
-    
-    log::debug!(
-        "[BuildingEnclosure] Calculated {} perimeter edges for {} foundations",
-        perimeter_edges.len(),
-        foundation_cluster.len()
-    );
-    
-    perimeter_edges
+    let cells:Vec<_>=foundation_cluster.iter().map(|f|(f.cell_x,f.cell_y,f.shape)).collect();
+    foundation_perimeter(&cells).into_iter().map(|(cell_x,cell_y,edge)|PerimeterEdge {
+        cell_x,cell_y,edge:match edge {0=>BuildingEdge::N,1=>BuildingEdge::E,2=>BuildingEdge::S,3=>BuildingEdge::W,4=>BuildingEdge::DiagNE_SW,_=>BuildingEdge::DiagNW_SE}
+    }).collect()
 }
 
 /// Gets the cell coordinates of the adjacent cell in a given direction
@@ -339,8 +305,8 @@ pub fn get_enclosure_info(
     let cell_x = (world_x / FOUNDATION_TILE_SIZE_PX as f32).floor() as i32;
     let cell_y = (world_y / FOUNDATION_TILE_SIZE_PX as f32).floor() as i32;
     
-    let foundation = ctx.db.foundation_cell().iter()
-        .find(|f| !f.is_destroyed && f.cell_x == cell_x && f.cell_y == cell_y)?;
+    let foundation = ctx.db.foundation_cell().idx_cell_coords().filter((cell_x,cell_y))
+        .find(|f| !f.is_destroyed && foundation_contains(f.shape,world_x / FOUNDATION_TILE_SIZE_PX as f32-cell_x as f32,world_y / FOUNDATION_TILE_SIZE_PX as f32-cell_y as f32))?;
     
     Some(analyze_building_enclosure(ctx, foundation.id))
 }

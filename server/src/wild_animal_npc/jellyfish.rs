@@ -212,6 +212,7 @@ impl JellyfishBehavior {
                 if p.is_dead {
                     return false;
                 }
+                if crate::indoors::is_position_indoors(ctx, p.position_x, p.position_y) { return false; }
                 // Player must be in sea water to get shocked (wading, swimming, snorkeling - all count)
                 if !is_position_on_water(ctx, p.position_x, p.position_y) {
                     return false;

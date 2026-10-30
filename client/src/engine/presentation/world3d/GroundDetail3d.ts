@@ -1,8 +1,7 @@
-import { BufferGeometry, Color, ConeGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, IcosahedronGeometry, InstancedBufferAttribute, InstancedMesh, MeshStandardNodeMaterial, Object3D } from 'three/webgpu';
-import { attribute, positionLocal, sin, uniform, vec3 } from 'three/tsl';
+import { BufferGeometry, Color, ConeGeometry, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, IcosahedronGeometry, InstancedMesh, MeshStandardNodeMaterial, Object3D } from 'three/webgpu';
 import { GROUND_Y_SCALE, seedFromId, seededRandom, WORLD_3D, worldToScene } from './visualContract';
 import type { TerrainTile } from './terrainField';
-import { GRASS_SWAY_BY_WEATHER, BEACH_GRASS_SPEED_BY_WEATHER, DEFAULT_GRASS_SWAY, DEFAULT_BEACH_GRASS_SPEED } from '../grassWindWeather';
+import { VegetationWind3d, attachVegetationWeights } from './VegetationWind3d';
 
 interface Grass { currentRenderPosX: number; currentRenderPosY: number; appearanceType?: {tag?: string}; chunkIndex?: number; swaySpeed?: number; swayOffsetSeed?: number }
 const LIMIT = 16000;
@@ -59,35 +58,38 @@ function tallGrassGeometry(): BufferGeometry {
 /** Terrain-anchored detail. Grass is authoritative; decorative scatter is deterministic. */
 export class GroundDetail3d {
   readonly root = new Group();
-  private readonly clock = uniform(0);
-  private readonly wind = uniform(1);
+  readonly windSystem:VegetationWind3d;
+  private readonly ownsWind:boolean;
   private readonly grassGeometry = grassGeometry();
   private readonly tallGrassGeometry = tallGrassGeometry();
-  private readonly grassWind = new InstancedBufferAttribute(new Float32Array(LIMIT * 3), 3);
-  private readonly tallGrassWind = new InstancedBufferAttribute(new Float32Array(LIMIT * 3), 3);
-  private readonly grassMaterial = new MeshStandardNodeMaterial({color:0xffffff, vertexColors:true, side:DoubleSide, roughness:1});
-  private readonly grass = new InstancedMesh(this.grassGeometry,this.grassMaterial,LIMIT);
-  private readonly tallGrass = new InstancedMesh(this.tallGrassGeometry,this.grassMaterial,LIMIT);
+  private readonly grassMaterial;
+  private readonly grass:InstancedMesh;
+  private readonly tallGrass:InstancedMesh;
   private readonly rockGeometry = new IcosahedronGeometry(1,0);
   private readonly twigGeometry = new CylinderGeometry(.025,.035,1,5);
   private readonly shellGeometry = new ConeGeometry(1,1,6);
   private readonly scatterMaterial = new MeshStandardNodeMaterial({color:0xffffff,roughness:1,flatShading:true});
   private readonly rocks = new InstancedMesh(this.rockGeometry,this.scatterMaterial,LIMIT);
-  private readonly bushes = new InstancedMesh(this.rockGeometry,this.scatterMaterial,LIMIT);
+  private readonly bushGeometry=this.rockGeometry.clone();
+  private readonly bushMaterial;
+  private readonly bushes:InstancedMesh;
   private readonly twigs = new InstancedMesh(this.twigGeometry,this.scatterMaterial,LIMIT);
   private readonly shells = new InstancedMesh(this.shellGeometry,this.scatterMaterial,LIMIT);
   private readonly helper = new Object3D();
   private readonly color = new Color();
   private grassSignature: string | null = null;
-  private grassPhases = new Map<string, { frequency: number; phase: number; seed: number }>();
-  constructor() {
+  constructor(windSystem?:VegetationWind3d) {
+    this.ownsWind=!windSystem;this.windSystem=windSystem??new VegetationWind3d();
     this.root.name = 'terrain-ground-detail';
-    this.grassGeometry.setAttribute('grassWind', this.grassWind); this.tallGrassGeometry.setAttribute('grassWind', this.tallGrassWind);
-    const motion = attribute('grassWind', 'vec3');
-    // Height-weighted bend keeps roots planted and remains visible on the
-    // small, pixel-scaled grass patches even during clear weather.
-    const sway = sin(this.clock.mul(motion.y).add(motion.z)).mul(positionLocal.y).mul(.22).mul(motion.x.mul(.6).add(.4)).mul(this.wind);
-    this.grassMaterial.positionNode = positionLocal.add(vec3(sway,0,0));
+    attachVegetationWeights(this.grassGeometry,.42*.32);
+    attachVegetationWeights(this.tallGrassGeometry,2.5*.32);
+    attachVegetationWeights(this.bushGeometry,.12);
+    this.bushGeometry.setAttribute('color',new Float32BufferAttribute(new Float32Array(this.bushGeometry.getAttribute('position').count*3).fill(1),3));
+    this.grassMaterial=this.windSystem.createMaterial({vertexColors:true,side:DoubleSide,roughness:1},1.15);
+    this.bushMaterial=this.windSystem.createMaterial({vertexColors:true,roughness:1},1.05);
+    this.grass=new InstancedMesh(this.grassGeometry,this.grassMaterial,LIMIT);
+    this.tallGrass=new InstancedMesh(this.tallGrassGeometry,this.grassMaterial,LIMIT);
+    this.bushes=new InstancedMesh(this.bushGeometry,this.bushMaterial,LIMIT);
     for(const mesh of [this.grass,this.tallGrass,this.bushes,this.rocks,this.twigs,this.shells]) { mesh.setColorAt(0, this.color.setHex(0xffffff)); mesh.count=0; mesh.frustumCulled=false; mesh.receiveShadow=true; this.root.add(mesh); }
     this.grass.name='gameplay-grass'; this.tallGrass.name='gameplay-tall-grass'; this.bushes.name='gameplay-bushes'; this.rocks.name='terrain-pebbles'; this.twigs.name='terrain-twigs'; this.shells.name='beach-shells';
   }
@@ -107,19 +109,14 @@ export class GroundDetail3d {
     this.grassSignature=null;
   }
   update(grass: unknown, kinds: Map<string,string>, time: number, animated: boolean, floorAt: (x:number,y:number)=>number, chunkWeather?: unknown, worldWeather?: unknown): void {
-    this.clock.value=time; this.wind.value=Number(animated);
+    if(this.ownsWind)this.windSystem.update(time,chunkWeather,{currentWeather:worldWeather});
+    this.windSystem.setEnabled(animated);
     const entries=grass instanceof Map ? [...grass.entries()] as [string,Grass][] : [];
     // Include the floor result so construction and removal update coverage immediately.
     let signature='';
-    const weatherTag = (g: Grass): string => {
-      const row = chunkWeather instanceof Map ? chunkWeather.get(String(g.chunkIndex)) : undefined;
-      const weather = row?.currentWeather ?? (!(chunkWeather instanceof Map) ? worldWeather : undefined);
-      return typeof weather === 'string' ? weather : weather?.tag ?? 'Clear';
-    };
-    for(const [id,g] of entries) signature+=`${id}:${g.currentRenderPosX},${g.currentRenderPosY},${g.appearanceType?.tag},${floorAt(g.currentRenderPosX,g.currentRenderPosY)},${weatherTag(g)},${g.swaySpeed},${g.swayOffsetSeed};`;
+    for(const [id,g] of entries) signature+=`${id}:${g.currentRenderPosX},${g.currentRenderPosY},${g.appearanceType?.tag},${floorAt(g.currentRenderPosX,g.currentRenderPosY)};`;
     if(signature===this.grassSignature)return; this.grassSignature=signature;
     let count=0, tallCount=0, bushes=0;
-    const nextPhases = new Map<string, { frequency: number; phase: number; seed: number }>();
     for(const [id,g] of entries) {
       const x=g.currentRenderPosX,y=g.currentRenderPosY; if(!Number.isFinite(x)||!Number.isFinite(y)||floorAt(x,y)>0)continue;
       const terrain=kinds.get(`${Math.floor(x/48)},${Math.floor(y/48)}`); if(!terrain || ['Sea','DeepSea','HotSpringWater'].includes(terrain))continue;
@@ -135,21 +132,10 @@ export class GroundDetail3d {
       this.helper.position.set(p.x,.015,p.z);this.helper.rotation.set(0,random()*Math.PI*2,0);
       const scale=tall?.95+random()*.2:.7+random()*.45;this.helper.scale.set(scale,scale,scale*GROUND_Y_SCALE*.7);this.helper.updateMatrix();
       mesh.setMatrixAt(index,this.helper.matrix);mesh.setColorAt(index,this.color.setHex(PALETTES[palette]??PALETTES.Grass).multiplyScalar(.9+random()*.2));
-      const weather = weatherTag(g), sway = GRASS_SWAY_BY_WEATHER[weather] ?? DEFAULT_GRASS_SWAY;
-      const beach = appearance.includes('Beach');
-      const speed = beach ? 9.5 / 8 * (BEACH_GRASS_SPEED_BY_WEATHER[weather] ?? DEFAULT_BEACH_GRASS_SPEED)
-        : Number.isFinite(g.swaySpeed) ? Math.max(0, g.swaySpeed!) : .1;
-      const seed = Number.isFinite(g.swayOffsetSeed) ? g.swayOffsetSeed! : seedFromId(id);
-      const frequency = speed * Math.PI * 2, previous = this.grassPhases.get(id);
-      // Keep a beach clump's blade position continuous as weather changes its speed.
-      const phase = previous?.seed === seed ? previous.phase + (previous.frequency - frequency) * time : (Math.abs(seed) % 1000) / 1000 * Math.PI;
-      nextPhases.set(id,{frequency,phase,seed});
-      (tall?this.tallGrassWind:this.grassWind).setXYZ(index,sway,frequency,phase);
+
     }
     for(const mesh of [this.grass,this.tallGrass]) { mesh.count=Math.min(LIMIT,mesh===this.grass?count:tallCount);mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true; }
-    this.grassWind.needsUpdate=true; this.tallGrassWind.needsUpdate=true;
-    this.grassPhases = nextPhases;
     this.bushes.count=bushes;this.bushes.instanceMatrix.needsUpdate=true;if(this.bushes.instanceColor)this.bushes.instanceColor.needsUpdate=true;
   }
-  dispose(): void { for(const mesh of [this.grass,this.tallGrass,this.bushes,this.rocks,this.twigs,this.shells])mesh.dispose(); this.grassGeometry.dispose();this.tallGrassGeometry.dispose();this.rockGeometry.dispose();this.twigGeometry.dispose();this.shellGeometry.dispose();this.grassMaterial.dispose();this.scatterMaterial.dispose();this.root.clear(); }
+  dispose(): void { for(const mesh of [this.grass,this.tallGrass,this.bushes,this.rocks,this.twigs,this.shells])mesh.dispose(); this.grassGeometry.dispose();this.tallGrassGeometry.dispose();this.rockGeometry.dispose();this.twigGeometry.dispose();this.shellGeometry.dispose();this.windSystem.releaseMaterial(this.grassMaterial);this.windSystem.releaseMaterial(this.bushMaterial);if(this.ownsWind)this.windSystem.dispose();this.bushGeometry.dispose();this.scatterMaterial.dispose();this.root.clear(); }
 }

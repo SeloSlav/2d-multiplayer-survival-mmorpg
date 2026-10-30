@@ -1,7 +1,6 @@
 import type { DbConnection } from '../../generated';
 import type {
   AnimalCorpse,
-  Barrel,
   GrassState,
   PlacedExplosive,
   PlayerDiscoveredCairn,
@@ -16,12 +15,11 @@ import { triggerAnimalCorpseDestructionEffect } from '../../utils/renderers/anim
 import { triggerBarrelDestructionEffect } from '../../utils/renderers/barrelRenderingUtils';
 import { isLiveDetonation, recordWorldExplosion, recordWorldGrassCut } from '../presentation/world3d/presentationEffectEvents';
 import { bindGrassCutEvents } from './grassCutEventRuntime';
+import { bindBarrelBreakEvents } from './barrelBreakEventRuntime';
 
 type CairnInsertListener = (ctx: unknown, discovery: PlayerDiscoveredCairn) => void;
 type PlacedExplosiveDeleteListener = (ctx: unknown, explosive: PlacedExplosive) => void;
 type AnimalCorpseDeleteListener = (ctx: unknown, corpse: AnimalCorpse) => void;
-type BarrelUpdateListener = (ctx: unknown, oldBarrel: Barrel, newBarrel: Barrel) => void;
-type BarrelDeleteListener = (ctx: unknown, barrel: Barrel) => void;
 type WildAnimalInsertListener = (ctx: unknown, animal: WildAnimal) => void;
 type ImmediateSoundPlayer = (soundType: 'cairn_unlock', volume?: number) => void;
 
@@ -36,8 +34,7 @@ class GameplayEventEffectsRuntime {
   private cairnInsertListener: CairnInsertListener | null = null;
   private placedExplosiveDeleteListener: PlacedExplosiveDeleteListener | null = null;
   private animalCorpseDeleteListener: AnimalCorpseDeleteListener | null = null;
-  private barrelUpdateListener: BarrelUpdateListener | null = null;
-  private barrelDeleteListener: BarrelDeleteListener | null = null;
+  private detachBarrelBreakEvents: (() => void) | null = null;
   private wildAnimalInsertListener: WildAnimalInsertListener | null = null;
 
   start(
@@ -67,6 +64,7 @@ class GameplayEventEffectsRuntime {
     }
 
     if (!this.detachGrassCutEvents) this.detachGrassCutEvents = bindGrassCutEvents(this.activeConnection, state => this.grassDestroyed(state));
+    if (!this.detachBarrelBreakEvents) this.detachBarrelBreakEvents = bindBarrelBreakEvents(this.activeConnection, triggerBarrelDestructionEffect);
 
     if (!this.cairnInsertListener) {
       this.cairnInsertListener = (_ctx, discovery) => {
@@ -114,26 +112,6 @@ class GameplayEventEffectsRuntime {
         }
       };
       this.activeConnection.db.animal_corpse.onDelete(this.animalCorpseDeleteListener);
-    }
-
-    if (!this.barrelUpdateListener) {
-      this.barrelUpdateListener = (_ctx, oldBarrel, newBarrel) => {
-        const wasHealthy = (oldBarrel.respawnAt?.microsSinceUnixEpoch ?? 0n) === 0n;
-        const isDestroyed = (newBarrel.respawnAt?.microsSinceUnixEpoch ?? 0n) !== 0n;
-        if (wasHealthy && isDestroyed && (newBarrel.variant ?? 0) !== 6) {
-          triggerBarrelDestructionEffect(newBarrel);
-        }
-      };
-      this.activeConnection.db.barrel.onUpdate(this.barrelUpdateListener);
-    }
-
-    if (!this.barrelDeleteListener) {
-      this.barrelDeleteListener = (_ctx, barrel) => {
-        if ((barrel.variant ?? 0) !== 6) {
-          triggerBarrelDestructionEffect(barrel);
-        }
-      };
-      this.activeConnection.db.barrel.onDelete(this.barrelDeleteListener);
     }
 
     if (!this.wildAnimalInsertListener) {
@@ -192,15 +170,7 @@ class GameplayEventEffectsRuntime {
       this.animalCorpseDeleteListener = null;
     }
 
-    if (this.barrelUpdateListener) {
-      this.activeConnection.db.barrel.removeOnUpdate(this.barrelUpdateListener);
-      this.barrelUpdateListener = null;
-    }
-
-    if (this.barrelDeleteListener) {
-      this.activeConnection.db.barrel.removeOnDelete(this.barrelDeleteListener);
-      this.barrelDeleteListener = null;
-    }
+    if (this.detachBarrelBreakEvents) { this.detachBarrelBreakEvents(); this.detachBarrelBreakEvents = null; }
 
     if (this.wildAnimalInsertListener) {
       this.activeConnection.db.wild_animal.removeOnInsert(this.wildAnimalInsertListener);

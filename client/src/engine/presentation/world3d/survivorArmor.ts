@@ -1,5 +1,6 @@
 import { Group } from 'three/webgpu';
 import { ModelKit } from './modelKit';
+import type { SurvivorClothing } from './survivorAppearance';
 
 export const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet', 'back'] as const;
 export type ArmorSlot = typeof ARMOR_SLOTS[number];
@@ -50,7 +51,7 @@ export class SurvivorArmor {
   private readonly anchors: Record<ArmorSlot, Group[]>;
   private readonly current: WornArmor = {};
   private readonly cache = new Map<string, Group[]>();
-  constructor(private readonly kit: ModelKit, parts: { head: Group; torso: Group; arms: Group[]; hands: Group[]; legs: Group[]; knees: Group[] }, private readonly skirt: Group) {
+  constructor(private readonly kit: ModelKit, parts: { head: Group; torso: Group; arms: Group[]; hands: Group[]; legs: Group[]; knees: Group[] }, private readonly skirt: Group, private readonly clothing: SurvivorClothing) {
     this.anchors = { head: [parts.head], chest: [parts.torso, ...parts.arms], legs: [...parts.legs, ...parts.knees], hands: parts.hands, feet: parts.knees, back: [parts.torso] };
   }
 
@@ -68,6 +69,18 @@ export class SurvivorArmor {
       pieces.forEach((group, index) => this.anchors[slot][index].add(group));
     }
     this.skirt.visible = !worn.legs;
+    // The headlamp is an accessory over the kerchief. Full helmets/hoods
+    // replace it; chest and back gear take precedence over loose cloth/bags.
+    this.clothing.headwear.visible = !worn.head || worn.head === 'Headlamp';
+    this.clothing.scarfTie.visible = this.clothing.headwear.visible && !worn.chest;
+    this.clothing.face.visible = worn.head !== "Reed Diver's Helm";
+    this.clothing.collar.visible = this.clothing.headwear.visible && !worn.chest;
+    this.clothing.apron.visible = !worn.chest;
+    this.clothing.satchel.visible = !worn.back;
+    this.clothing.vest.visible = !worn.chest;
+    this.clothing.belt.visible = !worn.chest;
+    this.clothing.boots.forEach(boot => { boot.visible = !worn.feet; });
+    this.clothing.hands.forEach(hand => { hand.visible = !worn.hands; });
   }
 
   private create(slot: ArmorSlot, name: string): Group[] {
