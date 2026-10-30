@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Box3, Group, Matrix4, Mesh, OrthographicCamera, Scene, Vector3 } from 'three/webgpu';
 import { ModelKit } from '../client/src/engine/presentation/world3d/modelKit.ts';
 import { SurvivorRig } from '../client/src/engine/presentation/world3d/survivor.ts';
+import { ARMOR_CATALOG, ARMOR_SLOTS, resolveWornArmor } from '../client/src/engine/presentation/world3d/survivorArmor.ts';
 import { bowNockZ } from '../client/src/engine/presentation/world3d/weaponModels.ts';
 import { AnimalRig } from '../client/src/engine/presentation/world3d/animalRigs.ts';
 import { createTree } from '../client/src/engine/presentation/world3d/treeModels.ts';
@@ -24,6 +25,60 @@ import { WORLD_3D, worldToScene } from '../client/src/engine/presentation/world3
 
 const rest = { speed: 0, sprinting: false, crouching: false, swimming: false, dead: false, jump: 0, roll: 0, attack: 0, yaw: 0, weapon: '' };
 const stamp = ms => ({ microsSinceUnixEpoch: BigInt(ms) * 1000n });
+
+test('worn armor resolves instance IDs and changes articulated equipment independently', () => {
+  const kit = new ModelKit(), rig = new SurvivorRig(kit), other = new SurvivorRig(kit);
+  const equipment = { headItemInstanceId: 101n, chestItemInstanceId: 102n, legsItemInstanceId: 103n };
+  const inventory = new Map([['101',{itemDefId: 201n}],['102',{itemDefId: 202n}],['103',{itemDefId: 203n}]]);
+  const definitions = new Map([['201',{name:'Bone Helmet'}],['202',{name:'Fox Fur Coat'}],['203',{name:'Leather Leggings'}]]);
+  assert.deepEqual(resolveWornArmor(equipment, inventory, definitions), {head:'Bone Helmet',chest:'Fox Fur Coat',legs:'Leather Leggings'});
+  assert.deepEqual(resolveWornArmor(equipment, new Map(), definitions), {}, 'late inventory rows are handled safely');
+  const armor = resolveWornArmor(equipment, inventory, definitions);
+  rig.update({...rest, armor, weapon:'Stone Hatchet', attack:.5}, .016, 1);
+  assert.equal(rig.root.getObjectByName('armor-head-0').userData.armorName, 'Bone Helmet');
+  assert.equal(rig.root.getObjectByName('armor-chest-1').parent.name, 'left-upper-arm');
+  assert.equal(rig.root.getObjectByName('armor-legs-2').parent.name, 'left-knee');
+  assert.equal(rig.root.getObjectByName('survivor-skirt').visible, false);
+  assert.equal(other.root.getObjectByName('armor-head-0'), undefined, 'other players do not inherit equipment');
+  rig.update({...rest, armor:{chest:'Cloth Shirt'}}, .016, 2);
+  assert.equal(rig.root.getObjectByName('armor-head-0'), undefined);
+  assert.equal(rig.root.getObjectByName('armor-chest-0').userData.armorName, 'Cloth Shirt');
+  assert.equal(rig.root.getObjectByName('survivor-skirt').visible, true);
+  rig.update(rest, .016, 3);
+  assert.equal(rig.root.getObjectByName('armor-chest-0'), undefined);
+  kit.dispose();
+});
+
+test('every previewed armor item produces finite articulated geometry', () => {
+  const kit = new ModelKit(), rig = new SurvivorRig(kit);
+  for (const slot of ARMOR_SLOTS) for (const name of ARMOR_CATALOG[slot]) {
+    rig.update({...rest, armor:{[slot]:name}}, .016, 1);
+    const part = rig.root.getObjectByName(`armor-${slot}-0`);
+    assert.equal(part?.userData.armorName, name);
+    let meshes=0; part.traverse(o=>{ if (o instanceof Mesh) { meshes++; assert.ok([...o.geometry.attributes.position.array].every(Number.isFinite)); } });
+    assert.ok(meshes>0, `${name} has visible geometry`);
+  }
+  kit.dispose();
+});
+
+test('the world renderer updates local and remote armor as equipment rows arrive and change', async () => {
+  const renderer = new WebGpuWorldRenderer({dataset:{},style:{}});
+  const frame = {width:1280,height:720,cameraOffset:{x:0,y:0},localPlayerId:'local',nowMs:100000,tables:{
+    players:new Map([['local',{positionX:400,positionY:400}],['remote',{positionX:460,positionY:400}]]),
+    activeEquipments:new Map([['local',{headItemInstanceId:11n}],['remote',{chestItemInstanceId:12n}]]),
+    inventoryItems:new Map(),itemDefinitions:new Map([['21',{name:'Bone Helmet'}],['22',{name:'Wolf Fur Coat'}]])}};
+  const sync=()=>renderer.syncTable('players',frame,.016,1,new Set(),[]);
+  sync();
+  const local=renderer.visuals.get('players:local').survivor.root, remote=renderer.visuals.get('players:remote').survivor.root;
+  assert.equal(local.getObjectByName('armor-head-0'),undefined);
+  frame.tables.inventoryItems.set('11',{itemDefId:21n}); frame.tables.inventoryItems.set('12',{itemDefId:22n}); sync();
+  assert.equal(local.getObjectByName('armor-head-0').userData.armorName,'Bone Helmet');
+  assert.equal(remote.getObjectByName('armor-chest-0').userData.armorName,'Wolf Fur Coat');
+  frame.tables.activeEquipments.get('local').headItemInstanceId=undefined; sync();
+  assert.equal(local.getObjectByName('armor-head-0'),undefined);
+  assert.ok(remote.getObjectByName('armor-chest-0'));
+  await renderer.dispose();
+});
 
 test('weapon and combat tool eligibility preserves reserved right-click actions', () => {
   assert.equal(isThrowableMelee({ name: 'Stone Spear', category: { tag: 'Weapon' } }), true);

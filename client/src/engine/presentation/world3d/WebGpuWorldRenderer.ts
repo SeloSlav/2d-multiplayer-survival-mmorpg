@@ -45,6 +45,7 @@ import { createTerrainGround, terrainGeometry } from './terrainGround';
 import { TerrainBuildQueue } from './TerrainBuildQueue';
 import { PipelineWarmup3d } from './PipelineWarmup3d';
 import { ShelterRig, ShelterVisibility, shelterOwnerInside } from './shelterModels';
+import { resolveWornArmor } from './survivorArmor';
 import { createDroppedModel, droppedModelCacheKey } from './droppedModels';
 import { VillageRig, createVillageModel } from './villageModels';
 import { villageAsset, villageCullMargin } from './villagePlans';
@@ -750,6 +751,8 @@ export class WebGpuWorldRenderer {
           throwAiming: Boolean(row.isAimingThrow && isThrowableMelee(item)),
           throwRelease: throwAge >= 0 && throwAge < 400 ? throwAge / 400 : undefined,
           yaw: playerCorpse ? visual.corpseYaw ?? 0 : yaw(isLocal ? frame.facing ?? row.direction ?? '' : row.direction ?? ''), weapon,
+          armor: playerCorpse ? undefined : resolveWornArmor(equipment, frame.tables.inventoryItems instanceof Map ? frame.tables.inventoryItems : undefined,
+            definitions instanceof Map ? definitions : undefined),
           torchLit: Boolean(row.isTorchLit && !row.isSnorkeling), loaded: Boolean(equipment?.loadedAmmoCount && equipment?.isReadyToFire),
           shotAge, reloadProgress: reload, reloading: reload !== undefined,
           bowDraw: reload ?? (equipment?.isReadyToFire && equipment?.loadedAmmoCount ? 1 : 0),

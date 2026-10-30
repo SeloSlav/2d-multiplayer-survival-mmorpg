@@ -6,6 +6,8 @@ import { ARM_SEGMENT_LENGTH, ArmPoseSolver } from './armPose';
 import { restingWeaponPitch } from './weaponCarry';
 import { bowDrawPhase, clamp01, recoilEnvelope, reloadHandPhase, smoothPhase } from './actorAnimation';
 import type { InteractionPose } from './actorAnimation';
+import { SurvivorArmor } from './survivorArmor';
+import type { WornArmor } from './survivorArmor';
 
 const UP = new Vector3(0, 1, 0);
 
@@ -34,6 +36,7 @@ export interface SurvivorPose {
   downAge?: number;
   jumpAge?: number;
   interaction?: InteractionPose;
+  armor?: WornArmor;
 }
 
 /** Articulated solid-mesh survivor. Every limb rotates around its anatomical root. */
@@ -95,6 +98,7 @@ export class SurvivorRig {
   private readonly actionRest = new Vector3();
   private readonly actionOrientation = new Quaternion();
   private readonly actionProps = new Group();
+  private readonly armor: SurvivorArmor;
   private wasDown = false;
   private lifeInitialized = false;
   private recoveryAt = -Infinity;
@@ -123,9 +127,10 @@ export class SurvivorRig {
     this.torso.name = 'survivor-torso';
     this.body.add(this.torso, this.leftLeg, this.rightLeg); this.torso.add(this.head, this.leftArm, this.rightArm);
     part(this.torso, 'rock', coat, [0.64, 0.7, 0.4], [0, 1.02, 0]);
-    part(this.body, 'skirt', coat, [0.75, 0.42, 0.59], [0, 0.63, 0]);
+    const skirt = new Group(); skirt.name = 'survivor-skirt'; this.body.add(skirt);
+    part(skirt, 'skirt', coat, [0.75, 0.42, 0.59], [0, 0.63, 0]);
     part(this.torso, 'box', C.apron, [0.36, 0.39, 0.045], [0, 0.93, 0.193]);
-    part(this.body, 'box', C.apron, [0.45, 0.24, 0.045], [0, 0.64, 0.23]);
+    part(skirt, 'box', C.apron, [0.45, 0.24, 0.045], [0, 0.64, 0.23]);
     part(this.body, 'box', C.leather, [0.49, 0.055, 0.34], [0, 0.77, 0.01]);
     part(this.body, 'box', C.woodDark, [0.22, 0.23, 0.14], [0.18, 0.77, -0.2]);
     this.head.position.y = 1.36;
@@ -192,9 +197,13 @@ export class SurvivorRig {
       const fixed = new Group(); solids.forEach(object => fixed.add(object));
       group.add(kit.compileShared(fixed, `survivor:${coat}:${index}`));
     });
+    this.armor = new SurvivorArmor(kit, { head: this.head, torso: this.torso,
+      arms: [this.leftArm, this.rightArm], hands: [this.leftHand, this.rightHand],
+      legs: [this.leftLeg, this.rightLeg], knees: [this.leftKnee, this.rightKnee] }, skirt);
   }
 
   update(pose: SurvivorPose, dt: number, time: number): void {
+    this.armor.update(pose.armor);
     const down = pose.dead || pose.knockedOut === true;
     const shotAge = pose.shotAge ?? Infinity;
     if (this.lifeInitialized && this.wasDown && !down) this.recoveryAt = time;

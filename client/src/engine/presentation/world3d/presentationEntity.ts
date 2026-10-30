@@ -29,6 +29,9 @@ export interface PresentationEntity {
   startedAt?: { microsSinceUnixEpoch: bigint }; endsAt?: { microsSinceUnixEpoch: bigint };
   castTime?: { microsSinceUnixEpoch: bigint }; targetX?: number; targetY?: number; fishingRod?: string; hasBite?: boolean;
   equippedItemDefId?: bigint | number; iconAssetName?: string; name?: string;
+  headItemInstanceId?: bigint | number | null; chestItemInstanceId?: bigint | number | null;
+  legsItemInstanceId?: bigint | number | null; handsItemInstanceId?: bigint | number | null;
+  feetItemInstanceId?: bigint | number | null; backItemInstanceId?: bigint | number | null;
   swingStartTimeMs?: bigint | number; jumpStartTimeMs?: bigint | number;
   loadedAmmoCount?: number; isReadyToFire?: boolean; reloadStartTimeMs?: bigint | number;
   attackIntervalSecs?: number;

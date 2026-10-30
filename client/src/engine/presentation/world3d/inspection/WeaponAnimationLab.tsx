@@ -10,6 +10,8 @@ import { recordPredictedRangedShot } from '../actorAnimation';
 import type { InteractionKind } from '../actorAnimation';
 import { WEAPON_MODELS } from '../weaponModels';
 import type { WeaponName } from '../weaponModels';
+import { ARMOR_CATALOG, ARMOR_SLOTS } from '../survivorArmor';
+import type { WornArmor } from '../survivorArmor';
 import './EngineLab.css';
 
 const ACTIONS = ['idle', 'gather', 'eat', 'drink', 'bandage', 'fish-cast', 'fish-reel', 'knockdown', 'recover', 'death', 'walk', 'sprint', 'snow-steps', 'jump', 'enter-water', 'animal-idle', 'animal-alert', 'animal-attack', 'projectiles', 'explosive-fuse', 'explosion', 'player-corpse'];
@@ -22,6 +24,7 @@ const weaponActions = (name: string): WeaponAction[] => {
 };
 const labels: Record<WeaponAction, string> = { idle: 'Idle', attack: 'Attack', shoot: 'Shoot', reload: 'Reload', draw: 'Draw', throw: 'Throw', 'throw-break': 'Throw and break' };
 const SCENES: InspectionScene[] = ['equipment', 'world', 'trees-1', 'trees-2', 'plants-crops', 'plants-herbs', 'wildlife-1', 'wildlife-2', 'terrain'];
+const ARMOR_SETS = ['Cloth', 'Bone', 'Wooden', 'Leather', 'Scale', 'Fox Fur', 'Wolf Fur'];
 const timestamp = (ms: number) => ({ microsSinceUnixEpoch: BigInt(Math.floor(ms)) * 1000n });
 
 /** Independent development entry. Every mesh, pose and effect comes from the
@@ -43,9 +46,14 @@ export default function AnimationLab() {
   const [seed, setSeed] = useState(Number(query.get('seed') ?? 73021));
   const [storm, setStorm] = useState(query.has('storm'));
   const [view, setView] = useState<VisualDebugMode>('lit');
+  const [armorSet, setArmorSet] = useState(ARMOR_SETS.includes(query.get('armor') ?? '') ? query.get('armor')! : '__custom');
+  const [armor, setArmor] = useState<WornArmor>(() => {
+    const set = query.get('armor') ?? '';
+    return Object.fromEntries(ARMOR_SLOTS.map(slot => [slot, ARMOR_CATALOG[slot].find(name => name.startsWith(`${set} `)) ?? '']));
+  });
   const [metrics, setMetrics] = useState('');
-  const settings = useRef({ action, weapon, weaponAction, fixed, frameMs, zoom, storm, view });
-  settings.current = { action, weapon, weaponAction, fixed, frameMs, zoom, storm, view };
+  const settings = useRef({ action, weapon, weaponAction, fixed, frameMs, zoom, storm, view, armor });
+  settings.current = { action, weapon, weaponAction, fixed, frameMs, zoom, storm, view, armor };
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -54,7 +62,7 @@ export default function AnimationLab() {
     const player = tables.players.get(id)! as Row;
     const equipment = tables.activeEquipments.get(id)! as Row;
     const extras = { activeConsumableEffects: new Map<string, Row>(), fishingSessions: new Map<string, Row>(), rangedWeaponStats: new Map<string, Row>(), chunkWeather: new Map(),
-      projectiles: new Map<string, unknown>(), placedExplosives: new Map<string, Row>(), playerCorpses: new Map<string, Row>() };
+      projectiles: new Map<string, unknown>(), placedExplosives: new Map<string, Row>(), playerCorpses: new Map<string, Row>(), inventoryItems: new Map<string, Row>() };
     const originalTerrain = new Map([...tables.visibleWorldTiles].map(([key, tile]) => [key, tile.tileType]));
     const baseX = player.positionX ?? 960, baseY = player.positionY ?? 792;
     let raf = 0, previous = performance.now(), time = 0, metricsAt = 0, previousAction = '', recoveryFrames = 0;
@@ -63,6 +71,13 @@ export default function AnimationLab() {
     let wasFixed = settings.current.fixed;
     const tick = (now: number) => {
       const options = settings.current, dt = Math.min(.05, (now - previous) / 1000); previous = now;
+      ARMOR_SLOTS.forEach((slot, index) => {
+        const name = options.armor[slot];
+        const instance = BigInt(10000 + index), definition = BigInt(20000 + index);
+        equipment[`${slot}ItemInstanceId`] = name ? instance : undefined;
+        if (name) { extras.inventoryItems.set(String(instance), { itemDefId: definition }); tables.itemDefinitions.set(String(definition), { name }); }
+        else extras.inventoryItems.delete(String(instance));
+      });
       time += dt;
       const elapsed = options.fixed ? options.frameMs : time * 1000 % 4000;
       const epoch = 1800000000000 + (options.fixed ? options.frameMs : time * 1000);
@@ -183,6 +198,8 @@ export default function AnimationLab() {
       <label>ACTION <select aria-label="Animation action" value={action} onChange={e => { const next = e.target.value; setAction(next); if (next.startsWith('fish')) { setWeapon('Primitive Reed Fishing Rod'); setWeaponAction('idle'); } }}>{ACTIONS.map(name => <option key={name}>{name}</option>)}</select></label>
       <label>WEAPON <select aria-label="Animation weapon" value={weapon} onChange={e => { setWeapon(e.target.value); setWeaponAction('idle'); if (action.startsWith('fish') && e.target.value !== 'Primitive Reed Fishing Rod') setAction('idle'); }}>{INSPECTION_WEAPONS.map(name => <option key={name}>{name}</option>)}</select></label>
       <label>WEAPON ANIMATION <select aria-label="Weapon animation" value={weaponAction} onChange={e => { setWeaponAction(e.target.value as WeaponAction); setFixed(false); }}>{weaponActions(weapon).map(name => <option key={name} value={name}>{labels[name]}</option>)}</select></label>
+      <label>ARMOR SET <select aria-label="Armor set" value={armorSet} onChange={e => { const set = e.target.value === '__remove' ? '' : e.target.value; setArmorSet(e.target.value); setArmor(Object.fromEntries(ARMOR_SLOTS.map(slot => [slot, set ? ARMOR_CATALOG[slot].find(name => name.startsWith(`${set} `)) ?? '' : '']))); }}><option value="__custom" disabled>Custom</option><option value="__remove">Remove armor</option>{ARMOR_SETS.map(name => <option key={name} value={name}>{name}</option>)}</select></label>
+      {ARMOR_SLOTS.map(slot => <label key={slot}>{slot.toUpperCase()} <select aria-label={`${slot} armor`} value={armor[slot] ?? ''} onChange={e => { setArmorSet('__custom'); setArmor(previous => ({ ...previous, [slot]: e.target.value })); }}><option value="">None</option>{ARMOR_CATALOG[slot].map(name => <option key={name}>{name}</option>)}</select></label>)}
       <label>FRAME <input aria-label="Animation frame milliseconds" type="range" min="0" max="4000" step="10" value={frameMs} onChange={e => { setFrameMs(Number(e.target.value)); setFixed(true); }} /></label>
       <button onClick={() => { if (!fixed) { const frame = weaponAction === 'idle' ? canvasRef.current?.dataset.animationFrameMs : canvasRef.current?.dataset.weaponFrameMs; setFrameMs(Math.min(4000, Math.round(Number(frame ?? frameMs) / 10) * 10)); } setFixed(value => !value); }}>{fixed ? 'Play timeline' : 'Freeze timeline'}</button>
       <button onClick={() => setStorm(value => !value)}>{storm ? 'Storm' : 'Calm'}</button>
