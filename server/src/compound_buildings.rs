@@ -41,8 +41,6 @@ pub const COMPOUND_BUILDING_COLLISIONS: &[CompoundBuildingCollision] = &[
     CompoundBuildingCollision { offset_x: 600.0, offset_y: 650.0, collision_radius: 30.0, collision_y_offset: 0.0, aabb: None },
     
     // ===== MAIN BUILDINGS =====
-    // Warehouse (north section - AABB collision moved up to align with building base/SELO sign area)
-    CompoundBuildingCollision { offset_x: 0.0, offset_y: -500.0, collision_radius: 0.0, collision_y_offset: 0.0, aabb: Some((175.0, 80.0, -60.0)) },
     // Barracks
     CompoundBuildingCollision { offset_x: 450.0, offset_y: -300.0, collision_radius: 150.0, collision_y_offset: 0.0, aabb: None },
     // Fuel Depot

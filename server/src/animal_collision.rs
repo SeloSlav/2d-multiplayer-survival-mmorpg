@@ -1139,6 +1139,9 @@ pub fn validate_animal_spawn_position(
     pos_y: f32,
     species: Option<AnimalSpecies>,
 ) -> Result<(), String> {
+    if crate::wild_animal_npc::core::is_position_in_alk_wildlife_zone(ctx, pos_x, pos_y) {
+        return Err("Cannot spawn wildlife near an ALK compound".to_string());
+    }
     // Check water collision - land animals can't spawn on water; aquatic species REQUIRE water
     let is_aquatic = species.map(|s| matches!(s, AnimalSpecies::SalmonShark | AnimalSpecies::Jellyfish)).unwrap_or(false);
     if is_water_tile(ctx, pos_x, pos_y) && !is_aquatic {
@@ -1348,4 +1351,4 @@ fn line_intersects_aabb(
     }
     
     true // Line intersects AABB
-} 
+}

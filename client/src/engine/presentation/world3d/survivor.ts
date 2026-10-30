@@ -27,6 +27,7 @@ export interface SurvivorPose {
   yaw: number;
   weapon: string;
   torchLit?: boolean;
+  headlampLit?: boolean;
   loaded?: boolean;
   reloading?: boolean;
   shotAge?: number;
@@ -109,6 +110,11 @@ export class SurvivorRig {
 
   get unfinishedWeapon(): string | undefined { return this.weapon.userData.unfinishedWeapon; }
   get torchFlame(): Group | undefined { return this.weapon.getObjectByName('held-torch-flame') as Group | undefined; }
+  get headlampFlame(): Group | undefined { return this.head.getObjectByName('headlamp-flame') as Group | undefined; }
+  headlampWorldPosition(target: Vector3): Vector3 {
+    this.head.updateWorldMatrix(true, false);
+    return this.head.localToWorld(target.set(0, .25, .36));
+  }
   get muzzleFlash(): Group | undefined { return this.weapon.getObjectByName('muzzle-flash') as Group | undefined; }
   get contactPhase(): number { return this.phase; }
   footWorldPosition(left: boolean, target: Vector3): Vector3 {
@@ -211,6 +217,11 @@ export class SurvivorRig {
     this.lifeAmount = down ? pose.downAge === undefined ? 1 : smoothPhase(pose.downAge / .72)
       : 1 - smoothPhase((time - this.recoveryAt) / 1.15);
     this.wasDown = down; this.lifeInitialized = true;
+    const headlamp = this.headlampFlame;
+    if (headlamp) {
+      headlamp.visible = Boolean(pose.headlampLit) && !down;
+      if (headlamp.visible) headlamp.scale.y = 1 + Math.sin(time * 12) * .12;
+    }
     const action = !down && this.lifeAmount < .01 && !pose.swimming && pose.roll <= 0 && pose.attack <= 0 && (pose.shotAge ?? Infinity) >= .28 && pose.reloadProgress === undefined
       ? pose.interaction : undefined;
     this.head.rotation.set(0, 0, 0);

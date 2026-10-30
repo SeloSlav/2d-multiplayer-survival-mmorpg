@@ -1191,6 +1191,9 @@ fn is_position_in_lake_area(ctx: &ReducerContext, pos_x: f32, pos_y: f32) -> boo
 /// Checks if position is suitable for wild animal spawning based on species preferences
 /// Different animal species prefer different terrain types and locations
 pub fn is_wild_animal_location_suitable(ctx: &ReducerContext, pos_x: f32, pos_y: f32, species: AnimalSpecies, tree_positions: &[(f32, f32)]) -> bool {
+    if crate::wild_animal_npc::core::is_position_in_alk_wildlife_zone(ctx, pos_x, pos_y) {
+        return false;
+    }
     // Exclude outer deep sea ring - no spawns in the empty ocean perimeter
     if is_position_in_outer_deep_sea_ring(pos_x, pos_y) {
         return false;
@@ -5672,6 +5675,7 @@ fn spawn_terns_near_reed_marshes(
             let distance = rng.gen_range(50.0..*radius_px * 1.2); // Can spawn slightly outside marsh area too
             let spawn_x = marsh_x + angle.cos() * distance;
             let spawn_y = marsh_y + angle.sin() * distance;
+            if crate::wild_animal_npc::core::is_position_in_alk_wildlife_zone(ctx, spawn_x, spawn_y) { continue; }
             
             // Check for collision with existing animals (simple distance check)
             let min_animal_dist_sq = 150.0 * 150.0;
@@ -5791,6 +5795,7 @@ fn spawn_crabs_and_terns_near_tide_pools(
             let distance = rng.gen_range(40.0..*radius_px * 0.9);
             let spawn_x = pool_x + angle.cos() * distance;
             let spawn_y = pool_y + angle.sin() * distance;
+            if crate::wild_animal_npc::core::is_position_in_alk_wildlife_zone(ctx, spawn_x, spawn_y) { continue; }
             
             // Crabs spawn on beach OR water within tide pool (they can swim in the inlet)
             let on_beach = is_position_on_beach_tile(ctx, spawn_x, spawn_y);
@@ -5865,6 +5870,7 @@ fn spawn_crabs_and_terns_near_tide_pools(
         let distance = rng.gen_range(50.0..*radius_px * 0.95);
         let spawn_x = pool_x + angle.cos() * distance;
         let spawn_y = pool_y + angle.sin() * distance;
+        if crate::wild_animal_npc::core::is_position_in_alk_wildlife_zone(ctx, spawn_x, spawn_y) { continue; }
         
         // Terns spawn on beach OR water within tide pool (like crabs)
         let on_beach = is_position_on_beach_tile(ctx, spawn_x, spawn_y);
@@ -5980,6 +5986,7 @@ fn spawn_wolverines_near_whale_bone_graveyard(
         let distance = rng.gen_range(spawn_min_radius..spawn_max_radius);
         let spawn_x = graveyard_x + angle.cos() * distance;
         let spawn_y = graveyard_y + angle.sin() * distance;
+        if crate::wild_animal_npc::core::is_position_in_alk_wildlife_zone(ctx, spawn_x, spawn_y) { continue; }
         
         // Check for collision with existing animals (simple distance check)
         let min_animal_dist_sq = 200.0 * 200.0;

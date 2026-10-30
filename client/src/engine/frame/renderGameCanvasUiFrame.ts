@@ -12,6 +12,9 @@ import type { World3dProfile, WebGpuFrameProfile } from '../presentation/world3d
 import { isProfilerRecording } from '../../utils/profilerRecording';
 import { groundPosition } from '../presentation/world3d/groundAnchor';
 import type { PresentationEntity } from '../presentation/world3d/presentationEntity';
+import type { InteractionBounds } from '../presentation/world3d/interactionHighlight';
+import { drawInteractionOutline } from '../../utils/renderers/outlineUtils';
+import { renderStyledInteractionLabel } from '../../utils/renderers/labelRenderingUtils';
 
 type Extras = Parameters<typeof renderTranslatedWorldExtrasOverCampfireOverlay>[0];
 const HEALTH_WORLD_KINDS:Record<string,string>={wooden_storage_box:'woodenStorageBoxes',campfire:'campfires',rain_collector:'rainCollectors',homestead_hearth:'homesteadHearths',sleeping_bag:'sleepingBags'};
@@ -37,7 +40,7 @@ type UiContext = Partial<Extras & Late & Parameters<typeof renderScreenSpaceWeat
 };
 
 /** Reuse original UI painters verbatim on the original full-resolution canvas. */
-export function renderGameCanvasUiFrame(context: GameCanvasRuntimeRenderContext, runtime?: {frameStartMs:number; frameGapMs:number; world:World3dProfile | null; cameraOffset?:{x:number;y:number}; occludes?:(x:number,y:number)=>boolean}): void {
+export function renderGameCanvasUiFrame(context: GameCanvasRuntimeRenderContext, runtime?: {frameStartMs:number; frameGapMs:number; world:World3dProfile | null; cameraOffset?:{x:number;y:number}; occludes?:(x:number,y:number)=>boolean; interactionHighlight?:InteractionBounds | null}): void {
   const args = context as unknown as UiContext;
   const canvas = args.gameCanvasRef.current;
   const ctx = canvas?.getContext('2d');
@@ -55,7 +58,7 @@ export function renderGameCanvasUiFrame(context: GameCanvasRuntimeRenderContext,
   const translated = { ...args, ctx, currentPredictedPosition: position,
     currentCameraOffsetX: camera.x, currentCameraOffsetY: camera.y,
     currentWorldMouseX: pointer.x, currentWorldMouseY: pointer.y,
-    unifiedInteractableTarget: deps.unifiedInteractableTarget ?? null,
+    unifiedInteractableTarget: runtime?.interactionHighlight ? null : deps.unifiedInteractableTarget ?? null,
     emptyMap, renderPlacementGeometry: false,
   } as Extras;
   ctx.save(); ctx.translate(camera.x, camera.y);
@@ -77,6 +80,12 @@ export function renderGameCanvasUiFrame(context: GameCanvasRuntimeRenderContext,
       args.playerStats?.get(id)?.activeTitleId ?? null, nowMs);
   }
   ctx.restore();
+  if (runtime?.interactionHighlight) {
+    const box=runtime.interactionHighlight;
+    drawInteractionOutline(ctx,box.x,box.y,box.width,box.height,nowMs/1800,'#00aaff');
+    ctx.save();ctx.font='14px "Courier New", Consolas, Monaco, monospace';ctx.fillStyle='#00ffff';ctx.strokeStyle='black';ctx.lineWidth=2;ctx.textAlign='center';
+    renderStyledInteractionLabel(ctx,'E',box.x,box.y-box.height/2);ctx.restore();
+  }
   const weatherStart = performance.now();
   renderScreenSpaceWeather({ ...args, ctx, worldState: args.worldState, localPlayer: args.localPlayer, chunkWeather: args.chunkWeather,
     currentPredictedPosition: position, isSnorkeling: Boolean(args.localPlayer?.isSnorkeling),

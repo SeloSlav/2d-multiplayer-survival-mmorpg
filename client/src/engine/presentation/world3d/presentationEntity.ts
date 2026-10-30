@@ -16,11 +16,12 @@ export interface PresentationEntity {
   health?: number; isDestroyed?: boolean; isDead?: boolean; isKnockedOut?: boolean;
   respawnAt?: { microsSinceUnixEpoch: bigint };
   isSprinting?: boolean; isCrouching?: boolean; isOnWater?: boolean; isFlying?: boolean; isBurning?: boolean; isAimingThrow?: boolean;
-  isTorchLit?: boolean; isSnorkeling?: boolean; isSubmerged?: boolean; isNpc?: boolean;
+  isTorchLit?: boolean; isHeadlampLit?: boolean; isSnorkeling?: boolean; isSubmerged?: boolean; isNpc?: boolean;
   direction?: string; facingDirection?: string; directionX?: number; directionY?: number;
   treeType?: unknown; oreType?: unknown; species?: unknown; plantType?: unknown; tileType?: unknown; state?: unknown;
   animalSpecies?: unknown; runeType?: unknown; columnType?: unknown; loreId?: string;
   targetPlayerId?: unknown; investigationX?: number; investigationY?: number; stateChangeTime?: { microsSinceUnixEpoch: bigint };
+  currentTargetId?: bigint | number | null; currentTargetPlayer?: unknown; lastFireTime?: { microsSinceUnixEpoch: bigint } | null;
   animalId?: bigint | number; scale?: number; rotation?: number;
   lastAttackTime?: { microsSinceUnixEpoch: bigint }; lastHitTime?: { microsSinceUnixEpoch: bigint };
   deathTime?: { microsSinceUnixEpoch: bigint }; shockActiveUntil?: { microsSinceUnixEpoch: bigint };

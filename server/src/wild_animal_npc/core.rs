@@ -58,6 +58,7 @@ use crate::player_progression::player_stats as PlayerStatsTableTrait;
 use crate::rune_stone::{rune_stone as RuneStoneTableTrait, RUNE_STONE_DETERRENCE_RADIUS};
 // Monument safe zone imports - hostile NPCs actively avoid these areas
 use crate::alk::alk_station as AlkStationTableTrait;
+use super::alk_wildlife::{find_clear_position, WildlifeExclusionZone};
 use crate::monument_part as MonumentPartTableTrait;
 use crate::world_state::world_state as WorldStateTableTrait; // ADDED: For world_state table access
 use crate::MonumentType;
@@ -171,6 +172,7 @@ pub struct PreFetchedAIData {
     pub burning_campfires: Vec<Campfire>,
     pub active_foundations: Vec<FoundationCell>,
     pub active_foundation_positions: Vec<(f32, f32)>,
+    pub alk_wildlife_zones: Vec<WildlifeExclusionZone>,
 }
 
 impl PreFetchedAIData {
@@ -207,6 +209,7 @@ impl PreFetchedAIData {
                 .collect(),
             active_foundations,
             active_foundation_positions,
+            alk_wildlife_zones: alk_wildlife_zones(ctx),
         }
     }
 }
@@ -356,6 +359,87 @@ pub struct WildAnimal {
     // Jellyfish shock effect fields
     pub shock_active_until: Option<Timestamp>, // When shock visual effect ends (yellow glow)
     pub last_shock_time: Option<Timestamp>, // Last time jellyfish emitted electric shock
+}
+
+/// Use the actual station positions, including inactive compounds. During world
+/// generation the stations may not have been seeded yet, so reserve their
+/// canonical positions before any wildlife is spawned.
+pub fn alk_wildlife_zones(ctx: &ReducerContext) -> Vec<WildlifeExclusionZone> {
+    let stations: Vec<_> = ctx.db.alk_station().iter().collect();
+    if !stations.is_empty() {
+        return stations.iter().map(|station| {
+            let multiplier = if station.station_id == 0 {
+                crate::active_effects::SAFE_ZONE_RADIUS_MULTIPLIER_CENTRAL
+            } else { crate::active_effects::SAFE_ZONE_RADIUS_MULTIPLIER_SUBSTATION };
+            WildlifeExclusionZone::new(station.world_pos_x, station.world_pos_y, station.interaction_radius * multiplier)
+        }).collect();
+    }
+    let center_x = (crate::WORLD_WIDTH_TILES / 2) as f32 * TILE_SIZE_PX as f32 + TILE_SIZE_PX as f32 / 2.0;
+    let center_y = (crate::WORLD_HEIGHT_TILES / 2) as f32 * TILE_SIZE_PX as f32 + TILE_SIZE_PX as f32 / 2.0;
+    let diagonal = WORLD_WIDTH_PX.min(WORLD_HEIGHT_PX) * 0.35 * 0.90 / 1.414;
+    let mut zones = vec![WildlifeExclusionZone::new(center_x, center_y, 250.0 * crate::active_effects::SAFE_ZONE_RADIUS_MULTIPLIER_CENTRAL)];
+    for dx in [-diagonal, diagonal] { for dy in [-diagonal, diagonal] {
+        zones.push(WildlifeExclusionZone::new(center_x + dx, center_y + dy, 200.0 * crate::active_effects::SAFE_ZONE_RADIUS_MULTIPLIER_SUBSTATION));
+    }}
+    zones
+}
+
+pub fn is_position_in_alk_wildlife_zone(ctx: &ReducerContext, x: f32, y: f32) -> bool {
+    alk_wildlife_zones(ctx).iter().any(|zone| zone.contains(x, y))
+}
+
+/// Move pre-existing wild animals out of the new protected area. Search the
+/// boundary for compatible terrain so sea creatures stay in water and land
+/// wildlife is not teleported into it. Tamed companions are handled separately.
+fn clear_animal_from_alk(ctx: &ReducerContext, animal: &mut WildAnimal, zones: &[WildlifeExclusionZone], now: Timestamp) -> bool {
+    if !zones.iter().any(|zone| zone.contains(animal.pos_x, animal.pos_y)) { return false; }
+    let aquatic = matches!(animal.species, AnimalSpecies::SalmonShark | AnimalSpecies::Jellyfish);
+    let amphibious = matches!(animal.species, AnimalSpecies::ArcticWalrus | AnimalSpecies::BeachCrab) || animal.is_flying;
+    let suitable = |x, y| {
+        let water = is_water_tile(ctx, x, y);
+        !(aquatic && !water) && !(!aquatic && !amphibious && water)
+    };
+    let destination = find_clear_position(zones, (animal.pos_x, animal.pos_y), (WORLD_WIDTH_PX, WORLD_HEIGHT_PX), suitable)
+        .or_else(|| {
+            let (x, y) = (animal.spawn_x, animal.spawn_y);
+            if x >= 50.0 && y >= 50.0 && x < WORLD_WIDTH_PX - 50.0 && y < WORLD_HEIGHT_PX - 50.0
+                && zones.iter().all(|zone| !zone.contains(x, y)) && suitable(x, y) { Some((x, y)) } else { None }
+        });
+    if let Some((x, y)) = destination {
+        update_animal_position(animal, x, y);
+        if zones.iter().any(|z| z.contains(animal.spawn_x, animal.spawn_y)) { animal.spawn_x = x; animal.spawn_y = y; }
+        animal.target_player_id = None;
+        animal.target_structure_id = None;
+        animal.target_structure_type = None;
+        animal.flying_target_x = None; animal.flying_target_y = None;
+        let state = match animal.species {
+            AnimalSpecies::SalmonShark => AnimalState::Swimming,
+            AnimalSpecies::Jellyfish => AnimalState::Drifting,
+            AnimalSpecies::Tern | AnimalSpecies::Crow | AnimalSpecies::SnowyOwl => AnimalState::Grounded,
+            _ => AnimalState::Patrolling,
+        };
+        transition_to_state(animal, state, now, None, "moved clear of ALK compound");
+    } else {
+        log::warn!("Could not find suitable terrain outside ALK wildlife zone for {:?} #{}", animal.species, animal.id);
+    }
+    true
+}
+
+fn clear_alk_target(animal: &mut WildAnimal, players: &[Player], zones: &[WildlifeExclusionZone], now: Timestamp) {
+    if let Some(target) = animal.target_player_id {
+        if players.iter().any(|player| player.identity == target && zones.iter().any(|zone| zone.contains(player.position_x, player.position_y))) {
+            animal.target_player_id = None;
+            animal.target_structure_id = None;
+            animal.target_structure_type = None;
+            let state = match animal.species {
+                AnimalSpecies::SalmonShark => AnimalState::Swimming,
+                AnimalSpecies::Jellyfish => AnimalState::Drifting,
+                AnimalSpecies::Tern | AnimalSpecies::Crow | AnimalSpecies::SnowyOwl => AnimalState::Grounded,
+                _ => AnimalState::Patrolling,
+            };
+            transition_to_state(animal, state, now, None, "target entered ALK wildlife exclusion");
+        }
+    }
 }
 
 // --- AI Processing Schedule Table ---
@@ -895,6 +979,12 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
         // Exception: Tamed animals always process (they follow their owner)
         // Exception: Animals actively chasing/fleeing should finish their action
         let is_tamed = animal.tamed_by.is_some();
+        if !is_tamed && clear_animal_from_alk(ctx, &mut animal, &prefetched.alk_wildlife_zones, current_time) {
+            if ctx.db.wild_animal().id().find(&animal.id).is_some() {
+                ctx.db.wild_animal().id().update(animal);
+            }
+            continue;
+        }
         let is_active_state = matches!(animal.state, 
             AnimalState::Chasing | AnimalState::Attacking | AnimalState::Fleeing | 
             AnimalState::Following | AnimalState::Protecting | AnimalState::FlyingChase |
@@ -915,7 +1005,11 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
             let stats = behavior.get_stats();
             
             // Find nearby players for perception checks (uses pre-fetched data)
-            let nearby_players = find_nearby_players_prefetched(&prefetched.all_players, &animal, &stats);
+            let mut nearby_players = find_nearby_players_prefetched(&prefetched.all_players, &animal, &stats);
+            if !is_tamed {
+                nearby_players.retain(|player| !prefetched.alk_wildlife_zones.iter().any(|zone| zone.contains(player.position_x, player.position_y)));
+                clear_alk_target(&mut animal, &prefetched.all_players, &prefetched.alk_wildlife_zones, current_time);
+            }
             
             // Update AI state based on current conditions
             update_animal_ai_state(ctx, &prefetched, &mut animal, &behavior, &stats, &nearby_players, current_time, &mut rng)?;
@@ -925,6 +1019,9 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
             
             // Process taming behavior (food detection and consumption)
             process_taming_behavior(ctx, &mut animal, current_time)?;
+            if animal.tamed_by.is_none() {
+                clear_alk_target(&mut animal, &prefetched.all_players, &prefetched.alk_wildlife_zones, current_time);
+            }
             
             // ====================================================================
             // PROACTIVE RANGED ATTACKS (any NPC with ranged capability)
@@ -1252,7 +1349,17 @@ pub fn process_wild_animal_ai(ctx: &ReducerContext, _schedule: WildAnimalAiSched
             }
             
             // Execute movement based on current state
+            let previous_position = (animal.pos_x, animal.pos_y);
             execute_animal_movement(ctx, &mut animal, &behavior, &stats, current_time, &mut rng)?;
+            if animal.tamed_by.is_none() {
+                if prefetched.alk_wildlife_zones.iter().any(|zone| zone.contains(previous_position.0, previous_position.1)) {
+                    clear_animal_from_alk(ctx, &mut animal, &prefetched.alk_wildlife_zones, current_time);
+                } else if prefetched.alk_wildlife_zones.iter().any(|zone| zone.blocks_movement(previous_position, (animal.pos_x, animal.pos_y))) {
+                    update_animal_position(&mut animal, previous_position.0, previous_position.1);
+                    animal.flying_target_x = None;
+                    animal.flying_target_y = None;
+                }
+            }
             
             // Update the animal in database, BUT only if it wasn't deleted during processing
             // (e.g., bees die from fire in check_and_apply_fire_death and get deleted there)

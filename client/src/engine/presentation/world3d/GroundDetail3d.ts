@@ -84,7 +84,10 @@ export class GroundDetail3d {
     this.root.name = 'terrain-ground-detail';
     this.grassGeometry.setAttribute('grassWind', this.grassWind); this.tallGrassGeometry.setAttribute('grassWind', this.tallGrassWind);
     const motion = attribute('grassWind', 'vec3');
-    this.grassMaterial.positionNode = positionLocal.add(vec3(sin(this.clock.mul(motion.y).add(motion.z)).mul(positionLocal.y.pow(2)).mul(.08).mul(motion.x).mul(this.wind),0,0));
+    // Height-weighted bend keeps roots planted and remains visible on the
+    // small, pixel-scaled grass patches even during clear weather.
+    const sway = sin(this.clock.mul(motion.y).add(motion.z)).mul(positionLocal.y).mul(.22).mul(motion.x.mul(.6).add(.4)).mul(this.wind);
+    this.grassMaterial.positionNode = positionLocal.add(vec3(sway,0,0));
     for(const mesh of [this.grass,this.tallGrass,this.bushes,this.rocks,this.twigs,this.shells]) { mesh.setColorAt(0, this.color.setHex(0xffffff)); mesh.count=0; mesh.frustumCulled=false; mesh.receiveShadow=true; this.root.add(mesh); }
     this.grass.name='gameplay-grass'; this.tallGrass.name='gameplay-tall-grass'; this.bushes.name='gameplay-bushes'; this.rocks.name='terrain-pebbles'; this.twigs.name='terrain-twigs'; this.shells.name='beach-shells';
   }

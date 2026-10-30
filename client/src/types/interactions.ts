@@ -369,6 +369,15 @@ export function selectHighestPriorityTarget(targets: InteractableTarget[]): Inte
     })[0];
 }
 
+/** Related, closely packed facilities should not mask the one nearest the player
+ * just because their interface types have different global priorities. */
+export function preferNearestRelatedTargets(targets: InteractableTarget[], related: (target: InteractableTarget) => boolean): InteractableTarget[] {
+    const group = targets.filter(related);
+    if (group.length < 2) return targets;
+    const nearest = group.reduce((best, target) => target.distance < best.distance ? target : best);
+    return targets.filter(target => !related(target) || target === nearest);
+}
+
 // Helper function to create a standardized interaction target
 export function createInteractionTarget(
     type: InteractionTargetType,

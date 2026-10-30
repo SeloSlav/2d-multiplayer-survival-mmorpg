@@ -51,6 +51,7 @@ import {
 } from '../../generated/types';
 import { InteractableTarget, InteractionTargetType } from '../../types/interactions';
 import { selectHighestPriorityTarget } from '../../types/interactions'; // ADDED: Import priority selection helper
+import { preferNearestRelatedTargets } from '../../types/interactions';
 import {
     PLAYER_CAMPFIRE_INTERACTION_DISTANCE_SQUARED,
     CAMPFIRE_HEIGHT,
@@ -60,12 +61,6 @@ import {
     PLAYER_FURNACE_INTERACTION_DISTANCE_SQUARED,
     PLAYER_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED,
     PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED,
-    FURNACE_HEIGHT,
-    FURNACE_RENDER_Y_OFFSET,
-    LARGE_FURNACE_HEIGHT,
-    LARGE_FURNACE_RENDER_Y_OFFSET,
-    MONUMENT_LARGE_FURNACE_HEIGHT,
-    MONUMENT_LARGE_FURNACE_RENDER_Y_OFFSET,
     FURNACE_TYPE_LARGE
 } from '../../utils/renderers/furnaceRenderingUtils'; // ADDED: Furnace rendering constants
 import {
@@ -457,29 +452,14 @@ export function calculateInteractionTargetRuntimeResult({
                     const isLargeFurnace = furnace.furnaceType === FURNACE_TYPE_LARGE;
                     // Monument large furnaces in compound are 480px tall (warehouse size), regular large furnaces are 256px
                     const isCompoundFurnace = isCompoundMonument(furnace.isMonument, furnace.posX, furnace.posY);
-                    const furnaceHeight = isLargeFurnace 
-                        ? (isCompoundFurnace ? MONUMENT_LARGE_FURNACE_HEIGHT : LARGE_FURNACE_HEIGHT)
-                        : FURNACE_HEIGHT;
-                    const furnaceYOffset = isLargeFurnace 
-                        ? (isCompoundFurnace ? MONUMENT_LARGE_FURNACE_RENDER_Y_OFFSET : LARGE_FURNACE_RENDER_Y_OFFSET)
-                        : FURNACE_RENDER_Y_OFFSET;
                     const maxDistSq = isLargeFurnace 
                         ? (isCompoundFurnace ? PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED : PLAYER_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED) 
                         : PLAYER_FURNACE_INTERACTION_DISTANCE_SQUARED;
                     
-                    // Use asymmetric interaction points for better approach from below while keeping top unchanged
-                    let interactionCenterY;
-                    if (playerY > furnace.posY) {
-                        // Player is below furnace - use lower interaction point for easier approach
-                        const belowOffset = isLargeFurnace ? (isCompoundFurnace ? 80 : 40) : 10;
-                        interactionCenterY = furnace.posY + belowOffset;
-                    } else {
-                        // Player is above/level with furnace - use normal center point to keep existing behavior
-                        interactionCenterY = furnace.posY - (furnaceHeight / 2) - furnaceYOffset;
-                    }
-                    
+                    // The server validates against the authoritative furnace anchor,
+                    // not the center of the old 2D sprite.
                     const dx = playerX - furnace.posX;
-                    const dy = playerY - interactionCenterY;
+                    const dy = playerY - furnace.posY;
                     const distSq = dx * dx + dy * dy;
                     // Use furnace-specific max distance, but track globally for "closest"
                     if (distSq < maxDistSq && distSq < closestFurnaceDistSq) {
@@ -1210,7 +1190,13 @@ export function calculateInteractionTargetRuntimeResult({
 
             // Find the closest target using priority selection
             if (candidates.length > 0) {
-                closestTarget = selectHighestPriorityTarget(candidates);
+                const relatedCompoundBuilding = (target: InteractableTarget): boolean => {
+                    if (target.type === 'alk_station') return true;
+                    const source = target.type === 'box' ? woodenStorageBoxes : target.type === 'furnace' ? furnaces : target.type === 'rain_collector' ? rainCollectors : null;
+                    const entity = source?.get(String(target.id));
+                    return Boolean(entity && isCompoundMonument(entity.isMonument, entity.posX, entity.posY));
+                };
+                closestTarget = selectHighestPriorityTarget(preferNearestRelatedTargets(candidates, relatedCompoundBuilding));
             }
         }
 

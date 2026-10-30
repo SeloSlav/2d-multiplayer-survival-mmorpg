@@ -23,6 +23,7 @@ import { Player } from '../generated/types';
 import { usePlayerActions } from '../contexts/PlayerActionsContext';
 import { runtimeEngine } from '../engine/runtimeEngine';
 import { useEngineInputState, useEngineWorldRuntimeState } from '../engine/react/useEngineStoreState';
+import { keyboardMovement } from '../engine/runtime/keyboardMovement';
 
 // Convert player facing direction string to normalized movement vector
 const getDirectionVector = (facingDirection: string): { x: number; y: number } => {
@@ -75,7 +76,6 @@ export const useMovementInput = ({
   // Auto-walk state
   const [isAutoWalking, setIsAutoWalking] = useEngineInputState<boolean>('isAutoWalking', () => false);
   const autoWalkDirection = useRef<{ x: number; y: number } | null>(null);
-  const autoWalkSprinting = useRef<boolean>(false);
 
   const keysPressed = useRef(new Set<string>());
   const lastInputTime = useRef(0);
@@ -91,7 +91,7 @@ export const useMovementInput = ({
   }, [inputState]);
 
   // Key processing with auto-walk support
-  const processKeys = useCallback(() => {
+  const processKeys = useCallback((autoWalking = isAutoWalking) => {
     try {
       if (isProcessingInput.current) {
         return;
@@ -102,63 +102,7 @@ export const useMovementInput = ({
         return;
       }
 
-      let x = 0, y = 0;
-      
-      // Sprinting logic: if auto-walking, use persisted sprint state; otherwise use current shift keys
-      let sprinting = keysPressed.current.has('ShiftLeft') || keysPressed.current.has('ShiftRight');
-      if (isAutoWalking) {
-        // Use persisted sprint state (toggled via SHIFT key press)
-        sprinting = autoWalkSprinting.current;
-      }
-
-      // Check if any movement keys are pressed
-      const hasMovementKeys = keysPressed.current.has('KeyW') || keysPressed.current.has('KeyS') || 
-                             keysPressed.current.has('KeyA') || keysPressed.current.has('KeyD') ||
-                             keysPressed.current.has('ArrowUp') || keysPressed.current.has('ArrowDown') ||
-                             keysPressed.current.has('ArrowLeft') || keysPressed.current.has('ArrowRight');
-
-      // Fast idle path: nothing pressed and no auto-walk, skip all work if already idle.
-      if (!hasMovementKeys && !isAutoWalking) {
-        const last = lastComputedStateRef.current;
-        if (last.direction.x === 0 && last.direction.y === 0 && !last.sprinting) {
-          return;
-        }
-      }
-
-      if (hasMovementKeys) {
-        // Manual input - calculate from keys
-        if (keysPressed.current.has('KeyW') || keysPressed.current.has('ArrowUp')) y -= 1;
-        if (keysPressed.current.has('KeyS') || keysPressed.current.has('ArrowDown')) y += 1;
-        if (keysPressed.current.has('KeyA') || keysPressed.current.has('ArrowLeft')) x -= 1;
-        if (keysPressed.current.has('KeyD') || keysPressed.current.has('ArrowRight')) x += 1;
-
-        // Normalize diagonal movement
-        if (x !== 0 && y !== 0) {
-          const magnitude = Math.sqrt(x * x + y * y);
-          x = x / magnitude;
-          y = y / magnitude;
-        }
-
-        // Manual keys override auto-walk direction, but don't update stored direction
-        // Direction updates happen in handleKeyDown when keys are first pressed
-      } else if (isAutoWalking && autoWalkDirection.current) {
-        // No keys pressed but auto-walk is on - use stored direction
-        x = autoWalkDirection.current.x;
-        y = autoWalkDirection.current.y;
-      } else {
-        // No keys and no auto-walk
-        x = 0;
-        y = 0;
-      }
-
-      // Round to prevent micro-jitter
-      const roundedX = Math.abs(x) < 0.001 ? 0 : Number(x.toFixed(3));
-      const roundedY = Math.abs(y) < 0.001 ? 0 : Number(y.toFixed(3));
-      
-      const newState = { 
-        direction: { x: roundedX, y: roundedY }, 
-        sprinting 
-      };
+      const newState = keyboardMovement(keysPressed.current, autoWalking ? autoWalkDirection.current : null);
       const lastState = lastComputedStateRef.current;
       
       // Check if state changed
@@ -226,8 +170,7 @@ export const useMovementInput = ({
           // Turn OFF
           setIsAutoWalking(false);
           autoWalkDirection.current = null;
-          autoWalkSprinting.current = false;
-          throttledProcessKeys();
+          processKeys(false);
         } else {
           // Turn ON - start with facing direction, user can change direction while auto-walking
           let currentX = 0, currentY = 0;
@@ -250,6 +193,7 @@ export const useMovementInput = ({
             };
             // PERFORMANCE FIX: Update ref immediately
             inputStateRef.current = newState;
+            lastComputedStateRef.current = newState;
             setInputState(newState);
           } else {
           }
@@ -268,13 +212,6 @@ export const useMovementInput = ({
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight'].includes(key)) {
         if (!keysPressed.current.has(key)) {
           keysPressed.current.add(key);
-
-          // 🔥 AUTO-WALK: If auto-walk is ON and SHIFT is pressed, toggle sprint
-          if (isAutoWalking && (key === 'ShiftLeft' || key === 'ShiftRight')) {
-            autoWalkSprinting.current = !autoWalkSprinting.current;
-            throttledProcessKeys();
-            return;
-          }
 
           // 🔥 AUTO-WALK: If auto-walk is ON and a movement key is pressed, update direction
           if (isAutoWalking && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
@@ -306,7 +243,7 @@ export const useMovementInput = ({
     } catch (error) {
       console.error(`❌ [MovementInput] Error in handleKeyDown:`, error);
     }
-  }, [isUIFocused, throttledProcessKeys, jump, onToggleAutoAttack, isFishing, isAutoWalking, localPlayer]);
+  }, [isUIFocused, throttledProcessKeys, processKeys, jump, onToggleAutoAttack, isFishing, isAutoWalking, localPlayer]);
 
   // Key up handler
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
@@ -325,17 +262,23 @@ export const useMovementInput = ({
   // Event listeners
   useEffect(() => {
     try {
+      const releaseKeys = () => { keysPressed.current.clear(); processKeys(); };
+      const onVisibilityChange = () => { if (document.hidden) releaseKeys(); };
       document.addEventListener('keydown', handleKeyDown);
       document.addEventListener('keyup', handleKeyUp);
+      window.addEventListener('blur', releaseKeys);
+      document.addEventListener('visibilitychange', onVisibilityChange);
 
       return () => {
         document.removeEventListener('keydown', handleKeyDown);
         document.removeEventListener('keyup', handleKeyUp);
+        window.removeEventListener('blur', releaseKeys);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
       };
     } catch (error) {
       console.error(`❌ [MovementInput] Error in event listener setup:`, error);
     }
-  }, [handleKeyDown, handleKeyUp]);
+  }, [handleKeyDown, handleKeyUp, processKeys]);
 
   // Clear on UI focus
   useEffect(() => {
@@ -343,7 +286,6 @@ export const useMovementInput = ({
       keysPressed.current.clear();
       setIsAutoWalking(false);
       autoWalkDirection.current = null;
-      autoWalkSprinting.current = false;
       
       const clearedState = {
         direction: { x: 0, y: 0 },
@@ -352,6 +294,7 @@ export const useMovementInput = ({
       
       // PERFORMANCE FIX: Clear ref immediately too
       inputStateRef.current = clearedState;
+      lastComputedStateRef.current = clearedState;
       setInputState(clearedState);
     }
   }, [isUIFocused]);

@@ -69,7 +69,7 @@ pub(crate) const PLAYER_LARGE_FURNACE_INTERACTION_DISTANCE: f32 = 130.0;
 pub(crate) const PLAYER_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED: f32 = 
     PLAYER_LARGE_FURNACE_INTERACTION_DISTANCE * PLAYER_LARGE_FURNACE_INTERACTION_DISTANCE;
 // Monument large furnace is ~480px vs 256px regular (1.875x), so proportionally larger interaction
-pub(crate) const PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE: f32 = 200.0;
+pub(crate) const PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE: f32 = 250.0;
 pub(crate) const PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED: f32 = 
     PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE * PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE;
 
@@ -1694,4 +1694,4 @@ impl crate::cooking::CookableAppliance for Furnace {
     fn get_appliance_world_position(&self) -> (f32, f32) {
         (self.pos_x, self.pos_y)
     }
-} 
+}

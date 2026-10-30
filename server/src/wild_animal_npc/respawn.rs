@@ -622,6 +622,7 @@ fn spawn_herd_animal_group(
                group_pos_y < margin || group_pos_y > world_height - margin {
                 continue;
             }
+            if super::core::is_position_in_alk_wildlife_zone(ctx, group_pos_x, group_pos_y) { continue; }
             
             // Check not too close to other group members
             let mut too_close = false;
@@ -722,6 +723,9 @@ fn spawn_single_animal(
     pos_y: f32,
     chunk_idx: u32,
 ) -> Result<WildAnimal, String> {
+    if super::core::is_position_in_alk_wildlife_zone(ctx, pos_x, pos_y) {
+        return Err("Cannot spawn wildlife near an ALK compound".to_string());
+    }
     // Get stats directly from the behavior system (single source of truth)
     let behavior = species.get_behavior();
     let stats = behavior.get_stats();
@@ -802,4 +806,4 @@ struct ExistingPositions {
     animals: Vec<(f32, f32)>,
     trees: Vec<(f32, f32)>,
     stones: Vec<(f32, f32)>,
-} 
+}

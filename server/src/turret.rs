@@ -200,12 +200,12 @@ fn validate_turret_interaction(ctx: &ReducerContext, turret_id: u32) -> Result<(
 }
 
 /// Finds the nearest valid target for a turret
-fn find_target(ctx: &ReducerContext, turret: &Turret, current_time: Timestamp) -> Option<TargetInfo> {
+fn find_target(ctx: &ReducerContext, turret: &Turret, current_time: Timestamp, hostile_animals: &[crate::wild_animal_npc::WildAnimal], players: &[Player]) -> Option<TargetInfo> {
     let turret_range_sq = TURRET_RANGE_SQUARED;
     
     // Priority 1: Hostile NPCs (always target - NOT regular wild animals like wolves/foxes)
     let mut closest_npc: Option<(u64, f32)> = None;
-    for animal in ctx.db.wild_animal().iter() {
+    for animal in hostile_animals {
         // ONLY target hostile NPCs (Shorebound, Shardkin, DrownedWatch)
         // Never target regular animals (wolves, foxes, etc.)
         if animal.is_hostile_npc && animal.health > 0.0 {
@@ -233,7 +233,7 @@ fn find_target(ctx: &ReducerContext, turret: &Turret, current_time: Timestamp) -
     if owner_pvp_active {
         let mut closest_player: Option<(Identity, f32)> = None;
         
-        for player in ctx.db.player().iter() {
+        for player in players {
             // Skip owner, dead players, offline players
             if player.identity == turret.placed_by || player.is_dead || !player.is_online {
                 continue;
@@ -266,13 +266,13 @@ fn find_target(ctx: &ReducerContext, turret: &Turret, current_time: Timestamp) -
 /// Finds the nearest valid target for a monument turret.
 /// Monument turrets target ONLY the 3 apparitions (Shorebound, Shardkin, Drowned Watch) and PvP-enabled players.
 /// They do NOT target regular wild animals (wolves, crabs, voles, etc.).
-fn find_monument_target(ctx: &ReducerContext, turret: &Turret, current_time: Timestamp) -> Option<TargetInfo> {
+fn find_monument_target(turret: &Turret, current_time: Timestamp, hostile_animals: &[crate::wild_animal_npc::WildAnimal], players: &[Player]) -> Option<TargetInfo> {
     let range_sq = MONUMENT_TURRET_RANGE_SQUARED;
     
     let mut closest_target: Option<(TargetInfo, f32)> = None;
     
     // Target ONLY the 3 apparitions (Shorebound, Shardkin, Drowned Watch) - not regular wild animals
-    for animal in ctx.db.wild_animal().iter() {
+    for animal in hostile_animals {
         if animal.health <= 0.0 {
             continue;
         }
@@ -290,7 +290,7 @@ fn find_monument_target(ctx: &ReducerContext, turret: &Turret, current_time: Tim
     }
     
     // Target ALL PvP-enabled players (no owner PvP check needed - monument is system-owned)
-    for player in ctx.db.player().iter() {
+    for player in players {
         // Skip dead/offline players
         if player.is_dead || !player.is_online {
             continue;
@@ -318,6 +318,18 @@ fn find_monument_target(ctx: &ReducerContext, turret: &Turret, current_time: Tim
 pub(crate) enum TargetInfo {
     Animal(u64),
     Player(Identity),
+}
+
+// Avoid broadcasting identical turret rows every scheduled tick. Only targeting,
+// firing and ammo can be changed by the scheduled logic.
+fn save_turret_if_changed(ctx: &ReducerContext, previous: &Turret, turret: Turret) {
+    if previous.current_target_id != turret.current_target_id
+        || previous.current_target_player != turret.current_target_player
+        || previous.last_fire_time != turret.last_fire_time
+        || previous.ammo_instance_id != turret.ammo_instance_id
+        || previous.ammo_def_id != turret.ammo_def_id {
+        ctx.db.turret().id().update(turret);
+    }
 }
 
 // --- Reducers ---
@@ -670,17 +682,22 @@ pub fn process_turret_logic_scheduled(ctx: &ReducerContext, _schedule: TurretPro
     }
     
     let current_time = ctx.timestamp;
+    // A compound can contain many turrets. Read candidate rows once per tick
+    // rather than scanning and deserializing the whole world for each turret.
+    let hostile_animals: Vec<_> = ctx.db.wild_animal().iter().filter(|animal| animal.is_hostile_npc && animal.health > 0.0).collect();
+    let players: Vec<_> = ctx.db.player().iter().filter(|player| player.is_online && !player.is_dead).collect();
     
     // Process each active turret
     for mut turret in ctx.db.turret().iter() {
         if turret.is_destroyed {
             continue;
         }
+        let previous = turret.clone();
         
         // Monument turrets have infinite ammo and different targeting
         if turret.is_monument {
             // Find target using monument-specific targeting (all animals + PvP players)
-            let target = find_monument_target(ctx, &turret, current_time);
+            let target = find_monument_target(&turret, current_time, &hostile_animals, &players);
             
             match target {
                 Some(TargetInfo::Animal(animal_id)) => {
@@ -711,18 +728,18 @@ pub fn process_turret_logic_scheduled(ctx: &ReducerContext, _schedule: TurretPro
                     if let Some(animal) = ctx.db.wild_animal().id().find(&animal_id) {
                         (animal.pos_x, animal.pos_y)
                     } else {
-                        ctx.db.turret().id().update(turret);
+                        save_turret_if_changed(ctx, &previous, turret);
                         continue;
                     }
                 } else if let Some(player_id) = turret.current_target_player {
                     if let Some(player) = ctx.db.player().identity().find(&player_id) {
                         (player.position_x, player.position_y)
                     } else {
-                        ctx.db.turret().id().update(turret);
+                        save_turret_if_changed(ctx, &previous, turret);
                         continue;
                     }
                 } else {
-                    ctx.db.turret().id().update(turret);
+                    save_turret_if_changed(ctx, &previous, turret);
                     continue;
                 };
                 
@@ -765,7 +782,7 @@ pub fn process_turret_logic_scheduled(ctx: &ReducerContext, _schedule: TurretPro
                 }
             }
             
-            ctx.db.turret().id().update(turret);
+            save_turret_if_changed(ctx, &previous, turret);
             continue; // Skip normal turret processing
         }
         
@@ -775,12 +792,12 @@ pub fn process_turret_logic_scheduled(ctx: &ReducerContext, _schedule: TurretPro
         if turret.ammo_instance_id.is_none() {
             turret.current_target_id = None;
             turret.current_target_player = None;
-            ctx.db.turret().id().update(turret.clone());
+            save_turret_if_changed(ctx, &previous, turret);
             continue;
         }
         
         // Find target
-        let target = find_target(ctx, &turret, current_time);
+        let target = find_target(ctx, &turret, current_time, &hostile_animals, &players);
         
         match target {
             Some(TargetInfo::Animal(animal_id)) => {
@@ -885,7 +902,7 @@ pub fn process_turret_logic_scheduled(ctx: &ReducerContext, _schedule: TurretPro
             }
         }
         
-        ctx.db.turret().id().update(turret);
+        save_turret_if_changed(ctx, &previous, turret);
     }
     
     Ok(())

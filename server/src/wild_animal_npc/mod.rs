@@ -2,6 +2,7 @@
 // Core AI and shared functionality with species-specific behaviors
 
 pub mod core;
+pub mod alk_wildlife;
 pub mod fox;
 pub mod wolf;
 pub mod viper;

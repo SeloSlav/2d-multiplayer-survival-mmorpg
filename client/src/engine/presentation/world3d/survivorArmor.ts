@@ -137,6 +137,14 @@ export class SurvivorArmor {
     return groups.map((group, index) => {
       const compiled = this.kit.compileShared(group, `armor:${slot}:${name}:${index}`);
       compiled.name = group.name; compiled.userData.armorName = name;
+      if (slot === 'head' && name === 'Headlamp') {
+        // Keep the flame separate from the compiled armor so toggling it never
+        // changes shared material state or leaves an always-on glow.
+        const flame = new Group(); flame.name = 'headlamp-flame'; flame.position.set(0,.25,.36); flame.visible = false;
+        part(flame, 'cone', 0xffbb60, [.075,.15,.075], [0,.035,0], true);
+        part(flame, 'cone', 0xffe0a0, [.038,.085,.04], [0,.025,.015], true);
+        compiled.add(flame);
+      }
       return compiled;
     });
   }

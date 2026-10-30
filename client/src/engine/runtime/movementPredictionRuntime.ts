@@ -296,7 +296,8 @@ class MovementPredictionEngine {
     }
 
     const currentInput = this.getCurrentInputState();
-    const { direction, sprinting } = currentInput;
+    const { direction } = currentInput;
+    const sprinting = config?.mobileSprintOverride ?? currentInput.sprinting;
     const isActuallyMoving = direction.x !== 0 || direction.y !== 0;
     if (!isActuallyMoving || deltaTime <= 0) {
       return this.clientPosition;
@@ -519,12 +520,8 @@ class MovementPredictionEngine {
       this.lastUpdateTime = now;
 
       const currentInput = this.getCurrentInputState();
-      let { direction, sprinting } = currentInput;
-      if (config?.mobileSprintOverride !== undefined) {
-        sprinting = config.mobileSprintOverride;
-      } else if (localPlayer.isSprinting === true) {
-        sprinting = true;
-      }
+      let { direction } = currentInput;
+      const sprinting = config?.mobileSprintOverride ?? currentInput.sprinting;
 
       const playerId = localPlayer.identity.toHexString();
       const dodgeRollState = config?.playerDodgeRollStates?.get(playerId) as any;

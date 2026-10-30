@@ -33,7 +33,7 @@ export const MONUMENT_LARGE_FURNACE_RENDER_Y_OFFSET = -100;
 // Furnace interaction distance (player <-> furnace) - must match server constants
 export const PLAYER_FURNACE_INTERACTION_DISTANCE_SQUARED = 96.0 * 96.0; // Same as campfire
 export const PLAYER_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED = 130.0 * 130.0; // Larger for big furnace
-export const PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED = 200.0 * 200.0; // Monument is ~480px, proportionally larger
+export const PLAYER_MONUMENT_LARGE_FURNACE_INTERACTION_DISTANCE_SQUARED = 250.0 * 250.0; // Matches the server for large compound buildings.
 
 // Constants for server-side collision logic
 export const SERVER_FURNACE_COLLISION_RADIUS = 20.0;

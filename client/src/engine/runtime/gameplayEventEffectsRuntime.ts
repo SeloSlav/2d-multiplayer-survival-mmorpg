@@ -14,9 +14,9 @@ import {
 import { triggerExplosionEffect } from '../../utils/renderers/explosiveRenderingUtils';
 import { triggerAnimalCorpseDestructionEffect } from '../../utils/renderers/animalCorpseRenderingUtils';
 import { triggerBarrelDestructionEffect } from '../../utils/renderers/barrelRenderingUtils';
-import { isLiveDetonation, recordWorldExplosion } from '../presentation/world3d/presentationEffectEvents';
+import { isLiveDetonation, recordWorldExplosion, recordWorldGrassCut } from '../presentation/world3d/presentationEffectEvents';
+import { bindGrassCutEvents } from './grassCutEventRuntime';
 
-type GrassDeleteListener = (ctx: unknown, grassState: GrassState) => void;
 type CairnInsertListener = (ctx: unknown, discovery: PlayerDiscoveredCairn) => void;
 type PlacedExplosiveDeleteListener = (ctx: unknown, explosive: PlacedExplosive) => void;
 type AnimalCorpseDeleteListener = (ctx: unknown, corpse: AnimalCorpse) => void;
@@ -32,7 +32,7 @@ class GameplayEventEffectsRuntime {
   private localPlayerId: string | null = null;
   private playImmediateSound: ImmediateSoundPlayer | null = null;
   private playedCairnIds = new Set<string>();
-  private grassDeleteListener: GrassDeleteListener | null = null;
+  private detachGrassCutEvents: (() => void) | null = null;
   private cairnInsertListener: CairnInsertListener | null = null;
   private placedExplosiveDeleteListener: PlacedExplosiveDeleteListener | null = null;
   private animalCorpseDeleteListener: AnimalCorpseDeleteListener | null = null;
@@ -66,15 +66,7 @@ class GameplayEventEffectsRuntime {
       return;
     }
 
-    if (!this.grassDeleteListener) {
-      this.grassDeleteListener = (_ctx, grassState) => {
-        if (!this.activeConnection) {
-          return;
-        }
-        handleGrassStateDestroyed(this.activeConnection, grassState);
-      };
-      this.activeConnection.db.grass_state.onDelete(this.grassDeleteListener);
-    }
+    if (!this.detachGrassCutEvents) this.detachGrassCutEvents = bindGrassCutEvents(this.activeConnection, state => this.grassDestroyed(state));
 
     if (!this.cairnInsertListener) {
       this.cairnInsertListener = (_ctx, discovery) => {
@@ -169,15 +161,21 @@ class GameplayEventEffectsRuntime {
     cleanupCutGrassEffectSystem();
   }
 
+  private grassDestroyed(state: GrassState): void {
+    const connection = this.activeConnection;
+    if (!connection) return;
+    const grass = connection.db.grass.id.find(state.grassId);
+    if (!grass) return;
+    recordWorldGrassCut(String(state.grassId), grass.posX, grass.posY, grass.appearanceType?.tag ?? '');
+    handleGrassStateDestroyed(connection, state);
+  }
+
   private detachListeners(): void {
     if (!this.activeConnection) {
       return;
     }
 
-    if (this.grassDeleteListener) {
-      this.activeConnection.db.grass_state.removeOnDelete(this.grassDeleteListener);
-      this.grassDeleteListener = null;
-    }
+    if (this.detachGrassCutEvents) { this.detachGrassCutEvents(); this.detachGrassCutEvents = null; }
 
     if (this.cairnInsertListener) {
       this.activeConnection.db.player_discovered_cairn.removeOnInsert(this.cairnInsertListener);

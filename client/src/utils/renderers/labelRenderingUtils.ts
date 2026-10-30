@@ -225,7 +225,7 @@ function drawSOVAOverlayBackground(
 /**
  * 🎯 CYBERPUNK: Renders styled interaction text with SOVA overlay background
  */
-function renderStyledInteractionLabel(
+export function renderStyledInteractionLabel(
     ctx: CanvasRenderingContext2D,
     text: string,
     x: number,

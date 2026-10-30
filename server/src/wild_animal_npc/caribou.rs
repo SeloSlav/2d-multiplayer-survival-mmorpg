@@ -1234,6 +1234,9 @@ fn spawn_caribou_calf(
     current_day: u32,
     tamed_by: Option<Identity>,
 ) -> Result<u64, String> {
+    if tamed_by.is_none() && super::core::is_position_in_alk_wildlife_zone(ctx, pos_x, pos_y) {
+        return Err("Wild caribou cannot give birth near an ALK compound".to_string());
+    }
     let behavior = CaribouBehavior;
     let stats = behavior.get_stats();
     let calf_health = stats.max_health * CALF_HEALTH_MULTIPLIER;

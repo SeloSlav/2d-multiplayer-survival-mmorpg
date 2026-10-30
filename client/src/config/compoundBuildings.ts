@@ -201,24 +201,6 @@ export const COMPOUND_BUILDINGS: CompoundBuilding[] = [
   // Replaced by compound eerie lights (COMPOUND_EERIE_LIGHTS below)
   // which render as nanobot-style blue/purple ambient glows at night.
   
-  // ===== WAREHOUSE (north section - decorative, AABB collision like compound water facility) =====
-  {
-    id: 'warehouse',
-    offsetX: 0,
-    offsetY: -500,
-    imagePath: 'warehouse.png',
-    width: 480,
-    height: 480,
-    anchorYOffset: 96,
-    collisionRadius: 0, // Unused when collisionAabb is set
-    collisionYOffset: 0,
-    collisionAabb: {
-      width: 350,
-      height: 160,
-      centerYOffset: -60, // Moved up from ground so collision aligns with building base/SELO sign area
-    },
-  },
-  
   // ===== BARRACKS =====
   {
     id: 'barracks',

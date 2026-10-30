@@ -532,7 +532,8 @@ export function createCombatTableBindings({
           oldPlayer.direction !== newPlayer.direction ||
           oldPlayer.jumpStartTimeMs !== newPlayer.jumpStartTimeMs ||
           oldPlayer.isDead !== newPlayer.isDead ||
-          oldPlayer.isTorchLit !== newPlayer.isTorchLit;
+          oldPlayer.isTorchLit !== newPlayer.isTorchLit ||
+          oldPlayer.isHeadlampLit !== newPlayer.isHeadlampLit;
         const onlineStatusChanged = oldPlayer.isOnline !== newPlayer.isOnline;
         const usernameChanged = oldPlayer.username !== newPlayer.username;
         const isImmediate = statsChanged || stateChanged || onlineStatusChanged || usernameChanged || lastHitTimeChanged;

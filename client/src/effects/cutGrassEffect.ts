@@ -145,6 +145,11 @@ export function spawnCutGrassParticles(
     appearanceType?: GrassAppearanceType
 ) {
     const now = Date.now();
+    // The 3D renderer does not draw this 2D pool, so discard expired entries
+    // on the next cut as well as during 2D rendering.
+    for (let i = activeParticles.length - 1; i >= 0; i--) {
+        if (now - activeParticles[i].startTime >= PARTICLE_LIFETIME_MS) activeParticles.splice(i, 1);
+    }
     
     // Determine color palette based on grass type
     // AlpinePatchB (alpine2) and AlpinePatchD (alpine4) use yellow colors

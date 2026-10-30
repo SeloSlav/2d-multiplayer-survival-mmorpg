@@ -1,14 +1,14 @@
 import { Group, Vector3 } from 'three/webgpu';
 import { ModelKit } from './modelKit';
+import { addFacilitySign, ALK_FACILITY_LABELS } from './facilitySigns';
 
-export type AlkAsset = 'station'|'central'|'warehouse'|'barracks'|'fuel_depot'|'garage'|'shed'|'compost'|'food'|'weapons'|'furnace'|'water';
-interface AlkPlan { width:number; depth:number; height:number; shell:number; trim:number; accent:number; roof:'flat'|'dome'|'tank'|'stack'; front:'door'|'service'|'vault'; }
+export type AlkAsset = 'station'|'central'|'barracks'|'fuel_depot'|'garage'|'shed'|'compost'|'food'|'weapons'|'furnace'|'water';
+interface AlkPlan { width:number; depth:number; height:number; shell:number; trim:number; accent:number; roof:'flat'|'tank'|'stack'; front:'door'|'service'|'vault'; }
 
 /** Dimensions are ground-space tiles, centered on the existing collision anchor. */
 export const ALK_PLANS:Record<AlkAsset,AlkPlan>={
   station:{width:7.1,depth:3.2,height:3.5,shell:0x515c65,trim:0x86979c,accent:0x7dd8da,roof:'flat',front:'service'},
   central:{width:7.1,depth:3.2,height:4.1,shell:0x515c65,trim:0x99a9ac,accent:0x8de3dc,roof:'stack',front:'service'},
-  warehouse:{width:7,depth:3.1,height:3.3,shell:0x806e65,trim:0xb1a39a,accent:0x8edbda,roof:'dome',front:'door'},
   barracks:{width:5.5,depth:3.0,height:4.2,shell:0x66554d,trim:0x8f7770,accent:0xd9a665,roof:'stack',front:'door'},
   fuel_depot:{width:5.1,depth:2.9,height:3.8,shell:0x514d51,trim:0x956654,accent:0xd6a764,roof:'tank',front:'door'},
   garage:{width:4.5,depth:2.9,height:3.5,shell:0x75564b,trim:0xa4836a,accent:0xe0ae6e,roof:'stack',front:'service'},
@@ -88,14 +88,6 @@ export function createAlkBuilding(kit:ModelKit,asset:AlkAsset):Group {
     kit.part(g,'cylinder',p.trim,[w*.42,.95,w*.42],[0,h+.48,-.1]);
     kit.part(g,'cylinder',p.shell,[w*.44,.15,w*.44],[0,h+.99,-.1]);
     kit.part(g,'cylinder',p.trim,[w*.20,.18,w*.20],[0,h+1.12,-.1]);
-  } else if(p.roof==='dome'){
-    kit.part(g,'cylinder',0x667f7a,[w*.53,.12,w*.53],[0,h+.1,-.1]);
-    kit.part(g,'cylinder',0x68503c,[.32,1.3,.32],[0,h+.75,-.1]);
-    for(let i=0;i<7;i++){
-      const a=i*Math.PI*2/7;
-      kit.part(g,'rock',i%2?0x6f965f:0x527d4d,[1.05,.85,1.05],[Math.cos(a)*.65,h+1.45+Math.sin(i)*.18,Math.sin(a)*.65-.1]);
-      kit.beam(g,0x94c3bf,new Vector3(Math.cos(a)*1.6,h+.12,Math.sin(a)*1.6-.1),new Vector3(Math.cos(a)*.35,h+2.25,Math.sin(a)*.35-.1),.035);
-    }
   } else {
     part(0x3b474d,[w*.35,.35,d*.25],[w*.19,h+.12,-d*.2]);
     for(let i=0;i<4;i++)part(p.trim,[w*.31,.035,.035],[w*.19,h+.34,-d*.28+i*.13]);
@@ -106,13 +98,17 @@ export function createAlkBuilding(kit:ModelKit,asset:AlkAsset):Group {
     kit.part(g,'cylinder',0x35464b,[.92,.09,.92],[x,h+.80,z]);
     kit.beam(g,0x364850,new Vector3(x,h+.45,z),new Vector3(x-.62,h+.45,z),.08);
   }
-  if(['warehouse','barracks','fuel_depot','garage','shed'].includes(asset)){
+  if(['barracks','fuel_depot','garage','shed'].includes(asset)){
     for(let i=0;i<9;i++){
       const x=-w*.48+(i%3)*.17,y=.35+Math.floor(i/3)*.38;
       kit.part(g,'rock',i%2?0x668454:0x476a48,[.28,.32,.18],[x,y,front+.20]);
     }
   }
-  const result=kit.compile(g);result.name=`alk-${asset}`;result.userData.alkAsset=asset;result.userData.alkPlan=p;
+  // Collapse the many painted metal colors into one opaque draw per building.
+  // Emissive details remain separate, and the animated furnace fire is added below.
+  const label=ALK_FACILITY_LABELS[asset];
+  if(label)addFacilitySign(kit,g,label,w*.82,h*.86,front);
+  const result=kit.compileColored(kit.compile(g));result.name=`alk-${asset}`;result.userData.alkAsset=asset;result.userData.alkPlan=p;result.userData.facilityLabel=label;
   if(asset==='furnace'){
     const fire=new Group();fire.name='fire';fire.position.set(0,.48,front+.26);
     for(let i=0;i<3;i++){
@@ -126,15 +122,17 @@ export function createAlkBuilding(kit:ModelKit,asset:AlkAsset):Group {
 
 /** Two distinct defensive machines with a solid plinth and raised barrel. */
 export function createAlkTurret(kit:ModelKit,monument:boolean):Group {
-  const g=new Group(),base=monument?2.8:1.25,body=monument?0x667c84:0x755443;
-  kit.part(g,'cylinder',0x303c42,[base,.32,base],[0,.16,0]);
-  kit.part(g,'cylinder',0x87979a,[base*.77,.18,base*.77],[0,.41,0]);
-  kit.part(g,'cylinder',body,[base*.55,.68,base*.55],[0,.78,0]);
-  kit.part(g,'box',body,[base*.58,.65,base*.65],[0,1.2,0]);
+  const g=new Group(),platform=new Group(),head=new Group(),base=monument?2.8:1.25,body=monument?0x667c84:0x755443;
+  kit.part(platform,'cylinder',0x303c42,[base,.32,base],[0,.16,0]);
+  kit.part(platform,'cylinder',0x87979a,[base*.77,.18,base*.77],[0,.41,0]);
+  kit.part(head,'cylinder',body,[base*.55,.68,base*.55],[0,.78,0]);
+  kit.part(head,'box',body,[base*.58,.65,base*.65],[0,1.2,0]);
   for(const x of [-base*.17,base*.17]){
-    kit.beam(g,0x2c353a,new Vector3(x,1.16,base*.25),new Vector3(x,1.16,base*.85),monument?.09:.06);
-    kit.part(g,'cylinder',0x9ca9a5,[.22,.18,.22],[x,1.16,base*.82]).rotation.x=Math.PI/2;
+    kit.beam(head,0x2c353a,new Vector3(x,1.16,base*.25),new Vector3(x,1.16,base*.85),monument?.09:.06);
+    kit.part(head,'cylinder',0x9ca9a5,[.22,.18,.22],[x,1.16,base*.82]).rotation.x=Math.PI/2;
   }
-  kit.part(g,'box',0x78d6d7,[base*.18,.18,.05],[0,1.35,base*.34],true);
-  const result=kit.compile(g);result.name=monument?'alk-turret':'steam-turret';return result;
+  kit.part(head,'box',0x78d6d7,[base*.18,.18,.05],[0,1.35,base*.34],true);
+  g.add(kit.compileColored(kit.compile(platform)));
+  const rotating=kit.compileColored(kit.compile(head));rotating.name='turret-head';g.add(rotating);
+  g.name=monument?'alk-turret':'steam-turret';return g;
 }

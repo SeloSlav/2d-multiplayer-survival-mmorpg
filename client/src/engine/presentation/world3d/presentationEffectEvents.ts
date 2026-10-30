@@ -4,6 +4,24 @@ let sequence = 0;
 export interface WorldItemBreak { sequence: number; id: string; x: number; y: number; at: number }
 const itemBreaks: WorldItemBreak[] = [];
 let itemBreakSequence = 0;
+export interface WorldGrassCut { sequence: number; id: string; x: number; y: number; appearance: string; at: number }
+const grassCuts: WorldGrassCut[] = [];
+let grassCutSequence = 0;
+
+/** Only actual state changes produce cuts; subscription eviction is not damage. */
+export function isGrassDestructionDelete(context: unknown): boolean {
+  const event = (context as {event?: {tag?:string;type?:string}} | null)?.event;
+  const type = event?.tag ?? event?.type;
+  return type !== 'SubscribeApplied' && type !== 'UnsubscribeApplied' && type !== 'Error';
+}
+export function recordWorldGrassCut(id: string, x: number, y: number, appearance: string, at = Date.now()): void {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || grassCuts.some(event => event.id === id && Math.abs(at-event.at) < 1000)) return;
+  grassCuts.push({sequence:++grassCutSequence,id,x,y,appearance,at});
+  while (grassCuts.length > 128) grassCuts.shift();
+}
+export function worldGrassCutsAfter(cursor: number, now: number): WorldGrassCut[] {
+  return grassCuts.filter(event => event.sequence > cursor && now >= event.at && now-event.at < 800);
+}
 
 export function recordWorldItemBreak(id: string, x: number, y: number, at = Date.now()): void {
   if (itemBreaks.some(event => event.id === id)) return;

@@ -1,9 +1,47 @@
 import test from 'node:test';
 import { TerrainWindow3d } from '../client/src/engine/presentation/world3d/TerrainWindow3d.ts';
 import { GroundDetail3d, scatterForTile } from '../client/src/engine/presentation/world3d/GroundDetail3d.ts';
+import { GrassCutEffects3d } from '../client/src/engine/presentation/world3d/GrassCutEffects3d.ts';
+import { isGrassDestructionDelete, recordWorldGrassCut, worldGrassCutsAfter } from '../client/src/engine/presentation/world3d/presentationEffectEvents.ts';
+import { bindGrassCutEvents } from '../client/src/engine/runtime/grassCutEventRuntime.ts';
 import { CloudShadows3d } from '../client/src/engine/presentation/world3d/CloudShadows3d.ts';
 import { worldLightAt } from '../client/src/engine/presentation/world3d/WorldLighting3d.ts';
 import { mapLegacyCycleProgress } from '../client/src/config/dayNightConstants.ts';
+import { createCombatTableBindings } from '../client/src/engine/adapters/spacetime/worldAndCombatTableBindings.ts';
+import { keyboardMovement } from '../client/src/engine/runtime/keyboardMovement.ts';
+import { movementPredictionRuntime } from '../client/src/engine/runtime/movementPredictionRuntime.ts';
+import { advanceTurretYaw, turretDesiredYaw, turretRecoil } from '../client/src/engine/presentation/world3d/turretAnimation.ts';
+import { interactionBounds, interactionVisualKey } from '../client/src/engine/presentation/world3d/interactionHighlight.ts';
+import { ALK_FACILITY_LABELS } from '../client/src/engine/presentation/world3d/facilitySigns.ts';
+import { preferNearestRelatedTargets, selectHighestPriorityTarget } from '../client/src/types/interactions.ts';
+
+test('turret heads aim and scan independently of the platform, and recoil only briefly', () => {
+  const kit=new ModelKit(), turret=createAlkTurret(kit,true), head=turret.getObjectByName('turret-head');
+  assert.ok(head); const base=turret.children[0];
+  const aimed=turretDesiredYaw({x:0,y:0},{x:100,y:0},0,1);
+  assert.equal(aimed,Math.PI/2);
+  head.rotation.y=advanceTurretYaw(0,aimed,1);
+  assert.ok(head.rotation.y>1.5);assert.equal(base.rotation.y,0);
+  assert.notEqual(turretDesiredYaw({x:0,y:0},null,0,1),turretDesiredYaw({x:0,y:0},null,5,1));
+  assert.ok(turretRecoil(1000,1000) > 0);assert.equal(turretRecoil(1400,1000),0);
+  const furnace=createAlkBuilding(kit,'furnace');assert.ok(furnace.getObjectByName('fire'));
+  assert.equal(furnace.userData.facilityLabel,'FURNACE');
+  for(const [asset,label] of Object.entries(ALK_FACILITY_LABELS))assert.equal(createAlkBuilding(kit,asset).userData.facilityLabel,label);
+  assert.equal(COMPOUND_BUILDINGS.some(building=>building.id==='warehouse'),false,'the old SELO warehouse is removed');
+  assert.ok(furnace.children.length < 6, 'compound geometry is consolidated');
+  kit.dispose();
+});
+
+test('compound interaction selection chooses the closest facility and model bounds project to the UI', () => {
+  const targets=[{type:'alk_station',id:0,distance:230,position:{x:0,y:0}},{type:'box',id:4,distance:60,position:{x:0,y:0}}];
+  const chosen=selectHighestPriorityTarget(preferNearestRelatedTargets(targets,()=>true));
+  assert.equal(chosen.type,'box');assert.equal(interactionVisualKey(chosen),'woodenStorageBoxes:4');
+  const kit=new ModelKit(), model=createAlkTurret(kit,true);
+  const camera=new OrthographicCamera(-10,10,10,-10,.1,100);camera.position.set(0,10,10);camera.lookAt(0,0,0);camera.updateProjectionMatrix();
+  const box=interactionBounds(model,camera,800,800,{x:400,y:400});
+  assert.ok(box && box.width>16 && box.height>16 && Math.abs(box.x-400)<10);
+  kit.dispose();
+});
 
 test('terrain scatter is deterministic, terrain-specific and absent from water and tilled ground', () => {
   let grass=0, quarry=0;
@@ -78,6 +116,34 @@ test('grass wind uses each chunk weather, preserves beach motion phase and honor
   update(5,false); assert.equal(detail.wind.value,0); update(6,true); assert.equal(detail.wind.value,1);
   weather.delete('1'); update(7); assert.ok(Math.abs(small.getX(0)-.15)<1e-6, 'missing chunk weather falls back to clear');
   detail.dispose();
+});
+
+test('grass cut callbacks handle filtered deletes and full-state updates without treating unsubscribe as a cut', () => {
+  const callbacks={};
+  const table=name=>({onDelete:fn=>callbacks[`${name}:delete`]=fn, removeOnDelete:()=>{},
+    onUpdate:fn=>callbacks[`${name}:update`]=fn, removeOnUpdate:()=>{}, onInsert:()=>{}, removeOnInsert:()=>{}});
+  const db={grass_state:table('grass')};
+  const detach=bindGrassCutEvents({db},state=>recordWorldGrassCut(String(state.grassId),96,144,'TallGrassTundraA'));
+  const now=Date.now(), old={grassId:919001n,isAlive:true}, dead={...old,isAlive:false};
+  callbacks['grass:delete']({event:{tag:'UnsubscribeApplied'}},old);
+  assert.equal(worldGrassCutsAfter(0,now+10).filter(e=>e.id==='919001').length,0);
+  callbacks['grass:update']({event:{tag:'Reducer'}},old,dead);
+  callbacks['grass:delete']({event:{tag:'Reducer'}},old);
+  const events=worldGrassCutsAfter(0,Date.now()+10).filter(e=>e.id==='919001');
+  assert.equal(events.length,1);assert.deepEqual([events[0].x,events[0].y,events[0].appearance],[96,144,'TallGrassTundraA']);
+  assert.equal(isGrassDestructionDelete({event:{tag:'SubscribeApplied'}}),false);
+  detach();
+});
+
+test('grass cuts produce pooled, biome-colored blades that fly and expire', () => {
+  const effect=new GrassCutEffects3d(), at=1000000;
+  recordWorldGrassCut('red-fixture',96,144,'TallGrassTundraA',at);
+  effect.update(at+100);assert.equal(effect.blades.count,8);assert.equal(effect.root.visible,true);
+  const first=effect.blades.instanceMatrix.array.slice(0,16), color=effect.blades.instanceColor.array;
+  assert.ok(color[0]>color[1]*2, 'tundra fragments retain their red color');
+  effect.update(at+350);assert.notDeepEqual(effect.blades.instanceMatrix.array.slice(0,16),first,'blades travel after the cut');
+  effect.update(at+400,true);assert.equal(effect.root.visible,false,'underwater view hides land debris');
+  effect.update(at+801);assert.equal(effect.blades.count,0);effect.dispose();
 });
 
 test('cloud projection tracks interpolated positions and clears when disabled', () => {
@@ -1619,6 +1685,71 @@ test('the server torch flag controls both the held flame and the WebGPU light so
   equipment.equippedItemDefId = 2n; player.isTorchLit = true;
   assert.equal(sync().length, 0, 'switching away from a lit torch cannot leave a light behind');
   await renderer.dispose();
+});
+
+test('headlamp follows the animated survivor and illuminates only while lit and alive', async () => {
+  const renderer=new WebGpuWorldRenderer({dataset:{},style:{}});
+  const player={identity:'test',positionX:400,positionY:400,isHeadlampLit:false,direction:'down'};
+  const frame={width:1280,height:720,cameraOffset:{x:0,y:0},localPlayerId:'test',predictedPosition:{x:400,y:400},
+    tables:{players:new Map([['test',player]]),activeEquipments:new Map([['test',{headItemInstanceId:123n}]]),
+      inventoryItems:new Map([['123',{itemDefId:99n}]]),itemDefinitions:new Map([['99',{name:'Headlamp'}]])}};
+  const sync=()=>{const lights=[];renderer.syncTable('players',frame,1/60,1,new Set(),lights);return lights;};
+  assert.equal(sync().length,0);
+  const survivor=renderer.visuals.get('players:test').survivor;
+  assert.equal(survivor.headlampFlame.visible,false);
+  player.isHeadlampLit=true;
+  let lights=sync();assert.equal(lights.length,1);assert.equal(lights[0].distance,10);assert.equal(survivor.headlampFlame.visible,true);
+  assert.ok(lights[0].position.distanceTo(survivor.headlampWorldPosition(new Vector3()))<1e-6);
+  const before=lights[0].position.clone();frame.predictedPosition={x:496,y:400};lights=sync();
+  assert.ok(Math.abs(lights[0].position.x-before.x-2)<1e-5,'light follows predicted movement');
+  renderer.updateLighting(frame,0,lights);assert.equal(renderer.lights[0].distance,10);assert.ok(renderer.lights[0].intensity>0);
+  player.isHeadlampLit=false;assert.equal(sync().length,0);assert.equal(survivor.headlampFlame.visible,false);
+  renderer.updateLighting(frame,0,[]);assert.equal(renderer.lights[0].intensity,0);assert.equal(renderer.lights[0].distance,5);
+  player.isHeadlampLit=true;player.isDead=true;assert.equal(sync().length,0);
+  player.isDead=false;player.isSnorkeling=true;assert.equal(sync().length,0);
+  await renderer.dispose();
+});
+
+test('headlamp toggles propagate immediately through player table updates', () => {
+  let updates=0;
+  const refs={playersRef:{current:new Map()},lastPlayerRenderTimeRef:{current:performance.now()},playerRenderPendingRef:{current:false},playerRenderTimerRef:{current:null}};
+  const bindings=createCombatTableBindings({...refs,setPlayers:()=>updates++});
+  const old={identity:{toHexString:()=> 'player'},health:100,stamina:100,hunger:100,thirst:100,warmth:100,isHeadlampLit:false};
+  bindings.player.onUpdate({},old,{...old,isHeadlampLit:true});
+  assert.equal(updates,1);assert.equal(refs.playerRenderTimerRef.current,null);
+});
+
+test('keyboard sprint follows either held shift during manual and auto-walk movement', () => {
+  const keys=new Set(['KeyW','ShiftLeft']);
+  assert.equal(keyboardMovement(keys,null).sprinting,true);
+  keys.add('ShiftRight');keys.delete('ShiftLeft');assert.equal(keyboardMovement(keys,null).sprinting,true);
+  keys.delete('ShiftRight');assert.equal(keyboardMovement(keys,null).sprinting,false);
+  keys.clear();const auto={x:0,y:-1};
+  assert.deepEqual(keyboardMovement(keys,auto),{direction:auto,sprinting:false});
+  keys.add('ShiftLeft');assert.equal(keyboardMovement(keys,auto).sprinting,true);
+  keys.delete('ShiftLeft');assert.deepEqual(keyboardMovement(keys,auto),{direction:auto,sprinting:false});
+});
+
+test('released sprint overrides stale server state in prediction and movement updates', () => {
+  const sent=[];
+  const connection={db:{active_consumable_effect:{iter:()=>[]}},reducers:{updatePlayerPositionSimple:args=>{sent.push(args);return Promise.resolve();}}};
+  const entities=Object.fromEntries(['trees','stones','runeStones','cairns','boxes','rainCollectors','furnaces','barbecues','shelters','players','wildAnimals','barrels','seaStacks','wallCells','foundationCells','homesteadHearths','basaltColumns','doors','livingCorals','monumentParts'].map(key=>[key,new Map()]));
+  const input={current:{direction:{x:1,y:0},sprinting:true}};
+  const player={identity:{toHexString:()=> 'sprint-test'},positionX:4000,positionY:4000,direction:'right',isSprinting:true,isDead:false,isKnockedOut:false,isCrouching:false,isOnWater:false,jumpStartTimeMs:0};
+  const config={connection,localPlayer:player,inputState:input.current,inputStateRef:input,isUIFocused:false,entities,isAutoWalking:false,stopAutoWalk:()=>{},isAutoAttacking:false};
+  movementPredictionRuntime.configure(config);
+  const start=movementPredictionRuntime.clientPosition.x;movementPredictionRuntime.lastSentTime=0;
+  movementPredictionRuntime.stepPredictedMovement(20);const afterSprint=movementPredictionRuntime.clientPosition.x;
+  assert.equal(sent.at(-1).isSprinting,true);
+  input.current={direction:{x:1,y:0},sprinting:false};movementPredictionRuntime.lastSentTime=0;
+  movementPredictionRuntime.stepPredictedMovement(20);const afterRelease=movementPredictionRuntime.clientPosition.x;
+  assert.equal(sent.at(-1).isSprinting,false,'the next server update stops sprinting');
+  assert.ok(afterSprint-start > (afterRelease-afterSprint)*1.5,'prediction returns to walking speed despite stale server sprint state');
+  movementPredictionRuntime.configure({...config,mobileSprintOverride:true});movementPredictionRuntime.lastSentTime=0;
+  movementPredictionRuntime.stepPredictedMovement(20);assert.equal(sent.at(-1).isSprinting,true,'mobile sprint remains independently controlled');
+  movementPredictionRuntime.configure({...config,mobileSprintOverride:false});movementPredictionRuntime.lastSentTime=0;
+  movementPredictionRuntime.stepPredictedMovement(20);assert.equal(sent.at(-1).isSprinting,false);
+  movementPredictionRuntime.configure({...config,localPlayer:null});
 });
 
 function signedVolume(mesh) {

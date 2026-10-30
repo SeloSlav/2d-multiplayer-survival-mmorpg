@@ -1568,10 +1568,11 @@ export class GameCanvasRuntimeHost {
         cloudsEnabled: this.renderContext.cloudsEnabled !== false,
         grassAnimationEnabled: this.renderContext.grassAnimationEnabled !== false,
         profile: Boolean(this.renderContext.showFpsProfiler || isProfilerRecording()),
+        interactionTarget: refs.renderGameDepsRef.current.unifiedInteractableTarget,
         placement: evaluateGameCanvasPlacement(this.renderContext),
         getRemotePlayerPosition: (player) => remotePlayerInterpolationRuntime.updateAndGetSmoothedPosition(player as SpacetimeDBPlayer, options.localPlayerId),
       });
-      renderGameCanvasUiFrame(this.renderContext, {frameStartMs, frameGapMs, world:this.worldPresentation.renderer.lastProfile, cameraOffset:presentationCamera,
+      renderGameCanvasUiFrame(this.renderContext, {frameStartMs, frameGapMs, world:this.worldPresentation.renderer.lastProfile, cameraOffset:presentationCamera, interactionHighlight:this.worldPresentation.renderer.interactionHighlight,
         occludes:(x,y)=>this.worldPresentation!.renderer.shelterVisibility.occludes(x,y)});
       this.checkRenderPerformance(frameStartMs);
       return;

@@ -404,6 +404,7 @@ pub fn spawn_bees_at_hive(
         let offset_dist = rng.gen_range(20.0..60.0);
         let spawn_x = hive_x + offset_angle.cos() * offset_dist;
         let spawn_y = hive_y + offset_angle.sin() * offset_dist;
+        if super::core::is_position_in_alk_wildlife_zone(ctx, spawn_x, spawn_y) { continue; }
         
         let bee = WildAnimal {
             id: 0, // Auto-increment
