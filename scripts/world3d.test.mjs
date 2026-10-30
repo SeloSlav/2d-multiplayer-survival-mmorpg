@@ -35,6 +35,51 @@ test('3D grass follows live grass state and excludes foundations and water', () 
   detail.dispose();
 });
 
+test('biome grass colors follow the 2D species and tall clumps remain authoritative visual cover', () => {
+  const detail = new GroundDetail3d();
+  const kinds = new Map([['0,0','Grass'],['1,0','TundraGrass'],['2,0','Alpine'],['3,0','Beach']]);
+  const grass = new Map(['TallGrassA','TallGrassTundraA','TallGrassAlpineA','BeachGrassA'].map((tag,i) =>
+    [tag, {currentRenderPosX:(i+.5)*48,currentRenderPosY:24,appearanceType:{tag}}]));
+  detail.update(grass,kinds,0,false,()=>0);
+  const tall=detail.root.getObjectByName('gameplay-tall-grass');
+  assert.equal(tall.count,4);
+  tall.geometry.computeBoundingBox();
+  assert.ok(tall.geometry.boundingBox.max.y > 2, 'tall grass rises above the standing survivor');
+  assert.ok(tall.geometry.getAttribute('position').count >= 300, 'cover is made from overlapping blades');
+  const colors = tall.instanceColor.array;
+  assert.ok(colors[3] > colors[4] * 2, 'tundra grass is red');
+  assert.ok(colors[7] > colors[6] && colors[10] > colors[9], 'alpine and beach grass are green');
+  for (const mesh of detail.root.children) assert.ok(mesh.instanceColor, 'instance colors exist before shader compilation');
+  grass.delete('TallGrassA'); detail.update(grass,kinds,1,false,()=>0); assert.equal(tall.count,3);
+  detail.update(grass,kinds,2,false,()=>.1); assert.equal(tall.count,0);
+  detail.dispose();
+});
+
+test('grass wind uses each chunk weather, preserves beach motion phase and honors animation settings', () => {
+  const detail = new GroundDetail3d(), kinds = new Map([['0,0','Grass'],['1,0','Grass'],['2,0','Beach']]);
+  const grass = new Map([
+    ['calm',{currentRenderPosX:12,currentRenderPosY:12,appearanceType:{tag:'PatchA'},chunkIndex:1,swaySpeed:1,swayOffsetSeed:250}],
+    ['storm',{currentRenderPosX:60,currentRenderPosY:12,appearanceType:{tag:'TallGrassA'},chunkIndex:2,swaySpeed:1.7,swayOffsetSeed:500}],
+    ['beach',{currentRenderPosX:108,currentRenderPosY:12,appearanceType:{tag:'BeachGrassA'},chunkIndex:1,swayOffsetSeed:700}],
+  ]);
+  const weather = new Map([['1',{currentWeather:{tag:'Clear'}}],['2',{currentWeather:{tag:'HeavyStorm'}}]]);
+  const update = (time, animated = true, map = weather) => detail.update(grass,kinds,time,animated,()=>0,map);
+  update(3);
+  const small = detail.root.getObjectByName('gameplay-grass').geometry.getAttribute('grassWind');
+  const tall = detail.root.getObjectByName('gameplay-tall-grass').geometry.getAttribute('grassWind');
+  assert.ok(Math.abs(small.getX(0)-.15)<1e-6 && Math.abs(tall.getX(0)-1.35)<1e-6, 'different chunks receive their own wind');
+  assert.ok(Math.abs(small.getY(0)-2*Math.PI)<1e-6, 'the authoritative sway speed is used');
+  const beachFrequency=tall.getY(1), beachPhase=tall.getZ(1), previousMatrix=detail.root.getObjectByName('gameplay-tall-grass').instanceMatrix.array.slice(0,32);
+  weather.get('1').currentWeather.tag='HeavyRain'; update(4);
+  assert.ok(Math.abs(small.getX(0)-1)<1e-6 && Math.abs(tall.getX(0)-1.35)<1e-6);
+  assert.ok(tall.getY(1)>beachFrequency, 'beach grass moves faster in stronger weather');
+  assert.ok(Math.abs((beachFrequency*4+beachPhase)-(tall.getY(1)*4+tall.getZ(1)))<1e-5, 'weather speed changes do not snap beach grass');
+  assert.deepEqual(detail.root.getObjectByName('gameplay-tall-grass').instanceMatrix.array.slice(0,32), previousMatrix, 'wind does not move placement anchors');
+  update(5,false); assert.equal(detail.wind.value,0); update(6,true); assert.equal(detail.wind.value,1);
+  weather.delete('1'); update(7); assert.ok(Math.abs(small.getX(0)-.15)<1e-6, 'missing chunk weather falls back to clear');
+  detail.dispose();
+});
+
 test('cloud projection tracks interpolated positions and clears when disabled', () => {
   const shadows=new CloudShadows3d();
   const clouds=new Map([['c',{currentRenderPosX:96,currentRenderPosY:144,width:480,height:240,rotationDegrees:0,currentOpacity:.1}]]);

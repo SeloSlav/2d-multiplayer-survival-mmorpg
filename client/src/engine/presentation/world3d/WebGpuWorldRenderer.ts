@@ -342,7 +342,7 @@ export class WebGpuWorldRenderer {
     this.shardGlow.beginFrame(time);
     this.collectibleGlitter.beginFrame(time, cycle, this.camera.quaternion);
     this.prepareBuildings(frame);
-    this.groundDetail.update(frame.tables.interpolatedGrass, this.terrainKinds, time, frame.grassAnimationEnabled !== false, (x,y) => this.floorAt(x,y));
+    this.groundDetail.update(frame.tables.interpolatedGrass, this.terrainKinds, time, frame.grassAnimationEnabled !== false, (x,y) => this.floorAt(x,y), frame.tables.chunkWeather, weatherState?.currentWeather);
     const renderNow = frame.nowMs ?? Date.now();
     if (frame.tables.projectiles instanceof Map && frame.tables.itemDefinitions instanceof Map) {
       for (const shot of frame.tables.projectiles.values()) {

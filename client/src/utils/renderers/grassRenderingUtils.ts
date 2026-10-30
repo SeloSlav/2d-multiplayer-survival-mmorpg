@@ -2,6 +2,7 @@ import { GrassAppearanceType } from '../../generated/types';
 import { imageManager } from './imageManager';
 import { InterpolatedGrassData } from '../../engine/runtime/grassInterpolationRuntime';
 import { renderCyberpunkAssetPlaceholder } from './cyberpunkAssetPlaceholder';
+import { GRASS_SWAY_BY_WEATHER, BEACH_GRASS_SPEED_BY_WEATHER, DEFAULT_GRASS_SWAY, DEFAULT_BEACH_GRASS_SPEED } from '../../engine/presentation/grassWindWeather';
 
 // Import grass assets directly
 import grass1TextureUrl from '../../assets/doodads/grass1.png';
@@ -138,10 +139,6 @@ const shouldGrassSway = (tag: string): boolean => SWAYING_GRASS_TYPES.has(tag);
 const shouldHaveStaticRotation = (tag: string): boolean => !NO_ROTATION_TYPES.has(tag);
 
 // Weather sway multipliers - lookup table avoids switch in hot path
-const SWAY_BY_TAG: Record<string, number> = {
-    Clear: 0.15, LightRain: 0.45, ModerateRain: 0.75, HeavyRain: 1.0, HeavyStorm: 1.35
-};
-const DEFAULT_SWAY_MULT = 0.15;
 
 // PERF: Lazy per-chunk cache - avoids chunkIndex.toString() per grass (was 115 allocs/frame)
 // Many grass share same chunk, so we only do 1 lookup per unique chunk per frame
@@ -168,20 +165,12 @@ function getWeatherSwayMultiplier(chunkWeather: ChunkWeatherMap | undefined, chu
     if (swayMultiplierCache.size >= SWAY_CACHE_MAX_SIZE) swayMultiplierCache.clear();
     const weather = chunkWeather.get(String(chunkIndex));
     const tag = weather?.currentWeather?.tag ?? 'Clear';
-    const mult = SWAY_BY_TAG[tag] ?? DEFAULT_SWAY_MULT;
+    const mult = GRASS_SWAY_BY_WEATHER[tag] ?? DEFAULT_GRASS_SWAY;
     swayMultiplierCache.set(chunkIndex, mult);
     return mult;
 }
 
 // Beach grass strip animation: faster playback in rain/storm (replaces rotational sway)
-const ANIM_SPEED_BY_TAG: Record<string, number> = {
-    Clear: 0.85,
-    LightRain: 1.05,
-    ModerateRain: 1.3,
-    HeavyRain: 1.65,
-    HeavyStorm: 2.35,
-};
-const DEFAULT_ANIM_SPEED_MULT = 0.85;
 
 const BEACH_GRASS_TAG = GrassAppearanceType.BeachGrassA.tag;
 const BEACH_GRASS_FRAME_COUNT = 8;
@@ -198,7 +187,7 @@ function getWeatherAnimSpeedMultiplier(chunkWeather: ChunkWeatherMap | undefined
     if (weatherAnimSpeedCache.size >= SWAY_CACHE_MAX_SIZE) weatherAnimSpeedCache.clear();
     const weather = chunkWeather.get(String(chunkIndex));
     const wtag = weather?.currentWeather?.tag ?? 'Clear';
-    const mult = ANIM_SPEED_BY_TAG[wtag] ?? DEFAULT_ANIM_SPEED_MULT;
+    const mult = BEACH_GRASS_SPEED_BY_WEATHER[wtag] ?? DEFAULT_BEACH_GRASS_SPEED;
     weatherAnimSpeedCache.set(chunkIndex, mult);
     return mult;
 }

@@ -28,7 +28,7 @@ const PAINT_BASE: Record<string, number> = {
 };
 export interface PaintedAtlases { albedo: Uint8Array; normal: Uint8Array; size: number }
 
-/** Seamless pigment washes, directional brush dabs and species-specific relief.
+/** Seamless pigment patches, small painted marks and species-specific relief.
  * Albedo/roughness/normal derive from the same height and pigment fields. */
 export function createPaintedAtlases(): PaintedAtlases {
   const albedo = new Uint8Array(ATLAS * ATLAS * 4), normal = new Uint8Array(albedo.length);
@@ -46,13 +46,41 @@ export function createPaintedAtlases(): PaintedAtlases {
       const ridges = Math.sin((u * (kind === 'Tilled' ? 16 : 8) + v * (kind === 'Tilled' ? 0 : 3) + warp * .28) * Math.PI * 2);
       let relief = (wash - .5) * .25 + (patches - .5) * .13 + (grit - .5) * .045;
       let pigment = (Math.round(wash * 6) / 6 - .5) * .18 + (patches - .5) * .11;
-      if (grass) { relief += dab * .12; pigment += dab * .13 - Math.pow(1 - patches, 4) * .12; }
-      else if (sand) { relief += ridges * .035 + dab * .025; pigment += ridges * .025 + dab * .04; }
+      if (grass) {
+        // Interlocking, irregular leaf marks read as painted ground cover rather
+        // than a stretched wash. Periodic cells keep the atlas edges seamless.
+        const gx = u * 24, gy = v * 24, ix = Math.floor(gx), iy = Math.floor(gy);
+        let distance = 10, tone = 0;
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+          const mark = hash(wrap(ix + ox, 24), wrap(iy + oy, 24), layer + 101);
+          const mx = gx - ix - ox - (.12 + (mark & 255) / 255 * .76);
+          const my = gy - iy - oy - (.12 + (mark >>> 8 & 255) / 255 * .76);
+          const d = Math.abs(mx + my * ((mark & 0x10000) ? .38 : -.38)) * 1.1 + Math.abs(my) * .7;
+          if (d < distance) { distance = d; tone = ((mark >>> 18) % 5 - 2) * .045; }
+        }
+        const leaf = distance < .34;
+        const fleck = hash(x, y, layer + 211) % 19 === 0;
+        relief += (leaf ? .09 : -.025) + (fleck ? .025 : 0);
+        pigment += (leaf ? .095 + tone : -.045) + (fleck ? .045 : 0) + (Math.round(patches * 4) / 4 - .5) * .13;
+      }
+      else if (sand) {
+        const grain = hash(x, y, layer + 301) % 13;
+        relief += ridges * .025 + (grain === 0 ? .035 : 0);
+        pigment += ridges * .024 + (grain === 0 ? -.095 : grain === 1 ? .055 : 0);
+      }
       else if (kind === 'Tilled') { relief += ridges * .15; pigment += ridges * .095; }
       else if (kind === 'Quarry') { const slab = Math.round(patches * 5) / 5; relief += slab * .24; pigment += (slab - .5) * .22; }
       else if (kind === 'Asphalt') { relief = (grit - .5) * .035; pigment = (wash - .5) * .09 + (grit - .5) * .07 - (patches < .23 ? .06 : 0); }
-      else if (snow) { relief = (wash - .5) * .17 + dab * .025; pigment = (wash - .5) * .07 + (patches - .5) * .035; }
-      else { relief += dab * .08; pigment += dab * .065; }
+      else if (snow) {
+        const crystal = hash(x, y, layer + 351) % 17;
+        relief = (wash - .5) * .17 + dab * .025 + (crystal === 0 ? .025 : 0);
+        pigment = (wash - .5) * .1 + (patches - .5) * .055 + (crystal === 0 ? -.065 : crystal === 1 ? .025 : 0);
+      }
+      else {
+        const grain = hash(x, y, layer + 401) % 17;
+        relief += dab * .05 + (grain === 0 ? .035 : 0);
+        pigment += dab * .045 + (grain === 0 ? -.1 : grain === 1 ? .055 : 0);
+      }
       heights[y * INNER + x] = relief; pigments[y * INNER + x] = pigment;
     }
     const base = PAINT_BASE[kind], rgb = [(base >> 16) & 255, (base >> 8) & 255, base & 255];
@@ -130,7 +158,7 @@ export class TerrainMaterials3d {
   private paint(index: Node<'float'>, p: Node<'vec2'>) {
     p = p.add(vec2(sin(p.x.mul(.43).add(sin(p.y.mul(.71)))).mul(.23), sin(p.y.mul(.53).add(sin(p.x.mul(.61)))).mul(.21)));
     const uv = vec2(index.mod(4), index.div(4).floor()).mul(STRIDE).add(PAD + .5)
-      .add(p.div(2.7).fract().mul(INNER - 1)).div(ATLAS);
+      .add(p.div(4.5).fract().mul(INNER - 1)).div(ATLAS);
     return { albedo: this.pigmentNode.sample(uv), normal: this.normalNode.sample(uv).rgb.mul(2).sub(1) };
   }
   coastAt(p: Node<'vec2'>) { return this.coastNode.sample(p.sub(this.origin).div(this.dimensions)).g.mul(16).sub(8); }
