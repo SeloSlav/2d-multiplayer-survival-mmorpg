@@ -5,7 +5,7 @@ export default {
   date: "2026-01-20",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Looking for multiplayer survival games that won't cost you anything? These free survival games offer full multiplayer experiences without paywalls or pay-to-win mechanics. From battle royale to cooperative crafting, here are the best free multiplayer survival games available.",
   coverImage: "/images/blog/free-multiplayer-survival-games-cover.jpg",
   content: `

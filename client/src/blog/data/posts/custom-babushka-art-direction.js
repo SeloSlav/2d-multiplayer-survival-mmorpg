@@ -5,7 +5,7 @@ export default {
   date: "2025-11-16",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Our first fully custom, hand-crafted character sprite marks a turning point in Broth & Bullets' art direction. See how we're moving from AI-generated placeholders toward a distinctive visual style that might blend pixel art with painterly environments.",
   coverImage: "/images/blog/babushka-custom-cover.jpg",
   content: `

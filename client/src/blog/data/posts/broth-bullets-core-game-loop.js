@@ -5,7 +5,7 @@ export default {
   date: "2026-05-06",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Broth & Bullets is committing to a PvE survival loop: grow food, cook broth, survive the night, harvest apparition materials, and push farther next time.",
   coverImage: "/images/blog/core-game-loop.png",
   content: `

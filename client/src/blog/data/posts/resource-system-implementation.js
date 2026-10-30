@@ -5,7 +5,7 @@ export default {
   date: "2025-04-01",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "After five days of intensive development, we've implemented a fully functional resource system that spans from server-side node management to client-side harvesting and inventory interaction.",
   coverImage: "/images/blog/resource-system.jpg",
   content: `

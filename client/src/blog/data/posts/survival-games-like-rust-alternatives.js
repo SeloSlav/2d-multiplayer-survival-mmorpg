@@ -5,7 +5,7 @@ export default {
   date: "2026-01-20",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Love Rust's survival mechanics but hate the toxic community? These Rust alternatives offer similar crafting, base building, and multiplayer experiences without the griefing, racism, and door camping. Find your next survival game here.",
   coverImage: "/images/blog/rust-alternatives-cover.jpg",
   content: `

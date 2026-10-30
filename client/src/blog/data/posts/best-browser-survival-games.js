@@ -5,7 +5,7 @@ export default {
   date: "2026-01-20",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Want to play survival games without downloading anything? These browser-based survival games let you start playing instantly from any computer. From multiplayer crafting to zombie survival, here are the best survival games you can play in your browser.",
   coverImage: "/images/blog/browser-survival-games-cover.jpg",
   content: `

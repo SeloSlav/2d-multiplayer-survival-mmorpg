@@ -5,7 +5,7 @@ export default {
   date: "2026-01-26",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "It's been a while since our last update. The production server has been wiped a few times as we add new systems, but we're closing in on something special. Here's what we've shipped recently and where Broth & Bullets is headed.",
   coverImage: "/images/blog/january-2026-update-cover.jpg",
   content: `

@@ -5,7 +5,7 @@ export default {
   date: '2025-11-17',
   author: 'Martin Erlic',
   authorImage: '/images/blog/author-marty.jpg',
-  authorTwitter: 'seloslav',
+  authorTwitter: 'metalhorse233',
   excerpt: 'The complete story of building Broth & Bullets, a real-time multiplayer survival game set in the Aleutian Islands. Learn about our technical decisions, gameplay mechanics, and lessons learned.',
   tags: ['Broth & Bullets', 'Game Development', 'Multiplayer', 'Survival Games', 'Indie Games', 'Case Study'],
   coverImage: '/images/blog/how-we-built-broth-bullets-cover.jpg',
@@ -269,7 +269,7 @@ export default {
     <ul>
       <li><strong>Play Now</strong>: <a href="https://brothbullets.com" target="_blank" rel="noopener noreferrer">brothbullets.com</a></li>
       <li><strong>Join Discord</strong>: <a href="https://discord.gg/tUcBzfAYfs" target="_blank" rel="noopener noreferrer">Get alpha access and updates</a></li>
-      <li><strong>Follow Development</strong>: <a href="https://twitter.com/seloslav" target="_blank" rel="noopener noreferrer">@seloslav on Twitter</a></li>
+      <li><strong>Follow Development</strong>: <a href="https://twitter.com/metalhorse233" target="_blank" rel="noopener noreferrer">@metalhorse233 on Twitter</a></li>
     </ul>
 
     <h2>💡 For Other Developers</h2>

@@ -5,7 +5,7 @@ export default {
   date: "2025-11-14",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Creating a building system for a 2D survival game presents unique challenges. We dive into the algorithms, design decisions, and gameplay implications of constructing shelter in a flat world.",
   coverImage: "/images/blog/building-interior-screenshot.jpg",
   content: `

@@ -83,8 +83,8 @@ export const useSEO = ({
 
     // Set essential Twitter tags  
     updateMetaName('twitter:card', 'summary_large_image');
-    updateMetaName('twitter:site', '@seloslav');
-    updateMetaName('twitter:creator', '@seloslav');
+    updateMetaName('twitter:site', '@metalhorse233');
+    updateMetaName('twitter:creator', '@metalhorse233');
 
     // Set additional meta tags
     updateMetaName('author', 'Broth & Bullets Team');

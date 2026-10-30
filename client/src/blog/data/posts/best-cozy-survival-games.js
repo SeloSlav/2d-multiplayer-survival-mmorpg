@@ -5,7 +5,7 @@ export default {
   date: "2026-01-20",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Looking for survival games that won't stress you out? This guide covers the best cozy survival games that offer crafting, farming, and exploration without the toxic PvP and punishing mechanics of hardcore titles like Rust.",
   coverImage: "/images/blog/cozy-survival-games-cover.jpg",
   content: `

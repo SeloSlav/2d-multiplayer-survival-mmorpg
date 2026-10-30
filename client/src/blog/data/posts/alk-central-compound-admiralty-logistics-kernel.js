@@ -5,7 +5,7 @@ export default {
   date: "2026-02-10",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "The ALK Central Compound isn't a settlement or a bunker — it's an automated logistics nexus built by the long-defunct Admiralty Directorate. Here's what survivors can do there and why Memory Shards matter.",
   coverImage: "/images/blog/february-2026-update-cover-2.jpg",
   content: `

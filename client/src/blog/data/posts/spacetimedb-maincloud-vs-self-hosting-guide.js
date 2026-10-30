@@ -5,7 +5,7 @@ export default {
   date: "2026-02-15",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "We're based in the EU and use SpacetimeDB Maincloud in the US — it doesn't have an EU region yet. Maincloud's dashboard and energy metering are giving us invaluable insights into reducer and transaction costs, helping us optimize our server code. Here's our complete guide.",
   coverImage: "/images/blog/broth-bullets-spacetimedb-cover.jpg",
   content: `

@@ -5,7 +5,7 @@ export default {
   date: "2026-01-20",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Pixel art survival games combine nostalgic visuals with modern game design. These games prove that detailed 3D graphics aren't necessary for immersive survival experiences. From procedural wilderness to zombie apocalypses, here are the best pixel art survival games.",
   coverImage: "/images/blog/pixel-art-survival-games-cover.jpg",
   content: `

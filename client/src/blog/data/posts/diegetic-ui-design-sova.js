@@ -5,7 +5,7 @@ export default {
   date: "2025-12-12",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "You don't open a menu in Broth & Bullets - you activate a neural interface. Your minimap lives in your occipital lobe. When you log off, your body stays on the tundra. Here's why diegetic UI matters for immersive 2D survival games.",
   coverImage: "/images/blog/diegetic-ui-cover.jpg",
   content: `

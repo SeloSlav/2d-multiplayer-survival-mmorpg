@@ -5,7 +5,7 @@ export default {
   date: "2026-01-20",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Top-down survival games offer unique tactical advantages and nostalgic appeal. From zombie apocalypses to alien planets, these overhead-perspective survival games deliver deep mechanics with excellent visibility. Here are the best top-down survival games available.",
   coverImage: "/images/blog/top-down-survival-games-cover.jpg",
   content: `

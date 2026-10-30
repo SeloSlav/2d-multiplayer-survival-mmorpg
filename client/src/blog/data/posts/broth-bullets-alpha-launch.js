@@ -5,7 +5,7 @@ export default {
   date: "2025-01-15",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "The Broth & Bullets alpha is now available! Featuring AI systems, 3D audio, seasonal farming mechanics, and SpacetimeDB integration. Play now at www.brothandbullets.com",
   coverImage: "/images/blog/alpha-launch-cover.jpg",
   content: `

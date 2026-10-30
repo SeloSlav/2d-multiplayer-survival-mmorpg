@@ -5,7 +5,7 @@ export default {
   date: "2025-11-16",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "We've implemented a comprehensive armor system with seven distinct sets, each offering unique resistances, special abilities, and gameplay implications. Every piece matters, with per-piece accumulation that rewards mix-and-match experimentation.",
   coverImage: "/images/blog/armor-system-cover.jpg",
   content: `

@@ -5,7 +5,7 @@ export default {
   date: "2025-04-06",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Creating the perfect pixel art babushka was a journey of iterative design. See how our characters evolved from simple birdlike sprites to the tough, distinctive battle-ready grandmothers that populate our game world today.",
   coverImage: "/images/blog/babushka-evolution-cover.jpg",
   content: `

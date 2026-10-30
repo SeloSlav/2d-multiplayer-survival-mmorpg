@@ -5,7 +5,7 @@ export default {
   date: "2026-02-15",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "A few days ago we shared Broth & Bullets on r/aigamedev — our SpacetimeDB-powered, AI-generated-asset 2D survival game. The community responded with enthusiasm, technical questions, and encouragement. Here's what happened and why the repository keeps growing.",
   coverImage: "/images/blog/reddit-aigamedev-feedback-february-2026-cover.jpg",
   content: `

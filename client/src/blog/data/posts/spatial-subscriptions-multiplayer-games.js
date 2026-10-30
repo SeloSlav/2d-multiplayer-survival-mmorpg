@@ -5,7 +5,7 @@ export default {
   date: '2025-11-17',
   author: 'Martin Erlic',
   authorImage: '/images/blog/author-marty.jpg',
-  authorTwitter: 'seloslav',
+  authorTwitter: 'metalhorse233',
   excerpt: 'Learn how to implement efficient spatial subscriptions for large multiplayer game worlds using chunk-based queries and dynamic subscription management.',
   tags: ['SpacetimeDB', 'Multiplayer', 'Optimization', 'Spatial Queries', 'Performance'],
   coverImage: '/images/blog/spacetimedb-revolution-cover.jpg',

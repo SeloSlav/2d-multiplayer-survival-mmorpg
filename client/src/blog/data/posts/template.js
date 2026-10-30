@@ -25,7 +25,7 @@ export default {
   authorImage: "/images/blog/author-marty.jpg",
   
   // Author's Twitter/X username (without @)
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   
   // Brief summary shown in the blog list
   excerpt: "A brief excerpt summarizing your post. Keep it under 200 characters for best results.",

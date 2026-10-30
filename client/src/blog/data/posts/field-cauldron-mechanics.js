@@ -5,7 +5,7 @@ export default {
   date: "2025-11-16",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "From desalinating seawater to crafting healing potions, the Field Cauldron system brings the 'Broth' in Broth & Bullets to life with deep, interconnected survival mechanics.",
   coverImage: "/images/blog/cauldron-campfire-rain-cover.jpg",
   content: `

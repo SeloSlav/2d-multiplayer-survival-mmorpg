@@ -5,7 +5,7 @@ export default {
   date: "2026-02-02",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "The past week has been transformative. We've added animal husbandry with breeding and milking, dangerous new predators in the water and alpine, traditional Aleut food preparation, and monuments that make exploration rewarding. Here's everything new.",
   coverImage: "/images/blog/february-2026-update-cover.jpg",
   content: `

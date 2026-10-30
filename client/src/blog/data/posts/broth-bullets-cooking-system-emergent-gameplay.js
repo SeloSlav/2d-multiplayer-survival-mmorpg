@@ -5,7 +5,7 @@ export default {
   date: '2025-11-17',
   author: 'Martin Erlic',
   authorImage: '/images/blog/author-marty.jpg',
-  authorTwitter: 'seloslav',
+  authorTwitter: 'metalhorse233',
   excerpt: 'Deep dive into Broth & Bullets\' signature Field Cauldron system - from AI recipe generation to environmental interactions that create emergent survival gameplay.',
   tags: ['Broth & Bullets', 'Game Design', 'AI', 'Cooking System', 'Emergent Gameplay', 'Game Mechanics'],
   coverImage: '/images/blog/broth-bullets-cooking-system-cover.jpg',
@@ -455,7 +455,7 @@ pub fn add_ingredient_to_cauldron(
     <ul>
       <li><strong>Play Now</strong>: <a href="https://brothbullets.com" target="_blank" rel="noopener noreferrer">brothbullets.com</a></li>
       <li><strong>Join Discord</strong>: <a href="https://discord.gg/tUcBzfAYfs" target="_blank" rel="noopener noreferrer">Share recipes and strategies</a></li>
-      <li><strong>Follow Development</strong>: <a href="https://twitter.com/seloslav" target="_blank" rel="noopener noreferrer">@seloslav on Twitter</a></li>
+      <li><strong>Follow Development</strong>: <a href="https://twitter.com/metalhorse233" target="_blank" rel="noopener noreferrer">@metalhorse233 on Twitter</a></li>
     </ul>
 
     <h2>🔗 Related Articles</h2>

@@ -5,7 +5,7 @@ export default {
   date: "2025-11-17",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "In 3D survival games you scan the horizon. In 2D top-down? Your viewport is your prison. Here's how we used SpacetimeDB's spatial subscriptions to give players the awareness they deserve.",
   coverImage: "/images/blog/minimap-cover.jpg",
   content: `

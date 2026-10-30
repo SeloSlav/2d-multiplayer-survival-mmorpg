@@ -5,7 +5,7 @@ export default {
   date: '2025-11-17',
   author: 'Martin Erlic',
   authorImage: '/images/blog/author-marty.jpg',
-  authorTwitter: 'seloslav',
+  authorTwitter: 'metalhorse233',
   excerpt: 'Detailed technical comparison of SpacetimeDB and Firebase for multiplayer game development, including performance benchmarks, pricing analysis, and migration guides.',
   tags: ['SpacetimeDB', 'Firebase', 'Comparison', 'Multiplayer', 'Database', 'Performance'],
   coverImage: '/images/blog/spacetimedb-revolution-cover.jpg',

@@ -5,7 +5,7 @@ export default {
   date: '2025-11-17',
   author: 'Martin Erlic',
   authorImage: '/images/blog/author-marty.jpg',
-  authorTwitter: 'seloslav',
+  authorTwitter: 'metalhorse233',
   excerpt: 'Complete tutorial with code examples, common pitfalls, and production-ready patterns for building multiplayer games with SpacetimeDB.',
   tags: ['SpacetimeDB', 'Tutorial', 'Multiplayer', 'WebAssembly', 'Rust', 'React'],
   coverImage: '/images/blog/spacetimedb-revolution-cover.jpg',

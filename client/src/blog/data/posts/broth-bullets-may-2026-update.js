@@ -5,7 +5,7 @@ export default {
   date: "2026-05-06",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "The old login gate is gone, first-load assets now materialize through your ocular implant, and the client has picked up a round of rendering, caching, and particle polish.",
   coverImage: "/images/blog/may-2026-update-cover.png",
   content: `

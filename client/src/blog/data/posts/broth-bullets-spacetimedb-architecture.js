@@ -5,7 +5,7 @@ export default {
   date: '2025-11-17',
   author: 'Martin Erlic',
   authorImage: '/images/blog/author-marty.jpg',
-  authorTwitter: 'seloslav',
+  authorTwitter: 'metalhorse233',
   excerpt: 'The technical story of migrating Broth & Bullets from a traditional Node.js backend to SpacetimeDB, including real metrics, lessons learned, and why we\'ll never go back.',
   tags: ['Broth & Bullets', 'SpacetimeDB', 'Game Development', 'Architecture', 'Technical', 'Case Study'],
   coverImage: '/images/blog/broth-bullets-spacetimedb-cover.jpg',
@@ -592,7 +592,7 @@ pub fn craft_item(ctx: &ReducerContext, recipe_id: String) -> Result<(), String>
       <li><strong>Play Broth & Bullets</strong>: <a href="https://brothbullets.com" target="_blank" rel="noopener noreferrer">brothbullets.com</a></li>
       <li><strong>SpacetimeDB Docs</strong>: <a href="https://spacetimedb.com/docs" target="_blank" rel="noopener noreferrer">spacetimedb.com/docs</a></li>
       <li><strong>Join Our Discord</strong>: <a href="https://discord.gg/tUcBzfAYfs" target="_blank" rel="noopener noreferrer">Discuss technical details</a></li>
-      <li><strong>Follow Development</strong>: <a href="https://twitter.com/seloslav" target="_blank" rel="noopener noreferrer">@seloslav on Twitter</a></li>
+      <li><strong>Follow Development</strong>: <a href="https://twitter.com/metalhorse233" target="_blank" rel="noopener noreferrer">@metalhorse233 on Twitter</a></li>
     </ul>
 
     <h2>📚 Related Articles</h2>

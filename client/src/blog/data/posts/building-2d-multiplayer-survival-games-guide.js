@@ -5,7 +5,7 @@ export default {
   date: '2025-11-17',
   author: 'Martin Erlic',
   authorImage: '/images/blog/author-marty.jpg',
-  authorTwitter: 'seloslav',
+  authorTwitter: 'metalhorse233',
   excerpt: 'A comprehensive guide covering every aspect of 2D multiplayer survival game development, based on our experience building Broth & Bullets.',
   tags: ['Game Development', 'Multiplayer', 'Survival Games', 'SpacetimeDB', 'Tutorial', 'React'],
   coverImage: '/images/blog/spacetimedb-revolution-cover.jpg',

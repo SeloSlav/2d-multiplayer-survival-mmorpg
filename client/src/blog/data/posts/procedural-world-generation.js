@@ -5,7 +5,7 @@ export default {
   date: "2025-03-28",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Creating a procedurally generated tundra environment presents unique challenges. In this post, we dive into our approach to world generation, biome diversity, and resource distribution.",
   coverImage: "/images/blog/procedural-world.jpg",
   content: `

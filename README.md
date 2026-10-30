@@ -6,7 +6,7 @@
 
 There is no live game in production at the moment. You can play solo by downloading this project from GitHub and following the setup instructions below.
 
-🎮 **[Watch gameplay demo](https://x.com/SeloSlav/status/2023523837724221851?s=20)**
+🎮 **[Watch gameplay demo](https://x.com/metalhorse233/status/2023523837724221851?s=20)**
 
 **Broth & Bullets** is a multiplayer survival MMORPG powered by SpacetimeDB 2.0, with a 2D pixel-art renderer and a 3D WebGPU renderer for the same game world. What began as a generic open-source survival game has grown into an extensive, feature-rich project that demonstrates a wide range of multiplayer game-development patterns.
 
@@ -857,6 +857,6 @@ For licensing inquiries regarding Broth & Bullets or Babushka universe intellect
 
 ---
 
-**Created by [SeloSlav](https://x.com/seloslav)**
+**Created by [SeloSlav](https://x.com/metalhorse233)**
 
 💬 **Want to chat?** Join the discussion on [Discord](https://discord.gg/tUcBzfAYfs)

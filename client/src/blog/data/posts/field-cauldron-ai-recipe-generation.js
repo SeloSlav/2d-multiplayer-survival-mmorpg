@@ -5,7 +5,7 @@ export default {
   date: "2025-04-02",
   author: "Martin Erlic",
   authorImage: "/images/blog/author-marty.jpg",
-  authorTwitter: "seloslav",
+  authorTwitter: "metalhorse233",
   excerpt: "Traditional survival games rely on predetermined recipes, but Broth & Bullets' Field Cauldron system uses AI to generate contextually appropriate recipes in real-time, creating truly emergent gameplay.",
   coverImage: "/images/blog/field-cauldron-ai-recipe-generation.jpg",
   content: `

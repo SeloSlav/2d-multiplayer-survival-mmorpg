@@ -5,7 +5,7 @@ export default {
   date: '2025-11-17',
   author: 'Martin Erlic',
   authorImage: '/images/blog/author-marty.jpg',
-  authorTwitter: 'seloslav',
+  authorTwitter: 'metalhorse233',
   excerpt: 'The complete story behind Broth & Bullets\' distinctive "Babushka aesthetic" - from Soviet-era inspiration to modern pixel art execution.',
   tags: ['Broth & Bullets', 'Art Direction', 'Game Design', 'Pixel Art', 'Visual Design', 'Indie Games'],
   coverImage: '/images/blog/babushka-art-direction-cover.jpg',
@@ -359,7 +359,7 @@ export default {
     <ul>
       <li><strong>Play Now</strong>: <a href="https://brothbullets.com" target="_blank" rel="noopener noreferrer">brothbullets.com</a></li>
       <li><strong>Join Discord</strong>: <a href="https://discord.gg/tUcBzfAYfs" target="_blank" rel="noopener noreferrer">See development progress and art updates</a></li>
-      <li><strong>Follow on Twitter</strong>: <a href="https://twitter.com/seloslav" target="_blank" rel="noopener noreferrer">@seloslav</a> for art reveals and behind-the-scenes</li>
+      <li><strong>Follow on Twitter</strong>: <a href="https://twitter.com/metalhorse233" target="_blank" rel="noopener noreferrer">@metalhorse233</a> for art reveals and behind-the-scenes</li>
     </ul>
 
     <h2>🔗 Related Articles</h2>
