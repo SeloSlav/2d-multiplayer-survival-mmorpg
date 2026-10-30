@@ -243,15 +243,15 @@ export function createWeapon(kit: ModelKit, requested: string): Group {
       kit.part(root, 'cone', p.color, [.055, .15, .045], [.23, top - .075, 0]).rotation.z = Math.PI;
     } else {
       kit.beam(root, C.wood, new Vector3(.025, length * .83, 0), new Vector3(.18, length, 0), .016);
-      kit.beam(root, C.bone, new Vector3(.18, length, 0), new Vector3(.18, .35, .13), .007);
-      kit.part(root, 'rock', C.bone, [.05, .07, .05], [.18, .33, .13]);
+      // The line and float are world-space fishing-session effects, rather
+      // than a fixed cord hanging from the carried rod.
     }
   } else if (p.form === 'bow') {
     for (const side of [-1, 1]) for (let i = 0; i < 7; i++) {
       const a = i / 7, b = (i + 1) / 7;
       kit.beam(root, p.color, new Vector3(0, side * a * length / 2, .18 * a * a), new Vector3(0, side * b * length / 2, .18 * b * b), .028 - a * .014);
     }
-    for (const side of [-1, 1]) kit.beam(root, C.bone, new Vector3(0, side * length / 2, .18), new Vector3(0, 0, -.3), .008);
+    // The string is articulated after compilation so its nock can draw/release.
     for (let i = 0; i < 4; i++) kit.part(root, 'cylinder', C.leather, [.07, .025, .07], [0, -.08 + i * .05, 0]);
   } else if (p.form === 'club') {
     shaft(kit, root, length * .68, C.wood, .045);
@@ -280,13 +280,28 @@ export function createWeapon(kit: ModelKit, requested: string): Group {
   }
   const compiled = kit.compile(root);
   compiled.name = 'held-weapon'; compiled.userData.weaponName = name; compiled.userData.gripStyle = p.hold;
+  compiled.userData.weaponForm = p.form;
   compiled.userData.attackMotion = p.form === 'spear' || p.form === 'rod' ? 'thrust' : 'swing';
   compiled.userData.primaryHand = p.hold === 'bow' ? 'left' : 'right';
   marker(compiled, 'primary-grip');
+  if (p.form === 'rod') marker(compiled, 'rod-tip', .18, p.length, 0);
   if (p.hold === 'longgun') marker(compiled, 'support-grip', -.14, -.025, p.form === 'crossbow' || p.form === 'harpoon-gun' ? .23 : .2);
   else if (p.hold === 'staff') marker(compiled, 'support-grip', 0, -.22, 0);
   else if (p.hold === 'bow') marker(compiled, 'support-grip', 0, 0, -.3);
   if (['pistol', 'smg', 'rifle', 'shotgun', 'crossbow', 'harpoon-gun'].includes(p.form)) marker(compiled, 'muzzle', 0, p.form === 'harpoon-gun' ? .23 : p.form === 'crossbow' ? .23 : .13, p.length * .88);
+  if (['pistol', 'smg', 'rifle', 'shotgun'].includes(p.form)) {
+    const flash = new Group(); flash.name = 'muzzle-flash';
+    for (let i = 0; i < 3; i++) {
+      const tongue = kit.part(flash, 'cone', i ? 0xffb44a : 0xffe9a5, [.11 - i * .02, .28 - i * .04, .1], [(i - 1) * .04, 0, .12], true);
+      tongue.rotation.x = Math.PI / 2;
+    }
+    flash.visible = false; compiled.getObjectByName('muzzle')!.add(flash);
+  }
+  if (p.form === 'bow') for (const side of [-1, 1]) {
+    const string = kit.beam(compiled, C.bone, new Vector3(0, side * p.length / 2, .18), new Vector3(0, 0, 0), .008);
+    string.name = side > 0 ? 'bow-string-upper' : 'bow-string-lower';
+    string.userData.tipY = side * p.length / 2;
+  }
   if (strikeEdge) {
     marker(compiled, 'strike-center', 0, strikeEdge.height, 0);
     marker(compiled, 'outward-edge', 0, strikeEdge.height, strikeEdge.reach);

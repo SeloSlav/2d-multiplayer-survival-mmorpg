@@ -14,6 +14,7 @@ import { recordTreeFallPlayback, treeFallPlayback } from '../client/src/utils/tr
 import './placement.test.mjs';
 import './hot-springs.test.mjs';
 import './collectible-glitter.test.mjs';
+import './animation-world3d.test.mjs';
 import assert from 'node:assert/strict';
 
 function streamingChunks() {

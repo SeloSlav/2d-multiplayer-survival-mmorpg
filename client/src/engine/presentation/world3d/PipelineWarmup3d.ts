@@ -9,6 +9,8 @@ export class PipelineWarmup3d {
   private pending:string|null=null;
   private work:Promise<void>|null=null;
   private disposed=false;
+  private unpreparedVisible=0;
+  get visibleReady():boolean { return this.unpreparedVisible === 0; }
   private cache=new WeakMap<Mesh,{version:string;key:string}>();
 
   prepare(root:Object3D,camera:Camera,renderer:Pick<Renderer,'compileAsync'>,scene:Scene,variant:string,onError:(message:string)=>void, dormantEffects:readonly Object3D[]=[]):()=>void {
@@ -51,6 +53,7 @@ export class PipelineWarmup3d {
         .catch(error=>{if(!this.disposed)onError(`Material preparation failed: ${error instanceof Error?error.message:String(error)}`);})
         .finally(()=>{this.pending=null;this.work=null;});
     }
+    this.unpreparedVisible=hidden.length;
     hidden.forEach(mesh=>{mesh.visible=false;});
     return ()=>hidden.forEach(mesh=>{mesh.visible=true;});
   }

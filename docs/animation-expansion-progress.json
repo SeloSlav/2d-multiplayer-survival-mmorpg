@@ -1,0 +1,203 @@
+{
+  "status": "complete",
+  "objective": "Implement and verify all six requested animation groups plus projectiles, placed explosives and player corpses in the production WebGPU renderer.",
+  "baseline": "The workspace was clean when implementation began. The pre-existing shelter cutaway test fails before and after these changes.",
+  "implementation": {
+    "ranged": [
+      "Immediate local shot event",
+      "Deduplicated server confirmations",
+      "Fresh remote shot presentation",
+      "Gun recoil and muzzle flash",
+      "Reload hand phases",
+      "Articulated bow string and nock"
+    ],
+    "vegetation": [
+      "Shared instanced GPU wind material",
+      "Model-space bend weights and rooted leaf flutter",
+      "Weather/storm strength",
+      "Wind-weight diagnostic"
+    ],
+    "interaction": [
+      "Desktop/mobile gather input",
+      "Consumption timestamp/effects",
+      "Bandaging",
+      "Fishing cast/reel poses",
+      "World-space cast line and bobber"
+    ],
+    "contact": [
+      "Jump landing compression",
+      "Gait-triggered dust",
+      "World-fixed snow footprints",
+      "Single water-entry splash",
+      "Bounded analytic effect pools"
+    ],
+    "lifecycle": [
+      "Timestamp-driven collapse",
+      "Smooth get-up",
+      "Anatomical ground contact",
+      "Canonical survivor corpse",
+      "Settled instanced corpse geometry",
+      "Duplicate dead-player suppression"
+    ],
+    "animals": [
+      "Species-specific graze/sniff/peck",
+      "Seeded look-around and blinking",
+      "Articulated ears",
+      "Investigation/target attention",
+      "Attack preparation/strike/recovery"
+    ],
+    "projectiles": [
+      "Existing authoritative projectile sampler",
+      "Projection-preserving height",
+      "Muzzle launch correction",
+      "Arrows, bullets, thrown weapons, NPC projectiles",
+      "Analytic fire/spectral trails",
+      "Client-shot-ID deduplication and cleanup"
+    ],
+    "explosives": [
+      "Two distinct explosive models",
+      "Armed fuse animation",
+      "Dud visibility respected by instancing",
+      "Live server deletion event bridge",
+      "No explosion on stream eviction",
+      "Pooled flash, shock ring, debris and smoke"
+    ]
+  },
+  "evidence": {
+    "worldTests": {
+      "total": 108,
+      "passed": 107,
+      "failed": 1,
+      "failure": "shelter cutaway leaves an opaque rim outside the protected screen area and keeps visitors concealed",
+      "log": "animation-expansion-tests.local.log"
+    },
+    "newTests": "All 15 new animation checks pass, including delayed bow release, grounded gathering, corpse facing and clock rewind cleanup.",
+    "typescript": "Final npm run build passed TypeScript.",
+    "lint": "All new animation modules and inspection entries pass focused ESLint.",
+    "uiPreservation": "722 protected UI source/assets pass the existing byte lock.",
+    "browser": [
+      "Rendered recoil/flash, reload hands, bow draw/release, gathering, eating, drinking and bandaging.",
+      "Rendered knockdown/death/get-up and the settled corpse model.",
+      "Rendered fishing cast/reel with a world-space line and float.",
+      "Live walking produced persistent snow tracks; fixed event history rendered landing dust and water-entry splash.",
+      "Rendered animal idle, preparation and strike frames.",
+      "Rendered seven projectile lanes, two explosive types and a detonation.",
+      "Reviewed calm/storm wind, wind weights, unlit geometry, seeds 73021/147/4294967295 and scales 0.7/1/1.6/2.",
+      "Fresh browser tab reports no console errors. Two earlier HMR root warnings were resolved by separating the React entry module."
+    ],
+    "inspectionEntry": "/animation-lab.html: production renderer with synthetic event fixtures; not authenticated gameplay evidence",
+    "build": "npm run build passed with SKIP_PRERENDER=1 (local rendering build; no deployment). Existing chunk-size warning remains.",
+    "directory": "C:/Users/Asus/.codex/visualizations/2026/10/29/01a189d3-4e7f-7a73-ac48-0b82c49b3cf0",
+    "performance": "Combined 193-entity world fixture, storm and projectiles: 530 draws, p95 CPU 7.8 ms, p99 CPU 8.3 ms, GPU sample 1.77 ms, 642x362 internal resolution. This is an inspection fixture measurement, not a live multiplayer benchmark.",
+    "inputWiringAudit": "Confirmed desktop/mobile gather event hooks, immediate local shot hook, shared equipment/effect/fishing maps in the production scene snapshot, and the placed-explosive delete listener."
+  },
+  "remaining": [],
+  "devServer": "Existing Vite server at http://127.0.0.1:3011 is reachable through CUA.",
+  "browserSession": "Final clean inspection tab at /animation-lab.html?action=reload&frameMs=900&zoom=2.",
+  "constraints": [
+    "Preserve existing UI bytes",
+    "No server gameplay timing changes",
+    "No requested deployment, commit or push",
+    "Keep tree hit leaves as previously accepted"
+  ],
+  "requirementAudit": [
+    {
+      "tests": "prediction dedup, muzzle contact, reload hand phases, string/nock connection, delayed ammo confirmation",
+      "evidence": [
+        "animation-fire.jpg",
+        "animation-reload.jpg",
+        "animation-bow-draw.jpg",
+        "animation-bow-release.jpg",
+        "animation-bow-after-release.jpg"
+      ],
+      "status": "implemented_and_verified",
+      "requirement": "Ranged weapon animation"
+    },
+    {
+      "tests": "root/petiole weights, production batching, storm strength",
+      "evidence": [
+        "animation-wind-calm.jpg",
+        "animation-wind-storm.jpg",
+        "animation-wind-fields.jpg",
+        "animation-wind-unlit.jpg"
+      ],
+      "status": "implemented_and_verified",
+      "requirement": "Vegetation wind"
+    },
+    {
+      "tests": "authoritative effects and fishing rows, planted boots, free hand, rod support and float target",
+      "evidence": [
+        "animation-gather.jpg",
+        "animation-eat.jpg",
+        "animation-drink.jpg",
+        "animation-bandage.jpg",
+        "animation-fish-cast.jpg",
+        "animation-fish-reel.jpg"
+      ],
+      "status": "implemented_and_verified",
+      "requirement": "Interaction poses"
+    },
+    {
+      "tests": "world-fixed tracks, single landing/entry event, TTL, rewind, teleport/view-pop suppression",
+      "evidence": [
+        "animation-snow-steps.jpg",
+        "animation-landing.jpg",
+        "animation-enter-water.jpg"
+      ],
+      "status": "implemented_and_verified",
+      "requirement": "Foot contact and landing"
+    },
+    {
+      "tests": "smooth collapse/get-up, collision origin fixed, grounded anatomy, exact upright restoration",
+      "evidence": [
+        "animation-knockdown.jpg",
+        "animation-death.jpg",
+        "animation-recover.jpg"
+      ],
+      "status": "implemented_and_verified",
+      "requirement": "Collapse and recovery"
+    },
+    {
+      "tests": "species behaviour, target attention, attack preparation/strike, corpse state",
+      "evidence": [
+        "animation-animal-idle.jpg",
+        "animation-animal-alert.jpg",
+        "animation-animal-prepare.jpg",
+        "animation-animal-strike.jpg"
+      ],
+      "status": "implemented_and_verified",
+      "requirement": "Animal behaviour"
+    },
+    {
+      "tests": "authoritative trajectory projection, shot dedup, resolution cleanup",
+      "evidence": [
+        "animation-projectiles.jpg",
+        "animation-world-storm.jpg"
+      ],
+      "status": "implemented_and_verified",
+      "requirement": "3D projectiles"
+    },
+    {
+      "tests": "distinct models, dud visibility, live detonation versus eviction, effect TTL",
+      "evidence": [
+        "animation-explosive-fuse.jpg",
+        "animation-explosion.jpg"
+      ],
+      "status": "implemented_and_verified",
+      "requirement": "Placed explosives"
+    },
+    {
+      "tests": "canonical survivor, shared settled batches, duplicate suppression, facing preserved",
+      "evidence": [
+        "animation-player-corpse.jpg"
+      ],
+      "status": "implemented_and_verified",
+      "requirement": "Player corpses"
+    }
+  ],
+  "practicalLimits": [
+    "Visual verification uses production models/renderer with synthetic authoritative rows; authenticated multiplayer gameplay was not exercised.",
+    "Gathering uses local desktop/mobile input: the shared resource table and transaction stream do not identify a remote gathering actor. Other poses consume shared player/equipment/effect/fishing state.",
+    "The pre-existing shelter cutaway regression remains failing; the baseline log records it before this work."
+  ]
+}

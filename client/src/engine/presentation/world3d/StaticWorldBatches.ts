@@ -11,7 +11,7 @@ export class StaticWorldBatches {
 
   submit(root: Group): void {
     root.updateMatrixWorld(true);
-    root.traverse(object => {
+    root.traverseVisible(object => {
       if (!(object instanceof Mesh) || Array.isArray(object.material)) return;
       const key = `${object.geometry.uuid}:${object.material.uuid}`;
       let batch = this.batches.get(key);

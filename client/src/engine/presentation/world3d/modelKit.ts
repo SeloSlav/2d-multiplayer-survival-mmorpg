@@ -4,11 +4,13 @@ import {
 } from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { GroundPoint } from './buildingPlan';
+import { VegetationWind3d } from './VegetationWind3d';
 
 type PartKind = 'box' | 'rock' | 'cone' | 'cylinder' | 'skirt' | 'leaf';
 
 /** Resource ownership belongs to the kit, never individual entity clones. */
 export class ModelKit {
+  readonly wind = new VegetationWind3d();
   private readonly geometries = new Map<string, BufferGeometry>();
   private readonly materials = new Map<string, MeshStandardMaterial>();
   private readonly compiled = new Set<BufferGeometry>();
@@ -202,9 +204,12 @@ export class ModelKit {
       slots.set(material, list);
     });
     const result = new Group(), normalMatrix = new Matrix3();
+    result.name = group.name; result.userData = { ...group.userData };
+    const vegetation = group.userData.vegetation as { height: number; base: number; flexibility: number } | undefined;
     for (const [material, meshes] of slots) {
       const count=meshes.reduce((n,mesh)=>n+(mesh.geometry.index?.count??mesh.geometry.attributes.position.count),0);
       const positions=new Float32Array(count*3),normals=new Float32Array(count*3);let offset=0;
+      const wind = vegetation ? new Float32Array(count * 4) : undefined;
       // Write transformed vertices straight into their final material slot.
       // Cloning/transforming/discarding one BufferGeometry per leaf generated
       // thousands of short-lived buffers when a new tree variant entered view.
@@ -218,6 +223,13 @@ export class ModelKit {
           positions[offset]=(matrix[0]*x+matrix[4]*y+matrix[8]*z+matrix[12])*w;
           positions[offset+1]=(matrix[1]*x+matrix[5]*y+matrix[9]*z+matrix[13])*w;
           positions[offset+2]=(matrix[2]*x+matrix[6]*y+matrix[10]*z+matrix[14])*w;
+          if (wind && vegetation) {
+            const vertex = offset / 3, leaf = geometry === this.geometries.get('leaf');
+            wind[vertex * 4] = Math.min(1, Math.max(0, (positions[offset + 1] - vegetation.base) / Math.max(.1, vegetation.height - vegetation.base))) ** 2;
+            wind[vertex * 4 + 1] = leaf ? Math.max(0, z) : 0;
+            wind[vertex * 4 + 2] = matrix[12] * 17 + matrix[13] * 11 + matrix[14] * 7;
+            wind[vertex * 4 + 3] = vegetation.flexibility;
+          }
           const nx=n.getX(v),ny=n.getY(v),nz=n.getZ(v);
           const ax=normal[0]*nx+normal[3]*ny+normal[6]*nz,ay=normal[1]*nx+normal[4]*ny+normal[7]*nz,az=normal[2]*nx+normal[5]*ny+normal[8]*nz;
           const magnitude=Math.hypot(ax,ay,az)||1;
@@ -225,6 +237,7 @@ export class ModelKit {
         }
       }
       const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(positions,3));geometry.setAttribute('normal',new Float32BufferAttribute(normals,3));
+      if (wind) geometry.setAttribute('windData', new Float32BufferAttribute(wind, 4));
       geometry.computeBoundingSphere();
       this.compiled.add(geometry);
       const mesh = new Mesh(geometry, material);
@@ -258,13 +271,14 @@ export class ModelKit {
       geometry.computeBoundingSphere();this.compiled.add(geometry);
       let material=this.materials.get('static-vertex-colors');
       if(!material){material=new MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.92,flatShading:true,wireframe:this.debugMode==='wireframe'});this.materials.set('static-vertex-colors',material);}
-      const mesh=new Mesh(geometry,material);mesh.castShadow=mesh.receiveShadow=true;result.add(mesh);
+      const mesh=new Mesh(geometry,group.userData.vegetation ? this.wind.material : material);mesh.castShadow=mesh.receiveShadow=true;result.add(mesh);
     }
     return result;
   }
 
   setDebug(mode: 'lit' | 'unlit' | 'wireframe'): void {
     this.debugMode = mode;
+    this.wind.material.wireframe = mode === 'wireframe';
     for (const material of this.materials.values()) {
       material.wireframe = mode === 'wireframe';
       material.needsUpdate = true;
@@ -272,6 +286,7 @@ export class ModelKit {
   }
 
   dispose(): void {
+    this.wind.dispose();
     this.geometries.forEach((geometry) => geometry.dispose());
     this.compiled.forEach((geometry) => geometry.dispose());
     this.materials.forEach((material) => material.dispose());

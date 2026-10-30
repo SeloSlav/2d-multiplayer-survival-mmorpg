@@ -401,6 +401,9 @@ export function createPlant(kit: ModelKit, type: string, seed: number): Group {
         kit.part(writer.root, 'box', 0xc2d4ca, [.06, .018, .045], [(i - 1) * .11, .12, i * .06 + .025]);
       }
   }
+  if (!['pile', 'shard'].includes(profile.form)) writer.root.userData.vegetation = {
+    height: profile.height, base: .025, flexibility: profile.form === 'mushroom' ? .018 : profile.form === 'sapling' ? .12 : .22,
+  };
   const result = kit.compile(writer.root);
   result.name = `plant:${type}`;
   result.userData.plantSpecies = type;

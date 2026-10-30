@@ -16,6 +16,7 @@ import {
 import { logDebug } from '../../utils/gameDebugUtils';
 import { isWaterContainer } from '../../utils/waterContainerHelpers';
 import { runtimeEngine } from '../runtimeEngine';
+import { recordActorInteraction } from '../presentation/world3d/interactionAnimation';
 import type { MutableRef, StateSetter, StateUpdater } from '../types';
 
 export interface GameCanvasInputInteractionProgressState {
@@ -487,6 +488,7 @@ export class GameCanvasInputRuntime {
           localPlayer?.isSnorkeling,
         );
         connection.reducers.interactWithHarvestableResource({ resourceId: target.id as bigint });
+        if (localPlayer) recordActorInteraction(localPlayer.identity.toHexString(), 'gather');
         break;
       case 'dropped_item':
         connection.reducers.pickupDroppedItem({ droppedItemId: target.id as bigint });

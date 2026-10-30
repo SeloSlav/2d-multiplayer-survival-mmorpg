@@ -149,6 +149,7 @@ export function createTree(kit: ModelKit, type: string, seed: number): Group {
     const scar = kit.part(group, 'box', 0x505954, [r * 1.2, .035 + random() * .035, .018],
       [pos.x + Math.sin(a) * r, pos.y, pos.z + Math.cos(a) * r]); scar.rotation.y = a;
   }
+  group.userData.vegetation = { height: h + trunkExtension, base: p.trunkClearance * .65, flexibility: .24 };
   const result = kit.compile(group);
   result.userData.treeSpecies = type; result.userData.treeHeight = h + trunkExtension;
   result.userData.leafColor = p.leaf; result.userData.leafLightColor = p.light;

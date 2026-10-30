@@ -25,6 +25,8 @@
 
 import { useEffect, useSyncExternalStore, useCallback, useMemo, MutableRefObject } from 'react';
 import { useLatest } from './useLatest';
+import { recordActorInteraction } from '../engine/presentation/world3d/interactionAnimation';
+import { recordPredictedRangedShot } from '../engine/presentation/world3d/actorAnimation';
 import { DbConnection } from '../generated';
 import {
     Player,
@@ -651,6 +653,7 @@ export const useInputHandler = ({
         const fireY = exactPos?.y ?? fallbackPos?.y ?? currentPlayer.positionY;
         const clientShotId = inputRuntime.createClientShotId(localPlayerId);
         registerLocalPlayerRangedShot(itemDef.name);
+        recordPredictedRangedShot(localPlayerId, clientShotId);
         connectionRef.current.reducers.fireProjectile({
             targetWorldX: worldMousePosRefInternal.current.x,
             targetWorldY: worldMousePosRefInternal.current.y,
@@ -1041,6 +1044,7 @@ export const useInputHandler = ({
                                 void Promise.resolve(
                                   currentConnection.reducers.interactWithHarvestableResource({ resourceId }),
                                 ).catch(() => {});
+                                if (localPlayerId) recordActorInteraction(localPlayerId, 'gather');
                                 break;
                             case 'dropped_item':
                                 console.log('[E-KeyDown] Immediate pickup:', currentTarget.id);
@@ -1307,6 +1311,7 @@ export const useInputHandler = ({
                                           localPlayer?.isSnorkeling,
                                         );
                                         connectionRef.current.reducers.interactWithHarvestableResource({ resourceId });
+                                        if (localPlayerId) recordActorInteraction(localPlayerId, 'gather');
                                         tapActionTaken = true;
                                         break;
                                     case 'dropped_item':

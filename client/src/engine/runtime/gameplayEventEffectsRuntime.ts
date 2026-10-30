@@ -14,6 +14,7 @@ import {
 import { triggerExplosionEffect } from '../../utils/renderers/explosiveRenderingUtils';
 import { triggerAnimalCorpseDestructionEffect } from '../../utils/renderers/animalCorpseRenderingUtils';
 import { triggerBarrelDestructionEffect } from '../../utils/renderers/barrelRenderingUtils';
+import { isLiveDetonation, recordWorldExplosion } from '../presentation/world3d/presentationEffectEvents';
 
 type GrassDeleteListener = (ctx: unknown, grassState: GrassState) => void;
 type CairnInsertListener = (ctx: unknown, discovery: PlayerDiscoveredCairn) => void;
@@ -99,12 +100,14 @@ class GameplayEventEffectsRuntime {
     }
 
     if (!this.placedExplosiveDeleteListener) {
-      this.placedExplosiveDeleteListener = (_ctx, explosive) => {
+      this.placedExplosiveDeleteListener = (ctx, explosive) => {
         if (explosive.isDud) {
           return;
         }
         const tier = explosive.explosiveType.tag === 'BabushkaSurprise' ? 'babushka' : 'matriarch';
         triggerExplosionEffect(explosive.posX, explosive.posY, explosive.blastRadius, tier);
+        if (isLiveDetonation(ctx, explosive))
+          recordWorldExplosion(String(explosive.id), explosive.posX, explosive.posY, explosive.blastRadius, tier === 'matriarch');
       };
       this.activeConnection.db.placed_explosive.onDelete(this.placedExplosiveDeleteListener);
     }

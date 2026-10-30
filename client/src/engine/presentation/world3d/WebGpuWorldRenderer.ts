@@ -17,6 +17,14 @@ import { COMPOUND_BUILDINGS, getBuildingWorldPosition } from '../../../config/co
 import { createFurnace, createBarbecue, createLantern, createHearth, createBrothPot, createSleepingBag, createStash, createShelter, createRainCollector, CAMP_MODEL_TABLES } from './campModels';
 import { ModelKit } from './modelKit';
 import { SurvivorRig } from './survivor';
+import { RangedAnimationTimeline, reloadPhase, timestampMs } from './actorAnimation';
+import { actorInteraction } from './interactionAnimation';
+import { FootContactEffects3d } from './FootContactEffects3d';
+import { ProjectileWorld3d } from './ProjectileWorld3d';
+import { ExplosionEffects3d } from './ExplosionEffects3d';
+import { FishingEffects3d } from './FishingEffects3d';
+import { createPlacedExplosive } from './explosiveModels';
+import type { ItemDefinition, Projectile } from '../../../generated/types';
 import { StaticWorldBatches } from './StaticWorldBatches';
 import { PlacementPreview3d } from './PlacementPreview3d';
 import type { PlacementPreviewPlan } from '../../placement/placementValidation';
@@ -95,11 +103,11 @@ const STATIC_TABLES = [
   'trees', 'stones', 'campfires', 'woodenStorageBoxes', 'barrels', 'foundationCells',
   'wallCells', 'harvestableResources', 'fences', 'doors', ...CAMP_MODEL_TABLES, ...NATURAL_OBJECT_TABLES,
   'droppedItems', 'monumentParts', 'alkStations', 'turrets',
+  'playerCorpses', 'placedExplosives',
 ] as const;
 const UNFINISHED_TABLES = [
-  'playerCorpses',
   'plantedSeeds', 'waterPatches',
-  'fertilizerPatches', 'firePatches', 'placedExplosives', 'projectiles',
+  'fertilizerPatches', 'firePatches',
 ] as const;
 
 function rows(value: unknown): Iterable<[string, Row]> {
@@ -145,6 +153,11 @@ export class WebGpuWorldRenderer {
   private readonly swimmingEffects = new SwimmingEffects3d();
   private readonly treeFallEffects = new TreeFallEffects3d(this.kit);
   private readonly combatEffects = new CombatEffects3d(this.kit);
+  private readonly footEffects = new FootContactEffects3d(this.kit);
+  private readonly projectileWorld = new ProjectileWorld3d(this.kit, this.batches);
+  private readonly explosionEffects = new ExplosionEffects3d(this.kit);
+  private readonly fishingEffects = new FishingEffects3d(this.kit);
+  private readonly rangedTimeline = new RangedAnimationTimeline();
   private readonly shardGlow = new MemoryShardGlow3d();
   private readonly collectibleGlitter = new CollectibleGlitter3d();
   private readonly underwater = new UnderwaterView3d(this.camera);
@@ -169,6 +182,7 @@ export class WebGpuWorldRenderer {
   private readonly seaTiles = new Set<string>();
   private readonly hotSpringTiles = new Set<string>();
   private readonly waterTiles = new Map<string, WaterKind>();
+  private readonly terrainKinds = new Map<string, string>();
   private previousTime = 0;
   private motionDelta = 1 / 60;
   private lastTerrain = '';
@@ -191,6 +205,8 @@ export class WebGpuWorldRenderer {
     this.scene.add(this.swimmingEffects.root);
     this.scene.add(this.treeFallEffects.root);
     this.scene.add(this.combatEffects.root);
+    this.scene.add(this.footEffects.root);
+    this.scene.add(this.projectileWorld.root, this.explosionEffects.root, this.fishingEffects.root);
     this.scene.add(this.shardGlow.root);
     this.scene.add(this.collectibleGlitter.root);
     this.scene.add(this.water.root);
@@ -293,6 +309,13 @@ export class WebGpuWorldRenderer {
     this.underwater.beginFrame(this.camera,this.diving,time);
     this.swimmingEffects.root.visible = !this.diving;
     const cycle = (frame.tables.worldState as Row | null)?.cycleProgress ?? .45;
+    const weatherState = frame.tables.worldState as { rainIntensity?: number; currentWeather?: unknown } | undefined;
+    let windRain = weatherState?.rainIntensity ?? 0, windStorm = /Storm|Thunder|Blizzard/.test(tag(weatherState?.currentWeather));
+    if (frame.tables.chunkWeather instanceof Map) for (const weather of frame.tables.chunkWeather.values()) {
+      windRain = Math.max(windRain, weather.rainIntensity ?? 0);
+      windStorm ||= /Storm|Thunder|Blizzard/.test(tag(weather.currentWeather));
+    }
+    this.kit.wind.update(time, windRain, windStorm, frame.debug === 'fields');
     this.water.beginFrame(time, Math.max(.08, Math.sin((cycle - .25) * Math.PI * 2)), this.diving);
     const waterEnd = performance.now();
     const seen = new Set<string>();
@@ -310,6 +333,16 @@ export class WebGpuWorldRenderer {
     this.syncTable('players', frame, dt, time, seen, fires);
     this.syncTable('wildAnimals', frame, dt, time, seen, fires);
     this.syncTable('animalCorpses', frame, dt, time, seen, fires);
+    this.projectileWorld.update(frame.tables.projectiles instanceof Map ? frame.tables.projectiles as Map<string, Projectile> : new Map(),
+      frame.tables.itemDefinitions instanceof Map ? frame.tables.itemDefinitions as Map<string, ItemDefinition> : new Map(), frame.nowMs ?? Date.now(),
+      (owner, target) => {
+        const muzzle = this.visuals.get(`players:${owner}`)?.survivor?.root.getObjectByName('muzzle');
+        if (!muzzle) return false; muzzle.getWorldPosition(target); return true;
+      }, (x, y) => this.shelterVisibility.occludes(x, y));
+    this.fishingEffects.update(frame.tables.fishingSessions instanceof Map ? frame.tables.fishingSessions : new Map(), frame.nowMs ?? Date.now(), (owner, target) => {
+      const visual = this.visuals.get(`players:${owner}`), tip = visual?.survivor?.root.getObjectByName('rod-tip');
+      if (!tip || !visual?.root.visible) return false; tip.getWorldPosition(target); return true;
+    }, this.diving);
     // Visible markers ensure missing content is inspectable throughout migration.
     for (const kind of UNFINISHED_TABLES) this.syncTable(kind, frame, dt, time, seen, fires);
     const ceilings = new Map<string, Row>();
@@ -330,9 +363,16 @@ export class WebGpuWorldRenderer {
     this.swimmingEffects.endFrame(time);
     this.treeFallEffects.endFrame();
     this.combatEffects.update(frame.nowMs??Date.now());
+    this.footEffects.update(time, this.diving);
+    this.explosionEffects.update(frame.nowMs ?? Date.now(), this.diving);
     this.shardGlow.endFrame();
     this.collectibleGlitter.endFrame();
     this.underwater.endFrame();
+    if (frame.profile) this.canvas.dataset.animationEffects = JSON.stringify({
+      projectiles: this.projectileWorld.activeCount, projectileTrails: this.projectileWorld.trails.count,
+      contactParticles: this.footEffects.particles.count, footprints: this.footEffects.prints.count,
+      explosionParticles: this.explosionEffects.particles.count, fishingFloats: this.fishingEffects.floats.count, wind: this.kit.wind.intensity,
+    });
     const entitiesEnd = performance.now();
     this.batches.flush();
     const batchesEnd = performance.now();
@@ -347,9 +387,14 @@ export class WebGpuWorldRenderer {
     if(!this.diving)this.dormantLightEffects.push(this.underwater.overlay);
     if(!this.treeFallEffects.root.visible)this.dormantLightEffects.push(this.treeFallEffects.root);
     if(!this.combatEffects.root.visible)this.dormantLightEffects.push(this.combatEffects.root);
+    if(!this.footEffects.root.visible)this.dormantLightEffects.push(this.footEffects.root);
+    if(!this.projectileWorld.root.visible)this.dormantLightEffects.push(this.projectileWorld.root);
+    if(!this.explosionEffects.root.visible)this.dormantLightEffects.push(this.explosionEffects.root);
+    if(!this.fishingEffects.root.visible)this.dormantLightEffects.push(this.fishingEffects.root);
     if(!this.shardGlow.root.visible)this.dormantLightEffects.push(this.shardGlow.root);
     if(!this.collectibleGlitter.root.visible)this.dormantLightEffects.push(this.collectibleGlitter.root);
     const restorePrepared = this.pipelineWarmup.prepare(this.scene,this.camera,this.renderer,this.scene,`${mode}:${this.renderer.shadowMap.enabled}`,message=>this.fail(message),this.dormantLightEffects);
+    if (frame.profile) this.canvas.dataset.materialsReady = String(this.pipelineWarmup.visibleReady);
     const warmupEnd = performance.now();
     try {
       this.renderer.info.reset();
@@ -450,6 +495,8 @@ export class WebGpuWorldRenderer {
     this.seaTiles.clear();
     this.hotSpringTiles.clear();
     this.waterTiles.clear();
+    this.terrainKinds.clear();
+    for (const tile of tileRows) this.terrainKinds.set(`${tile.worldX},${tile.worldY}`, tag(tile.tileType));
     for (const tile of tileRows) if (WATER_TERRAINS.has(tag(tile.tileType))) this.seaTiles.add(`${tile.worldX},${tile.worldY}`);
     for (const tile of tileRows) if (WATER_TERRAINS.has(tag(tile.tileType))) this.waterTiles.set(`${tile.worldX},${tile.worldY}`, tag(tile.tileType) as WaterKind);
     for (const tile of tileRows) if (tag(tile.tileType) === 'HotSpringWater') this.hotSpringTiles.add(`${tile.worldX},${tile.worldY}`);
@@ -496,6 +543,8 @@ export class WebGpuWorldRenderer {
       const isTreeFalling=kind==='trees'&&typeof frame.tables.isTreeFalling==='function'&&Boolean((frame.tables.isTreeFalling as (id:string)=>boolean)(String(mapId)));
       const id = kind === 'players' ? identity(row.identity) || mapId : String(mapId);
       const isLocal = kind === 'players' && id === frame.localPlayerId;
+      if (kind === 'players' && row.isDead && frame.tables.playerCorpses instanceof Map
+        && [...frame.tables.playerCorpses.values()].some(corpse => identity(corpse.playerIdentity) === id)) continue;
       const position = isLocal && frame.predictedPosition ? frame.predictedPosition
         : kind === 'players' && frame.getRemotePlayerPosition ? frame.getRemotePlayerPosition(row)
         : groundPosition(kind, row, this.seaTiles.has(`${Math.floor((row.posX ?? 0) / WORLD_3D.tilePixels)},${Math.floor((row.posY ?? 0) / WORLD_3D.tilePixels)}`));
@@ -528,7 +577,7 @@ export class WebGpuWorldRenderer {
       const key = `${kind}:${id}`;
       seen.add(key);
       const item=kind==='droppedItems'&&frame.tables.itemDefinitions instanceof Map?frame.tables.itemDefinitions.get(String(row.itemDefId)):null;
-      const signature = [tag(row.treeType ?? row.oreType ?? row.species ?? row.animalSpecies ?? row.plantType ?? row.runeType ?? row.columnType), row.tier ?? 0,
+      const signature = [tag(row.treeType ?? row.oreType ?? row.species ?? row.animalSpecies ?? row.plantType ?? row.runeType ?? row.columnType ?? row.explosiveType), row.tier ?? 0,
         tag(row.variant) || row.variant || 0, row.shape ?? 1, row.edge ?? 0, row.foundationShape ?? 1, row.boxType ?? 0,
         row.furnaceType ?? 0, row.lanternType ?? 0, row.doorType ?? 0, row.terrainVariant ?? 0, isCompoundBuilding(kind, row), row.loreId ?? '', kind === 'livingCorals' ? coralVariant(id) : '',
         kind==='droppedItems'?`${row.itemDefId}:${item?.name??''}`:'',
@@ -540,6 +589,11 @@ export class WebGpuWorldRenderer {
         this.frameNewVisuals++;
         if (visual) this.scene.remove(visual.root);
         visual = this.createVisual(kind, item?{...row,name:item.name}:row, id, signature, position.x, position.y);
+        if (kind === 'playerCorpses') {
+          const owner = identity(row.playerIdentity), previous = this.visuals.get(`players:${owner}`)?.survivor;
+          const player = frame.tables.players instanceof Map ? frame.tables.players.get(owner) as Row | undefined : undefined;
+          visual.corpseYaw = previous?.root.rotation.y ?? yaw(player?.direction ?? 'down');
+        }
         this.visuals.set(key, visual);
         if (!visual.root.userData.staticBatch) this.scene.add(visual.root);
       }
@@ -636,6 +690,14 @@ export class WebGpuWorldRenderer {
         visual.root.scale.y += (target - visual.root.scale.y) * (1 - Math.exp(-dt * 14));
       }
       visual.door?.update(Boolean(row.isOpen), dt);
+      if (kind === 'placedExplosives') {
+        const fuse = visual.root.getObjectByName('explosive-fuse') as Group | undefined, now = frame.nowMs ?? Date.now();
+        if (fuse) {
+          fuse.visible = !row.isDud && timestampMs(row.armedAt) > 0 && timestampMs(row.armedAt) <= now && timestampMs(row.detonatesAt) > now;
+          fuse.scale.setScalar(1 + Math.sin(time * 45) * .2);
+          if (!fuse.visible) this.dormantLightEffects.push(fuse);
+        }
+      }
       const potContents = kind === 'brothPots' ? visual.root.getObjectByName('pot-contents') : null;
       if (potContents) {
         potContents.visible = (row.waterLevelMl ?? 0) > 0;
@@ -653,19 +715,38 @@ export class WebGpuWorldRenderer {
         const equipment = frame.tables.activeEquipments instanceof Map ? frame.tables.activeEquipments.get(id) : null;
         const definitions = frame.tables.itemDefinitions;
         const item = definitions instanceof Map ? definitions.get(String(equipment?.equippedItemDefId)) : null;
-        const weapon = item?.name ?? equipment?.iconAssetName ?? '';
+        const fishing = frame.tables.fishingSessions instanceof Map ? frame.tables.fishingSessions.get(id) : undefined;
+        const weapon = fishing?.isActive ? fishing.fishingRod : item?.name ?? equipment?.iconAssetName ?? '';
         const nowMs = frame.nowMs ?? Date.now();
         const jumpAge = nowMs - (isLocal && frame.jumpStartMs ? frame.jumpStartMs : Number(row.jumpStartTimeMs ?? 0));
         const swingAge = nowMs - Number(equipment?.swingStartTimeMs ?? 0);
         const swingDuration = Math.max(120, Math.min(1500, (item?.attackIntervalSecs ?? .5) * 1000));
+        const stats = frame.tables.rangedWeaponStats instanceof Map ? frame.tables.rangedWeaponStats.get(weapon) : undefined;
+        const reload = reloadPhase(equipment?.reloadStartTimeMs, stats?.magazineReloadTimeSecs || stats?.reloadTimeSecs || 1.3, nowMs);
+        const playerCorpse = kind === 'playerCorpses';
+        const downAt = timestampMs(playerCorpse ? row.deathTime : row.isDead ? row.deathTimestamp : row.knockedOutAt);
+        const shotAge = this.rangedTimeline.age(id, weapon, Number(equipment?.swingStartTimeMs ?? 0), nowMs);
         visual.survivor.update({ speed, sprinting: Boolean(row.isSprinting), crouching: Boolean(row.isCrouching),
-          swimming: Boolean(row.isOnWater || row.isSnorkeling), dead: Boolean(row.isDead || row.isKnockedOut),
+          swimming: Boolean(row.isOnWater || row.isSnorkeling), dead: Boolean(row.isDead || playerCorpse), knockedOut: Boolean(row.isKnockedOut),
+          downAge: downAt ? Math.max(0, (nowMs - downAt) / 1000) : undefined,
+          jumpAge: jumpAge / 1000,
           jump: jumpAge > 0 && jumpAge < 500 ? Math.sin(jumpAge / 500 * Math.PI) : 0,
           roll: isLocal ? frame.rollProgress ?? 0 : 0,
           attack: swingAge > 0 && swingAge < swingDuration ? swingAge / swingDuration : 0,
-          yaw: yaw(isLocal ? frame.facing ?? row.direction ?? '' : row.direction ?? ''), weapon,
+          yaw: playerCorpse ? visual.corpseYaw ?? 0 : yaw(isLocal ? frame.facing ?? row.direction ?? '' : row.direction ?? ''), weapon,
           torchLit: Boolean(row.isTorchLit && !row.isSnorkeling), loaded: Boolean(equipment?.loadedAmmoCount && equipment?.isReadyToFire),
-          reloading: Number(equipment?.reloadStartTimeMs ?? 0) > 0 }, dt, time);
+          shotAge, reloadProgress: reload, reloading: reload !== undefined,
+          bowDraw: reload ?? (equipment?.isReadyToFire && equipment?.loadedAmmoCount ? 1 : 0),
+          interaction: actorInteraction(frame.tables, id, row, nowMs) }, dt, time);
+        if (isLocal && frame.profile) this.canvas.dataset.localAnimation = JSON.stringify(visual.survivor.root.userData.animation);
+        const muzzleFlash = visual.survivor.muzzleFlash;
+        if (muzzleFlash && !muzzleFlash.visible) this.dormantLightEffects.push(muzzleFlash);
+        if (kind === 'players' && !hiddenBySurface) {
+          const terrain = visual.root.position.y > .02 ? 'Building' : this.terrainKinds.get(`${Math.floor(position.x / WORLD_3D.tilePixels)},${Math.floor(position.y / WORLD_3D.tilePixels)}`) ?? 'Grass';
+          this.footEffects.observe(id, { x: position.x, y: position.y, ground: visual.root.position.y, speed,
+            swimming: Boolean(row.isOnWater || row.isSnorkeling), down: Boolean(row.isDead || row.isKnockedOut), jumpAge: jumpAge / 1000,
+            terrain, snow: terrain !== 'Building' && (terrain === 'Alpine' || tag((frame.tables.worldState as { currentSeason?: unknown })?.currentSeason) === 'Winter' && !waterKind) }, visual.survivor, time);
+        }
         const torchFlame = visual.survivor.torchFlame;
         if (torchFlame?.visible && !hiddenBySurface) {
           visual.root.updateMatrixWorld(true);
@@ -675,6 +756,19 @@ export class WebGpuWorldRenderer {
         if (visual.survivor.unfinishedWeapon) this.unfinished.add(`weapon:${weapon}`);
         this.swimmingEffects.observe(id, position.x, position.y, visual.survivor.root.rotation.y, speed,
           Boolean(row.isOnWater), Boolean(row.isSprinting), this.hotSpringTiles.has(`${Math.floor(position.x / WORLD_3D.tilePixels)},${Math.floor(position.y / WORLD_3D.tilePixels)}`), time, Boolean(row.isSnorkeling));
+        if (playerCorpse && (!downAt || nowMs - downAt >= 800)) {
+          let settled = this.prototypes.get('settled-player-corpse');
+          if (!settled) {
+            const anatomy = visual.survivor.root.clone(true);
+            anatomy.position.set(0, 0, 0); anatomy.rotation.set(0, 0, 0); anatomy.scale.set(1, 1, 1);
+            anatomy.getObjectByName('interaction-props')?.removeFromParent(); anatomy.getObjectByName('held-weapon')?.removeFromParent();
+            settled = this.kit.compileColored(anatomy); settled.userData.playerCorpse = true;
+            this.prototypes.set('settled-player-corpse', settled);
+          }
+          const corpse = settled.clone(true); corpse.rotation.y = visual.corpseYaw ?? 0;
+          visual.root.remove(visual.survivor.root); visual.root.add(corpse); visual.survivor = undefined;
+          visual.root.userData.staticBatch = true; this.scene.remove(visual.root);
+        }
       }
       if (visual.animal) {
         const direction = visual.corpseYaw ?? (Math.hypot(row.directionX ?? 0, row.directionY ?? 0) > 0.01
@@ -682,9 +776,14 @@ export class WebGpuWorldRenderer {
         const now = frame.nowMs ?? Date.now();
         const age = (stamp?: { microsSinceUnixEpoch: bigint }) => stamp ? (now - Number(stamp.microsSinceUnixEpoch / 1000n)) / 1000 : -1;
         const corpse = kind === 'animalCorpses';
+        const targetId = row.targetPlayerId ? identity(row.targetPlayerId) : '';
+        const target = frame.tables.players instanceof Map ? frame.tables.players.get(targetId) as Row | undefined : undefined;
+        const lookX = target?.positionX ?? row.investigationX, lookY = target?.positionY ?? row.investigationY;
         visual.animal.update(speed, direction, dt, time, Boolean(row.isFlying), false, {
           attackAge: age(row.lastAttackTime), deathAge: corpse ? Math.max(0, age(row.deathTime)) : row.health === 0 ? Math.max(0, age(row.lastHitTime)) : undefined,
           hidden: !corpse && ['Burrowed', 'Hiding'].includes(tag(row.state)), shock: age(row.shockActiveUntil) < 0 && Boolean(row.shockActiveUntil),
+          state: tag(row.state), alertAge: Math.max(0, age(row.stateChangeTime)),
+          lookYaw: lookX !== undefined && lookY !== undefined ? Math.atan2(lookX - position.x, lookY - position.y) : undefined,
         });
         if (waterKind && ['SalmonShark', 'Jellyfish'].includes(visual.animal.species)) {
           const submerged = seabedAnchor(displayX, displayY, waterKind, this.terrainMaterials.depthAt(displayX, displayY));
@@ -721,10 +820,10 @@ export class WebGpuWorldRenderer {
     let door: DoorRig | undefined;
     let shelter: ShelterRig | undefined;
     let village: VillageRig | undefined;
-    if (kind === 'players') { survivor = new SurvivorRig(this.kit); root = survivor.root; }
+    if (kind === 'players' || kind === 'playerCorpses') { survivor = new SurvivorRig(this.kit); root = survivor.root; }
     else if (kind === 'wildAnimals' || kind === 'animalCorpses') {
       const previous = kind === 'animalCorpses' ? this.visuals.get(`wildAnimals:${row.animalId}`) : undefined;
-      animal = previous?.animal ?? new AnimalRig(this.kit, tag(row.species ?? row.animalSpecies)); root = animal.root;
+      animal = previous?.animal ?? new AnimalRig(this.kit, tag(row.species ?? row.animalSpecies), seed); root = animal.root;
       if (previous) previous.root.remove(root);
       if (root.userData.unfinishedSpecies) this.unfinished.add(`animal:${tag(row.species)}`);
     } else if (kind === 'monumentParts'&&villageAsset(row)) {
@@ -759,6 +858,7 @@ export class WebGpuWorldRenderer {
         else if(kind==='compoundLandmarks')prototype=createAlkBuilding(this.kit,row.name as AlkAsset);
         else if(kind==='turrets')prototype=createAlkTurret(this.kit,Boolean(row.isMonument));
         else if (kind === 'trees') prototype = createTree(this.kit, tag(row.treeType), seed % 8);
+        else if (kind === 'placedExplosives') prototype = createPlacedExplosive(this.kit, tag(row.explosiveType) === 'MatriarchWrath');
         else if (kind === 'stones') prototype = createRock(this.kit, tag(row.oreType), seed % 8);
         else if (kind === 'woodenStorageBoxes') prototype = createStorageModel(this.kit, row.boxType ?? 0);
         else if (kind === 'barrels') prototype = row.variant === 6 ? createBuoy(this.kit) : createBarrel(this.kit, row.variant ?? 0);
@@ -833,9 +933,10 @@ export class WebGpuWorldRenderer {
     if (this.disposal) return this.disposal;
     this.disposed = true;
     this.terrainWorker?.dispose(); this.readyTerrain = null;
+    this.rangedTimeline.clear();
     const warmupRelease = this.pipelineWarmup.dispose();
     // Renderer releases GPU resources before their shared CPU owners are disposed.
-    const release = () => { this.device?.destroy(); this.device = null; this.water.dispose(); this.terrainMaterials.dispose(); this.swimmingEffects.dispose(); this.treeFallEffects.dispose(); this.combatEffects.dispose(); this.shardGlow.dispose(); this.collectibleGlitter.dispose(); this.underwater.dispose(); this.placementPreview.dispose(); this.batches.dispose(); this.terrain.geometry.dispose(); this.kit.dispose(); this.scene.clear(); this.visuals.clear(); this.prototypes.clear(); };
+    const release = () => { this.device?.destroy(); this.device = null; this.water.dispose(); this.terrainMaterials.dispose(); this.swimmingEffects.dispose(); this.treeFallEffects.dispose(); this.combatEffects.dispose(); this.footEffects.dispose(); this.projectileWorld.dispose(); this.explosionEffects.dispose(); this.fishingEffects.dispose(); this.shardGlow.dispose(); this.collectibleGlitter.dispose(); this.underwater.dispose(); this.placementPreview.dispose(); this.batches.dispose(); this.terrain.geometry.dispose(); this.kit.dispose(); this.scene.clear(); this.visuals.clear(); this.prototypes.clear(); };
     this.disposal = (async () => {
       // A pending init may still own the canvas context. Finish its release before
       // a remount or seed reset is allowed to configure this same canvas again.

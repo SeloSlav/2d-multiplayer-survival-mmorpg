@@ -1,5 +1,6 @@
 import { Box3, Group, Mesh, Vector3 } from 'three/webgpu';
 import { COLORS as C, ModelKit } from './modelKit';
+import { animalAttackPhase, smoothPhase } from './actorAnimation';
 
 type Family = 'quadruped' | 'bird' | 'insect' | 'crab' | 'serpent' | 'fish' | 'jelly' | 'humanoid';
 interface Profile { family: Family; length: number; height: number; width: number; fur: number; accent: number; muzzle: number; tail: number; runSpeed: number; attackSeconds: number }
@@ -25,7 +26,7 @@ export const ANIMAL_PROFILES: Record<string, Profile> = {
   DrownedWatch: { family: 'humanoid', length: .68, height: 2.05, width: 1.05, fur: 0x435f61, accent: 0x81958d, muzzle: .1, tail: 0, runSpeed: 2.2, attackSeconds: 1.05 },
 };
 export const AUTHORED_ANIMAL_SPECIES = new Set(Object.keys(ANIMAL_PROFILES));
-export interface AnimalEvents { attackAge?: number; deathAge?: number; hidden?: boolean; shock?: boolean }
+export interface AnimalEvents { attackAge?: number; deathAge?: number; hidden?: boolean; shock?: boolean; state?: string; lookYaw?: number; alertAge?: number }
 interface Joint { pivot: Group; lower?: Group; index: number; x: number; y: number; z: number }
 const ease = (x: number) => { const t = Math.max(0, Math.min(1, x)); return t * t * (3 - 2 * t); };
 
@@ -38,6 +39,8 @@ export class AnimalRig {
   private readonly jaw = new Group();
   private readonly tail = new Group();
   private readonly eyes: Mesh[] = [];
+  private readonly ears: Group[] = [];
+  private readonly headRest = new Vector3();
   private readonly p: Profile;
   private readonly bounds = new Box3();
   private readonly origin = new Vector3();
@@ -47,7 +50,7 @@ export class AnimalRig {
   private heading = 0;
   private firstFrame = true;
 
-  constructor(private readonly kit: ModelKit, readonly species: string) {
+  constructor(private readonly kit: ModelKit, readonly species: string, private readonly seed = 0) {
     const p = ANIMAL_PROFILES[species];
     if (!p) throw new Error(`Unfinished animal species ${species}`);
     this.p = p; this.root.name = `animal-${species}`;
@@ -66,6 +69,8 @@ export class AnimalRig {
       if (!solids.length) continue;
       const fixed = new Group(); solids.forEach(o => fixed.add(o)); group.add(kit.compileShared(fixed, `animal:${species}:${index}`));
     }
+    this.headRest.copy(this.head.position);
+    this.eyes.forEach(eye => { eye.userData.restScaleY = eye.scale.y; });
     this.root.userData.species = species; this.root.userData.motionFamily = p.family;
   }
   private joint(x: number, y: number, z: number): Group {
@@ -89,8 +94,12 @@ export class AnimalRig {
     this.eyePair(p.width * .27, p.width * .08, p.width * .3);
     for (const s of [-1, 1]) {
       const round = /Bear|Vole/.test(this.species);
-      if (!walrus) part(this.head, round ? 'rock' : 'cone', p.fur,
-        [p.width * .29, hare ? .5 : p.width * .38, p.width * .25], [s * p.width * .29, p.width * .42 + (hare ? .17 : 0), -.025]);
+      if (!walrus) {
+        const ear = new Group(); ear.name = `animal-ear-${s}`;
+        ear.position.set(s * p.width * .29, p.width * .42 + (hare ? .17 : 0), -.025);
+        this.head.add(ear); this.ears.push(ear);
+        part(ear, round ? 'rock' : 'cone', p.fur, [p.width * .29, hare ? .5 : p.width * .38, p.width * .25], [0, 0, 0]);
+      }
       if (walrus) {
         this.kit.branch(this.head, C.bone, [new Vector3(s * .19, -.1, .3), new Vector3(s * .23, -.4, .38), new Vector3(s * .2, -.62, .43)], [.055, .035, .006]);
         for (let i = 0; i < 3; i++) this.kit.beam(this.head, p.accent, new Vector3(s * .08, -.05 - i * .04, .45), new Vector3(s * .37, -.06 - i * .05, .5), .009);
@@ -213,10 +222,13 @@ export class AnimalRig {
     this.root.rotation.y = this.heading; this.root.visible = !events.hidden;
     this.body.position.set(0, 0, 0); this.body.rotation.set(0, 0, 0); this.body.scale.set(1, 1, 1);
     this.head.rotation.set(0, 0, 0); this.jaw.rotation.x = 0; this.tail.rotation.set(0, 0, 0);
+    this.head.position.copy(this.headRest);
+    this.ears.forEach(ear => ear.rotation.set(0, 0, 0));
     this.eyes.forEach(eye => { eye.visible = !dead; });
     for (const j of this.joints) { j.pivot.rotation.set(0, 0, 0); j.pivot.position.set(j.x, j.y, j.z); if (j.lower) j.lower.rotation.x = 0; }
     const age = events.attackAge ?? (attacking ? time % p.attackSeconds : -1);
-    const attack = !dead && age >= 0 && age < p.attackSeconds ? Math.sin(ease(age / p.attackSeconds) * Math.PI) : 0;
+    const phases = animalAttackPhase(age, p.attackSeconds);
+    const attack = !dead ? phases.strike : 0;
     if (dead) {
       const fall = ease(events.deathAge! / .72);
       this.body.rotation.z = (p.family === 'fish' ? Math.PI : p.family === 'jelly' || p.family === 'serpent' ? .12 : Math.PI / 2) * fall;
@@ -262,6 +274,41 @@ export class AnimalRig {
       this.body.scale.set(1 + pulse * .08 + attack * .12, 1 - pulse * .1, 1 + pulse * .08 + attack * .12);
       for (const j of this.joints) { j.pivot.rotation.x = Math.sin(time * 2.2 - j.index * .5) * .18; j.pivot.rotation.z = Math.cos(time * 2.2 - j.index * .5) * .15; }
     }
-    this.root.userData.animation = { state: attack > 0 ? 'attack' : flying ? 'flight' : gait > .1 ? run > .5 ? 'run' : 'walk' : 'idle', phase, attack, shock: Boolean(events.shock) };
+    const clock = time + (this.seed % 997) * .071, idle = 1 - Math.min(1, gait * 3);
+    const alert = ['Alert', 'Investigating', 'Chasing', 'Stalking', 'Attacking', 'AttackingStructure', 'Protecting'].includes(events.state ?? '');
+    const attention = alert ? smoothPhase((events.alertAge ?? 1) / .25) : 0;
+    let behaviour = 'idle';
+    if (p.family === 'quadruped' && idle > .1 && !alert && age < 0) {
+      const cycle = ((clock % 11) + 11) % 11;
+      const feeding = smoothPhase((cycle - 2) / 1.2) * (1 - smoothPhase((cycle - 6.5) / 1.4)) * idle;
+      const grazer = this.species === 'Caribou' || this.species === 'Hare' || this.species === 'Vole';
+      this.head.rotation.x += feeding * (grazer ? .8 : .28) + feeding * Math.sin(clock * (grazer ? 3 : 9)) * .065;
+      this.head.position.y -= feeding * p.height * (grazer ? .15 : .06);
+      this.jaw.rotation.x += feeding * (.03 + Math.sin(clock * 5) * .025);
+      behaviour = feeding > .1 ? grazer ? 'graze' : 'sniff' : 'look-around';
+    }
+    if (p.family === 'bird' && !flying && idle > .1 && !alert) {
+      const peck = Math.max(0, Math.sin(clock * .9)) ** 8 * idle;
+      this.head.rotation.x += peck * .9; this.head.position.y -= peck * p.height * .14;
+      behaviour = peck > .1 ? 'peck' : 'look-around';
+    }
+    if (p.family !== 'fish' && p.family !== 'jelly' && p.family !== 'insect') {
+      const look = events.lookYaw === undefined ? Math.sin(clock * .48) * .23 * idle : Math.atan2(Math.sin(events.lookYaw - this.heading), Math.cos(events.lookYaw - this.heading));
+      this.head.rotation.y += Math.max(-.65, Math.min(.65, look)) * (alert ? attention : 1 - attack);
+      this.head.rotation.x -= attention * .1;
+      // State-driven preparation also runs before an attack timestamp arrives:
+      // stalking/chasing animals lower their body and focus on their target.
+      const prepare = Math.max(phases.prepare, events.state === 'Stalking' || events.state === 'Attacking' ? attention * .7 : 0);
+      this.body.position.z -= prepare * p.length * .055;
+      this.body.position.y -= prepare * p.height * .045;
+      this.head.rotation.x -= prepare * .12;
+      this.ears.forEach((ear, i) => {
+        ear.rotation.y = attention * (i % 2 ? -.22 : .22) + Math.sin(clock * 1.6 + i * 2) * .08 * idle;
+        ear.rotation.x = -attention * .2 + Math.max(0, Math.sin(clock * 2.1 + i * 3)) ** 12 * .18;
+      });
+      const blink = ((clock % 4.7) + 4.7) % 4.7;
+      this.eyes.forEach(eye => { eye.scale.y = eye.userData.restScaleY * (blink < .14 ? .12 + .88 * Math.abs(blink - .07) / .07 : 1); });
+    }
+    this.root.userData.animation = { state: attack > 0 ? 'attack' : phases.prepare > 0 ? 'attack-prepare' : flying ? 'flight' : gait > .1 ? run > .5 ? 'run' : 'walk' : alert ? 'alert' : behaviour, phase, attack, prepare: phases.prepare, shock: Boolean(events.shock) };
   }
 }
