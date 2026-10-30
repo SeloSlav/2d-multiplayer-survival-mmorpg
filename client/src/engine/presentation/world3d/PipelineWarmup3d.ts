@@ -17,13 +17,17 @@ export class PipelineWarmup3d {
     const hidden:Mesh[]=[];let candidate:{mesh:Mesh;key:string}|undefined;
     const inspect=(object:Object3D,shown:boolean)=>{
       if(!(object instanceof Mesh)||Array.isArray(object.material))return;
-      const version=`${variant}:${object.material.version}:${object.geometry.id}:${object.castShadow}:${object.receiveShadow}`;
+      const perObject=Boolean(object.userData.warmupPerObject);
+      const version=`${variant}:${object.material.version}:${object.geometry.id}:${object.castShadow}:${object.receiveShadow}:${perObject}`;
       let entry=this.cache.get(object);
       if(entry?.version!==version){
         const attributes=Object.entries(object.geometry.attributes as Record<string,BufferAttribute|InterleavedBufferAttribute>)
           .map(([name,a])=>`${name}:${a.itemSize}:${a.normalized}:${'array' in a ? a.array.constructor.name : 'interleaved'}`).join('|');
         const instanced='isInstancedMesh' in object&&object.isInstancedMesh;
-        entry={version,key:`${variant}:${object.material.uuid}:${object.material.version}:${Boolean(instanced)}:${object.castShadow}:${object.receiveShadow}:${attributes}`};
+        // Custom instanced attributes bind object-specific buffers. Preparing
+        // only the first cell's layout can leave its siblings compiling in the
+        // first destruction frame, even with a shared material.
+        entry={version,key:`${variant}:${object.material.uuid}:${object.material.version}:${Boolean(instanced)}:${object.castShadow}:${object.receiveShadow}:${attributes}:${perObject?object.uuid:''}`};
         this.cache.set(object,entry);
       }
       if(!this.ready.has(entry.key)) {

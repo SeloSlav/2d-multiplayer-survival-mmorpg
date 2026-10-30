@@ -43,6 +43,7 @@ export class BarrelFractureEffects3d {
       piece.geometry.setAttribute('fracturePaint', paint); this.paintAttributes.push(paint);
       const mesh = new InstancedMesh(piece.geometry, this.material, BARREL_FRACTURE_CAPACITY);
       mesh.name = `barrel-fracture-cell-${i}`; mesh.count = 0; mesh.frustumCulled = false; mesh.receiveShadow = true;
+      mesh.userData.warmupPerObject = true;
       this.meshes.push(mesh); this.root.add(mesh);
     }
     for (let i = 0; i < BARREL_FRACTURE_CAPACITY; i++) this.slots.push({ at: 0, paint: new Color(), linear: new Matrix4(), floor: 0,

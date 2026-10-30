@@ -12,6 +12,8 @@ import { createRuneStone } from '../client/src/engine/presentation/world3d/natur
 import { RUNE_PALETTES, RUNE_LIGHT_RADIUS, runeNightStrength } from '../client/src/engine/presentation/world3d/runeStoneProfile.ts';
 import { LIGHT_FADE_FULL_AT, NIGHT_LIGHTS_OFF, NIGHT_LIGHTS_ON } from '../client/src/config/dayNightConstants.ts';
 import { WebGpuWorldRenderer } from '../client/src/engine/presentation/world3d/WebGpuWorldRenderer.ts';
+import { PipelineWarmup3d } from '../client/src/engine/presentation/world3d/PipelineWarmup3d.ts';
+import { OrthographicCamera, Scene } from 'three/webgpu';
 
 const stamp = ms => ({ microsSinceUnixEpoch: BigInt(ms) * 1000n });
 function meshVolume(geometry) {
@@ -79,6 +81,21 @@ test('fracture bursts stay bounded and densely retain their own paint when slots
   effects.dispose(); assert.equal(disposed.length, 18); kit.dispose();
 });
 
+test('every fragment buffer prepares asynchronously before the first burst draws it', async () => {
+  const kit = new ModelKit(), effects = new BarrelFractureEffects3d(kit), scene = new Scene(), camera = new OrthographicCamera(), warmup = new PipelineWarmup3d();
+  scene.add(effects.root); const prepared = [];
+  const renderer = { compileAsync: async mesh => { prepared.push(mesh); } };
+  for (let i = 0; i < 18; i++) {
+    warmup.prepare(scene, camera, renderer, scene, 'lit', assert.fail, [effects.root])();
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  assert.equal(new Set(prepared).size, 18, 'distinct custom instance buffers cannot share one preparation key');
+  effects.spawn('prepared', 0, 10000, new Matrix4(), 0); effects.update(10000);
+  const restore = warmup.prepare(scene, camera, renderer, scene, 'lit', assert.fail);
+  assert.ok(warmup.visibleReady && effects.meshes.every(mesh => mesh.visible)); assert.equal(prepared.length, 18); restore();
+  await warmup.dispose(); effects.dispose(); kit.dispose();
+});
+
 test('barrel destruction events reject stream eviction, deduplicate update/delete, and allow a later respawn to break again', () => {
   const listeners = {}, table = {};
   for (const name of ['Update', 'Delete']) { table[`on${name}`] = fn => listeners[name] = fn; table[`removeOn${name}`] = fn => { assert.equal(fn, listeners[name]); delete listeners[name]; }; }
@@ -131,5 +148,15 @@ test('the world renderer registers runestone illumination beside the enlarged ac
   const lights = [], frame = { width: 800, height: 600, cameraOffset: { x: 0, y: 0 }, tables: { runeStones: new Map([['r', { posX: 120, posY: 180, runeType: { tag: 'Blue' } }]]) }, nowMs: now };
   renderer.syncTable('runeStones', frame, 1 / 60, 2, new Set(), lights);
   assert.equal(lights.length, 1); assert.equal(lights[0].color, RUNE_PALETTES.Blue.glow); assert.ok(lights[0].intensity > 12);
+  await renderer.dispose();
+});
+
+test('enlarged runestones remain visible with their base below the viewport at close zoom', async () => {
+  const renderer = new WebGpuWorldRenderer({ dataset: {} });
+  const row = { posX: 400, posY: 800, runeType: { tag: 'Green' } };
+  const frame = { width: 800, height: 600, zoom: 2, cameraOffset: { x: 0, y: -140 }, tables: { runeStones: new Map([['tall-rune', row]]) } };
+  const seen = new Set(); renderer.runeEffects.beginFrame(1, .5);
+  renderer.syncTable('runeStones', frame, 1 / 60, 1, seen, []);
+  assert.ok(seen.has('runeStones:tall-rune'), 'the visible upper inscription cannot pop out when its ground anchor crosses the old culling margin');
   await renderer.dispose();
 });

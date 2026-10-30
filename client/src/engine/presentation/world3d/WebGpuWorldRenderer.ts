@@ -640,9 +640,10 @@ export class WebGpuWorldRenderer {
         : kind==='alkStations'||kind==='compoundLandmarks'||isCompoundBuilding(kind,row)?Math.max(500,WORLD_3D.cullMarginPixels):WORLD_3D.cullMarginPixels;
       // Tall crowns can still occupy the viewport with their roots well below
       // it. Falling trees need the same allowance along their landing axis.
-      const treeMargin = kind==='trees' ? Math.max(margin, 12 * WORLD_3D.tilePixels * zoom) : margin;
-      const horizontalMargin = isTreeFalling ? treeMargin : margin;
-      if (screenX < -horizontalMargin || screenY < -margin || screenX > frame.width + horizontalMargin || screenY > frame.height + treeMargin) continue;
+      const verticalMargin = kind==='trees' ? Math.max(margin, 12 * WORLD_3D.tilePixels * zoom)
+        : kind==='runeStones' ? Math.max(margin, 6 * WORLD_3D.tilePixels * zoom) : margin;
+      const horizontalMargin = isTreeFalling ? verticalMargin : margin;
+      if (screenX < -horizontalMargin || screenY < -margin || screenX > frame.width + horizontalMargin || screenY > frame.height + verticalMargin) continue;
       const waterKind = this.waterTiles.get(`${Math.floor(position.x / 48)},${Math.floor(position.y / 48)}`);
       const subtype=tag(row.species??row.animalSpecies??row.oreType);
       const visibleHit=!this.diving||kind==='livingCorals'||kind==='animalCorpses'||kind==='players'&&(isLocal||Boolean(row.isSnorkeling))

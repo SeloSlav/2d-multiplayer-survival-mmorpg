@@ -192,14 +192,16 @@ function face(kit: ModelKit, g: Group): void {
   const p=skin.getAttribute('position'), colors=new Float32Array(p.count*3);
   for(let i=0;i<p.count;i+=3){
     const x=(p.getX(i)+p.getX(i+1)+p.getX(i+2))/3,y=(p.getY(i)+p.getY(i+1)+p.getY(i+2))/3,z=(p.getZ(i)+p.getZ(i+1)+p.getZ(i+2))/3;
-    const blush=z>.218&&Math.hypot((Math.abs(x)-.125)/.067,(y-.022)/.063)<1;
-    const pigment=new Color(blush?P.cheek:P.skin).multiplyScalar(1+((i*13%11)-5)*.009);
+    // Roughly half the old painted area, with a softer outer pigment edge.
+    const cheekDistance=Math.hypot((Math.abs(x)-.125)/.047,(y-.022)/.0445);
+    const blush=z>.218?Math.min(1,Math.max(0,(1-cheekDistance)*3)):0;
+    const pigment=new Color(P.skin).lerp(new Color(P.cheek),blush).multiplyScalar(1+((i*13%11)-5)*.009);
     for(let v=i;v<i+3;v++)colors.set([pigment.r,pigment.g,pigment.b],v*3);
   }
   skin.setAttribute('color',new Float32BufferAttribute(colors,3));
   g.add(new Mesh(kit.ownGeometry(skin),kit.material(0xffffff)));
-  // Paint features around the face's curvature, rather than attaching eyeballs
-  // and cheek spheres. The tiny offsets are ordered relief, never coplanar.
+  // Eye paint follows the face; nose and lips are sculpted relief whose edges
+  // sink into the same face surface instead of sitting on it as separate beads.
   const project=(x:number,y:number,offset=.006):Point=>[x,y,.167+.126*Math.sqrt(Math.max(.01,1-(x/.192)**2-((y-.079)/.209)**2))+offset];
   const paint=(color:number,points:[number,number][],offset=.006)=>panel(kit,g,color,points.map(([x,y])=>project(x,y,offset)),.002);
   const disc=(color:number,x:number,y:number,rx:number,ry:number,offset:number)=>paint(color,
@@ -209,21 +211,41 @@ function face(kit: ModelKit, g: Group): void {
       const result=points.map(([x,y]):[number,number]=>[x*sign,y]);return sign<0?result.reverse():result;
     };
     paint(0xf8ead7,mirror([[.027,.096],[.047,.072],[.088,.067],[.137,.087],[.122,.123],[.087,.138],[.048,.124]]));
-    disc(0x674326,sign*.080,.101,.031,.033,.009);
-    disc(P.eye,sign*.078,.105,.021,.025,.012);
-    disc(0xfff4de,sign*.078-.009,.119,.007,.009,.015);
-    paint(P.eye,mirror([[.025,.096],[.048,.124],[.087,.138],[.122,.123],[.145,.084],[.155,.093],
-      [.134,.099],[.125,.132],[.086,.148],[.044,.134]]),.011);
+    disc(0x674326,sign*.080,.102,.040,.035,.009);
+    disc(P.eye,sign*.078,.105,.029,.030,.012);
+    disc(0xfff4de,sign*.078-.010,.121,.008,.010,.016);
+    paint(P.eye,mirror([[.025,.096],[.048,.124],[.087,.138],[.122,.123],[.143,.087],[.161,.102],
+      [.142,.101],[.127,.139],[.086,.155],[.041,.139]]),.018);
     const brow=Array.from({length:9},(_,i):[number,number]=>{
-      const t=i/8;return[.032+.10*t,.176+.030*Math.sin(Math.PI*t)];
+      // The inner end rises gently toward the nose; no semicircular arches.
+      const t=i/8;return[.032+.10*t,.206-.034*t+.002*Math.sin(Math.PI*t)];
     });
     paint(P.hairShade,mirror([...brow,...[...brow].reverse().map(([x,y]):[number,number]=>[x,y+.017])]));
     paint(P.hair,mirror([...brow.map(([x,y]):[number,number]=>[x,y+.012]),...[...brow].reverse().map(([x,y]):[number,number]=>[x,y+.018])]),.009);
   }
-  const noseRim:Point[]=[[-.023,.062,.294],[-.042,.027,.308],[-.024,.008,.314],[.024,.008,.314],[.042,.027,.308],[.023,.062,.294]];
-  for(let i=0;i<noseRim.length;i++)panel(kit,g,i<3?P.nose:0xfba080,[[0,.030,.337],noseRim[i],noseRim[(i+1)%noseRim.length]],.012);
-  const curve=Array.from({length:9},(_,i):[number,number]=>{const x=(i/8*2-1)*.064;return[x,-.040-.018*(1-(x/.064)**2)];});
-  paint(0x82472e,[...curve,...[...curve].reverse().map(([x,y]):[number,number]=>[x,y+.004])],.006);
+  // Connected sections grow smoothly from the bridge into a rounded tip and
+  // back into the philtrum. The perimeter sits inside the cheek/forehead mesh.
+  const noseRows=[[-.012,.025,0],[.003,.034,.014],[.018,.044,.034],[.037,.041,.044],
+    [.067,.033,.032],[.098,.026,.020],[.126,.023,.009],[.145,.022,0]];
+  const noseColumns=[-1,-.72,-.38,0,.38,.72,1];
+  clothGrid(kit,g,noseRows.map(([y,width,height])=>noseColumns.map(u=>
+    project(u*width,y,-.006+height*(1-u*u)**1.4))),(row,col)=>{
+      const tip=row>=1&&row<=3,center=col>0&&col<noseColumns.length-2;
+      return new Color(P.skin).lerp(new Color(P.nose),tip&&center?.30:.06).getHex();
+    });
+  // A broad skin transition blends the lips into the muzzle; only the inner
+  // ridges are lip-colored, so there is no raised outline around the mouth.
+  const lipRows=[[-.030,-.010],[-.017,0],[-.009,.0035],[-.0012,.002],
+    [.0012,.002],[.007,.0025],[.014,0],[.024,-.010]];
+  const lipColumns=Array.from({length:17},(_,i)=>i/8-1);
+  clothGrid(kit,g,lipRows.map(([dy,depth])=>lipColumns.map(u=>{
+    const x=u*.082,taper=Math.max(0,1-(x/.067)**2),smile=-.040-.018*Math.max(0,1-(x/.064)**2);
+    return project(x,smile+dy,-.010+(depth+.010)*taper);
+  })),(row,col)=>{
+    const x=(lipColumns[col]+lipColumns[col+1])*.041,taper=Math.max(0,1-(x/.067)**2);
+    const color=row===3?0x9a5d45:row===2?0xde9e7c:row===4?0xd29376:P.skin;
+    return new Color(P.skin).lerp(new Color(color),taper).getHex();
+  });
 }
 
 function hair(kit: ModelKit, g: Group): void {
@@ -271,8 +293,12 @@ export function createSurvivorAppearance(kit: ModelKit, body: Group, torso: Grou
     // Continuous curved cloth: colored bands share its surface, so the red
     // border cannot z-fight or detach from the apron as the camera turns.
     const point=(u:number,v:number):Point=>{
-      const x=u*(.147+v*.128),y=.895-v*.49+(u*u)*v*.018;
-      return[x,y,skirtFront(x,y)+.009];
+      const flare=Math.min(1,Math.max(0,(v-.28)/.72));
+      const x=u*(.244+.031*flare*flare*(3-2*flare)),y=.895-v*.49+(u*u)*v*.018;
+      // A straight, broad waist edge sits under the belt and over the vest
+      // tails, so those dark panels cannot cut the apron into a tapered bib.
+      const overlap=Math.min(1,Math.max(0,(y-.64)/.12));
+      return[x,y,skirtFront(x,y)+.009+overlap*.024];
     };
     const rows=[1,.94,.80,.53,.23,0],cols=[-1,-.75,-.5,-.25,0,.25,.5,.75,1];
     clothGrid(kit,g,rows.map(v=>cols.map(u=>point(u,v))),(row,col)=>{
@@ -306,8 +332,8 @@ export function createSurvivorAppearance(kit: ModelKit, body: Group, torso: Grou
         surface.push(sign<0?row.reverse():row);
       }
       clothGrid(kit,g,surface,()=>P.vest);
-      const strap=Array.from({length:5},(_,i)=>{
-        const t=i/4,y=1.075+.185*t,a=.19-.035*t,b=.25-.035*t;
+      const strap=Array.from({length:9},(_,i)=>{
+        const t=i/8,y=.900+.360*t,a=.205-.050*t,b=.265-.050*t;
         const row=Array.from({length:3},(_,j):Point=>{const x=(a+(b-a)*j/2)*.9;return[sign*x,y,vestFront(x,y)+.019];});
         return sign<0?row.reverse():row;
       });
