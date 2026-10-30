@@ -246,6 +246,14 @@ function face(kit: ModelKit, g: Group): void {
     const color=row===3?0x9a5d45:row===2?0xde9e7c:row===4?0xd29376:P.skin;
     return new Color(P.skin).lerp(new Color(color),taper).getHex();
   });
+  // The fleshy center relaxes into thin, lifted smile corners.
+  for(const sign of [-1,1]){
+    const corner=Array.from({length:7},(_,i):[number,number]=>{
+      const x=.025+i/6*.039;return[sign*x,-.040-.018*(1-(x/.064)**2)];
+    });
+    const outline=[...corner,...[...corner].reverse().map(([x,y]):[number,number]=>[x,y+.002])];
+    paint(0x9a5d45,sign<0?outline.reverse():outline,.006);
+  }
 }
 
 function hair(kit: ModelKit, g: Group): void {
