@@ -298,7 +298,7 @@ pub fn seed_ranged_weapon_stats(ctx: &ReducerContext) -> Result<(), String> {
         RangedWeaponStats {
             item_name: "Makarov PM".to_string(),
             weapon_range: 820.0,       // Longest range - engage at distance
-            projectile_speed: 1300.0,  // Very fast bullets, nearly hitscan
+            projectile_speed: 3200.0,  // Fast moving bullets, roughly four times bow speed
             accuracy: 0.88,            // 88% accuracy - slow fire rate means better aim
             reload_time_secs: 0.5,     // 1 second between shots - deliberate semi-auto
             magazine_capacity: 8,      // 8-round magazine
@@ -317,7 +317,7 @@ pub fn seed_ranged_weapon_stats(ctx: &ReducerContext) -> Result<(), String> {
         RangedWeaponStats {
             item_name: "PP-91 KEDR".to_string(),
             weapon_range: 720.0,       // Shorter than pistol - SMG loses accuracy at range
-            projectile_speed: 1250.0,  // Fast bullets, slightly slower than pistol
+            projectile_speed: 3000.0,  // Fast bullets, slightly slower than pistol
             accuracy: 0.72,            // 72% accuracy - full auto recoil
             reload_time_secs: 0.05,    // Extreme fire rate - 10 rounds per second
             magazine_capacity: 30,     // 30-round magazine

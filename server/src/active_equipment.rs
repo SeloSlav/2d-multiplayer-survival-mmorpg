@@ -289,6 +289,12 @@ pub fn set_active_item_reducer(ctx: &ReducerContext, item_instance_id: u64) -> R
         // log::debug!("Item {} is already the active item for player {:?}. No change to ActiveEquipment needed.", item_instance_id, sender_id);
         return Ok(());
     }
+
+    if player.is_aiming_throw {
+        let mut player = player;
+        player.is_aiming_throw = false;
+        players_table.identity().update(player);
+    }
     
     // --- SAVE OLD WEAPON'S AMMO STATE ---
     // Before switching, save the current weapon's loaded ammo to its item_data
@@ -423,6 +429,10 @@ pub fn clear_active_item_reducer(ctx: &ReducerContext, player_identity: Identity
             // Always turn off torch/flashlight/snorkel when unequipping, regardless of which item was equipped
             if let Some(mut player) = players_table.identity().find(&player_identity) {
                 let mut needs_update = false;
+                if player.is_aiming_throw {
+                    player.is_aiming_throw = false;
+                    needs_update = true;
+                }
                 
                 if player.is_torch_lit {
                     player.is_torch_lit = false;

@@ -27,6 +27,7 @@ import { useEffect, useSyncExternalStore, useCallback, useMemo, MutableRefObject
 import { useLatest } from './useLatest';
 import { recordActorInteraction } from '../engine/presentation/world3d/interactionAnimation';
 import { recordPredictedRangedShot } from '../engine/presentation/world3d/actorAnimation';
+import { isThrowableMelee } from '../engine/runtime/throwableMelee';
 import { DbConnection } from '../generated';
 import {
     Player,
@@ -352,6 +353,7 @@ export const useInputHandler = ({
     const isAutoWalkingRef = useLatest(isAutoWalking); // Track auto-walk state for event handlers
 
     const jumpOptRef = localOptimisticJumpPressMsRef;
+    const throwAimRef = React.useRef<bigint | null>(null);
 
     const movementDirectionRef = useLatest(movementDirection);
     const onDodgeRollStartRef = useLatest(onDodgeRollStart);
@@ -458,6 +460,7 @@ export const useInputHandler = ({
 
     // --- Attempt Swing Function (extracted from canvas click logic) ---
     const attemptSwing = useCallback(() => {
+        if (throwAimRef.current !== null) return;
         // 🎣 FISHING INPUT FIX: Disable weapon swinging while fishing
         if (isFishing) {
             console.log('[Input] Swing blocked - player is fishing');
@@ -1453,6 +1456,13 @@ export const useInputHandler = ({
 
         // --- Mouse Handlers ---
         const handleMouseDown = (event: MouseEvent) => {
+            if (event.button === 0 && throwAimRef.current !== null) {
+                event.preventDefault();
+                throwAimRef.current = null;
+                inputRuntime.setIsMouseDown(false);
+                connectionRef.current?.reducers.setThrowAim({ aiming: false }).catch((err: unknown) => console.warn('[Throw] Cancel failed:', err));
+                return;
+            }
             if (isPlayerDead) return;
             if (event.target !== canvasRef?.current) return;
             if (isInventoryOpen) return;
@@ -1629,6 +1639,16 @@ export const useInputHandler = ({
                 const localPlayerActiveEquipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
                 if (localPlayerActiveEquipment?.equippedItemDefId && itemDefinitionsRef.current) {
                     const equippedItemDef = itemDefinitionsRef.current.get(String(localPlayerActiveEquipment.equippedItemDefId));
+                    if (isThrowableMelee(equippedItemDef) && localPlayerActiveEquipment.equippedItemInstanceId && !isFishing && !placementInfo) {
+                        event.preventDefault();
+                        throwAimRef.current = localPlayerActiveEquipment.equippedItemInstanceId;
+                        inputRuntime.setIsMouseDown(false);
+                        connectionRef.current?.reducers.setThrowAim({ aiming: true }).catch((err: unknown) => {
+                            throwAimRef.current = null;
+                            console.warn('[Throw] Aim failed:', err);
+                        });
+                        return;
+                    }
                     if (equippedItemDef?.name === "Blueprint") {
                         // Clear upgrade menu if it's showing (switching from hammer to blueprint)
                         if (showUpgradeRadialMenu) {
@@ -1782,6 +1802,20 @@ export const useInputHandler = ({
                 // It will close itself when clicking outside
             } else if (event.button === 2) { // Right mouse
                 inputRuntime.setIsRightMouseDown(false);
+                const thrownItem = throwAimRef.current;
+                throwAimRef.current = null;
+                if (thrownItem !== null) {
+                    const target = worldMousePosRefInternal.current;
+                    const equipment = localPlayerId ? activeEquipmentsRef.current?.get(localPlayerId) : undefined;
+                    if (!isPlayerDead && !isInventoryOpen && !isFishing && equipment?.equippedItemInstanceId === thrownItem && target.x !== null && target.y !== null && connectionRef.current?.reducers) {
+                        const clientShotId = inputRuntime.createClientShotId(localPlayerId!);
+                        connectionRef.current.reducers.throwMeleeWeapon({ itemInstanceId: thrownItem, targetX: target.x, targetY: target.y, clientShotId })
+                            .catch((err: unknown) => {
+                                console.warn('[Throw] Release failed:', getReducerErrorMessage(err));
+                                connectionRef.current?.reducers.setThrowAim({ aiming: false }).catch(() => {});
+                            });
+                    } else connectionRef.current?.reducers.setThrowAim({ aiming: false }).catch(() => {});
+                }
                 
                 // ADDED: Close radial menu on right mouse release (menu component will handle selection before this)
                 if (showBuildingRadialMenu) {
@@ -1892,6 +1926,7 @@ export const useInputHandler = ({
                 // console.log("[InputHandler DEBUG CTXMENU] Equipped item Def (raw object): ", equippedItemDef);
 
                 if (equippedItemDef) { // <<< NULL CHECK ADDED
+                    if (isThrowableMelee(equippedItemDef)) { event.preventDefault(); return; }
                     // console.log("[InputHandler DEBUG CTXMENU] Equipped item name: ", equippedItemDef.name, "Category tag:", equippedItemDef.category?.tag);
                     if (equippedItemDef.category?.tag === "RangedWeapon") {
                         // console.log("[InputHandler CTXMENU] Ranged Weapon equipped. Attempting to load.");
@@ -2056,6 +2091,10 @@ export const useInputHandler = ({
             // REMOVED Sprinting logic from blur handler.
             inputRuntime.resetPointerAndJumpState();
             inputRuntime.setIsRightMouseDown(false);
+            if (throwAimRef.current !== null) {
+                throwAimRef.current = null;
+                connectionRef.current?.reducers.setThrowAim({ aiming: false }).catch(() => {});
+            }
 
             inputRuntime.cancelEHoldInteraction();
             // NOTE: Auto-attack (Z) intentionally NOT cleared on blur

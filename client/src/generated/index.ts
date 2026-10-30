@@ -339,6 +339,7 @@ import SetActiveItemReducerReducer from "./set_active_item_reducer_reducer";
 import SetActiveTitleReducer from "./set_active_title_reducer";
 import SetPlayerPinReducer from "./set_player_pin_reducer";
 import SetSprintingReducer from "./set_sprinting_reducer";
+import SetThrowAimReducer from "./set_throw_aim_reducer";
 import SortStorageBoxReducer from "./sort_storage_box_reducer";
 import SpawnItemsAtNightReducer from "./spawn_items_at_night_reducer";
 import SpawnMemoryShardsAtNightReducer from "./spawn_memory_shards_at_night_reducer";
@@ -402,6 +403,7 @@ import StartHeavyStormRainSoundReducerReducer from "./start_heavy_storm_rain_sou
 import StartNormalRainSoundReducerReducer from "./start_normal_rain_sound_reducer_reducer";
 import StopHeavyStormRainSoundReducerReducer from "./stop_heavy_storm_rain_sound_reducer_reducer";
 import StopNormalRainSoundReducerReducer from "./stop_normal_rain_sound_reducer_reducer";
+import ThrowMeleeWeaponReducer from "./throw_melee_weapon_reducer";
 import TickWorldStateReducer from "./tick_world_state_reducer";
 import TillGroundReducer from "./till_ground_reducer";
 import ToggleBarbecueBurningReducer from "./toggle_barbecue_burning_reducer";
@@ -604,6 +606,7 @@ import StatThresholdsConfigRow from "./stat_thresholds_config_table";
 import StoneRow from "./stone_table";
 import TanningProcessScheduleRow from "./tanning_process_schedule_table";
 import TeamMessageRow from "./team_message_table";
+import ThrownProjectileItemRow from "./thrown_projectile_item_table";
 import ThunderEventRow from "./thunder_event_table";
 import ThunderEventCleanupScheduleRow from "./thunder_event_cleanup_schedule_table";
 import ThunderSoundScheduleRow from "./thunder_sound_schedule_table";
@@ -2628,6 +2631,17 @@ const tablesSchema = __schema({
       { name: 'team_message_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, TeamMessageRow),
+  thrown_projectile_item: __table({
+    name: 'thrown_projectile_item',
+    indexes: [
+      { name: 'projectile_id', algorithm: 'btree', columns: [
+        'projectileId',
+      ] },
+    ],
+    constraints: [
+      { name: 'thrown_projectile_item_projectile_id_key', constraint: 'unique', columns: ['projectileId'] },
+    ],
+  }, ThrownProjectileItemRow),
   thunder_event: __table({
     name: 'thunder_event',
     indexes: [
@@ -3278,6 +3292,7 @@ const reducersSchema = __reducers(
   __reducerSchema("set_active_title", SetActiveTitleReducer),
   __reducerSchema("set_player_pin", SetPlayerPinReducer),
   __reducerSchema("set_sprinting", SetSprintingReducer),
+  __reducerSchema("set_throw_aim", SetThrowAimReducer),
   __reducerSchema("sort_storage_box", SortStorageBoxReducer),
   __reducerSchema("spawn_items_at_night", SpawnItemsAtNightReducer),
   __reducerSchema("spawn_memory_shards_at_night", SpawnMemoryShardsAtNightReducer),
@@ -3341,6 +3356,7 @@ const reducersSchema = __reducers(
   __reducerSchema("start_normal_rain_sound_reducer", StartNormalRainSoundReducerReducer),
   __reducerSchema("stop_heavy_storm_rain_sound_reducer", StopHeavyStormRainSoundReducerReducer),
   __reducerSchema("stop_normal_rain_sound_reducer", StopNormalRainSoundReducerReducer),
+  __reducerSchema("throw_melee_weapon", ThrowMeleeWeaponReducer),
   __reducerSchema("tick_world_state", TickWorldStateReducer),
   __reducerSchema("till_ground", TillGroundReducer),
   __reducerSchema("toggle_barbecue_burning", ToggleBarbecueBurningReducer),

@@ -313,6 +313,7 @@ import SetActiveItemReducerReducer from "../set_active_item_reducer_reducer";
 import SetActiveTitleReducer from "../set_active_title_reducer";
 import SetPlayerPinReducer from "../set_player_pin_reducer";
 import SetSprintingReducer from "../set_sprinting_reducer";
+import SetThrowAimReducer from "../set_throw_aim_reducer";
 import SortStorageBoxReducer from "../sort_storage_box_reducer";
 import SpawnItemsAtNightReducer from "../spawn_items_at_night_reducer";
 import SpawnMemoryShardsAtNightReducer from "../spawn_memory_shards_at_night_reducer";
@@ -376,6 +377,7 @@ import StartHeavyStormRainSoundReducerReducer from "../start_heavy_storm_rain_so
 import StartNormalRainSoundReducerReducer from "../start_normal_rain_sound_reducer_reducer";
 import StopHeavyStormRainSoundReducerReducer from "../stop_heavy_storm_rain_sound_reducer_reducer";
 import StopNormalRainSoundReducerReducer from "../stop_normal_rain_sound_reducer_reducer";
+import ThrowMeleeWeaponReducer from "../throw_melee_weapon_reducer";
 import TickWorldStateReducer from "../tick_world_state_reducer";
 import TillGroundReducer from "../till_ground_reducer";
 import ToggleBarbecueBurningReducer from "../toggle_barbecue_burning_reducer";
@@ -715,6 +717,7 @@ export type SetActiveItemReducerParams = __Infer<typeof SetActiveItemReducerRedu
 export type SetActiveTitleParams = __Infer<typeof SetActiveTitleReducer>;
 export type SetPlayerPinParams = __Infer<typeof SetPlayerPinReducer>;
 export type SetSprintingParams = __Infer<typeof SetSprintingReducer>;
+export type SetThrowAimParams = __Infer<typeof SetThrowAimReducer>;
 export type SortStorageBoxParams = __Infer<typeof SortStorageBoxReducer>;
 export type SpawnItemsAtNightParams = __Infer<typeof SpawnItemsAtNightReducer>;
 export type SpawnMemoryShardsAtNightParams = __Infer<typeof SpawnMemoryShardsAtNightReducer>;
@@ -778,6 +781,7 @@ export type StartHeavyStormRainSoundReducerParams = __Infer<typeof StartHeavySto
 export type StartNormalRainSoundReducerParams = __Infer<typeof StartNormalRainSoundReducerReducer>;
 export type StopHeavyStormRainSoundReducerParams = __Infer<typeof StopHeavyStormRainSoundReducerReducer>;
 export type StopNormalRainSoundReducerParams = __Infer<typeof StopNormalRainSoundReducerReducer>;
+export type ThrowMeleeWeaponParams = __Infer<typeof ThrowMeleeWeaponReducer>;
 export type TickWorldStateParams = __Infer<typeof TickWorldStateReducer>;
 export type TillGroundParams = __Infer<typeof TillGroundReducer>;
 export type ToggleBarbecueBurningParams = __Infer<typeof ToggleBarbecueBurningReducer>;

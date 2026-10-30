@@ -2531,6 +2531,10 @@ export const Projectile = __t.object("Projectile", {
   velocityX: __t.f32(),
   velocityY: __t.f32(),
   maxRange: __t.f32(),
+  flight3D: __t.bool(),
+  startHeight: __t.f32(),
+  velocityHeight: __t.f32(),
+  gravityHeight: __t.f32(),
 });
 export type Projectile = __Infer<typeof Projectile>;
 
@@ -3130,6 +3134,12 @@ export const TeamMessage = __t.object("TeamMessage", {
   sent: __t.timestamp(),
 });
 export type TeamMessage = __Infer<typeof TeamMessage>;
+
+export const ThrownProjectileItem = __t.object("ThrownProjectileItem", {
+  projectileId: __t.u64(),
+  itemData: __t.option(__t.string()),
+});
+export type ThrownProjectileItem = __Infer<typeof ThrownProjectileItem>;
 
 export const ThunderEvent = __t.object("ThunderEvent", {
   id: __t.u64(),

@@ -11,10 +11,11 @@ const FORWARD = new Vector3(0, 0, 1), TRAILS = 2048;
 const ownerId = (row: Projectile): string => row.ownerId?.toHexString?.() ?? '';
 interface Flight { root: Group; body: Group; launch?: Vector3; born: number; key: string }
 
-/** Reuse the game's existing gravity/range sampler. Raising the model into
- * depth compensates its Z so its screen position still agrees with collision. */
+/** New shots use the server's physical height. Legacy shots retain their
+ * screen-space compensation until their in-flight rows expire. */
 export function projectileScenePosition(projectile: Projectile, age: number, definitions: Map<string, ItemDefinition>, target = new Vector3()): Vector3 {
   const sampled = sampleProjectileState(projectile, Math.max(0, age), definitions), ground = worldToScene(sampled.x, sampled.y);
+  if (sampled.height !== undefined) return target.set(ground.x, sampled.height / WORLD_3D.tilePixels, ground.z);
   const height = .85;
   return target.set(ground.x, height, ground.z + height / Math.tan(WORLD_3D.elevationRadians));
 }
@@ -59,7 +60,7 @@ export class ProjectileWorld3d {
       const weapon = definitions.get(String(projectile.itemDefId))?.name ?? '', ammo = definitions.get(String(projectile.ammoDefId))?.name ?? '';
       const thrown = projectile.ammoDefId === projectile.itemDefId;
       const bullet = sample.isBullet, npc = projectile.npcProjectileType ?? 0;
-      const identity = `${thrown ? weapon : bullet ? 'bullet' : ammo || 'arrow'}:${npc}`;
+      const identity = `${thrown ? weapon : bullet ? 'bullet' : ammo || 'arrow'}:${npc}:${weapon === 'Hunting Bow' ? 'bow' : ''}`;
       let flight = this.flights.get(key);
       if (!flight || flight.key !== identity) {
         let prototype = this.prototypes.get(identity);
@@ -69,31 +70,36 @@ export class ProjectileWorld3d {
         if (muzzle(ownerId(projectile), this.launchPosition)) flight.launch = this.launchPosition.clone();
         this.flights.set(key, flight);
       }
-      projectileScenePosition(projectile, age, definitions, this.position);
-      if (flight.launch && age < .12) {
-        const origin = worldToScene(projectile.startPosX, projectile.startPosY), blend = (1 - age / .12) ** 2;
-        this.position.x += (flight.launch.x - origin.x) * blend;
-        this.position.y += (flight.launch.y - .85) * blend;
-        this.position.z += (flight.launch.z - origin.z - .85 / Math.tan(WORLD_3D.elevationRadians)) * blend;
-      }
+      this.flightPosition(projectile, age, definitions, flight, weapon === 'Hunting Bow', this.position);
       flight.root.position.copy(this.position);
-      this.direction.set(projectile.velocityX, 0, sample.instantaneousVelocityY).normalize();
+      this.direction.set(projectile.velocityX, sample.instantaneousVelocityHeight ?? 0, sample.instantaneousVelocityY * (projectile.flight3D ? GROUND_Y_SCALE : 1)).normalize();
       this.rotation.setFromUnitVectors(FORWARD, this.direction); flight.body.quaternion.copy(this.rotation);
-      if (thrown && !/Spear|Harpoon/.test(weapon)) flight.body.rotateZ(age * Math.PI * 12);
+      if (thrown) flight.body.rotateX(age * Math.PI * 8);
       this.batches.submit(flight.root);
-      if (npc || /Fire|Flare/.test(ammo) || /Flare/.test(weapon)) for (let i = 1; i <= 8 && trails < TRAILS; i++) {
-        const t = age - i * .025; if (t < 0) continue;
-        projectileScenePosition(projectile, t, definitions, this.position);
+      if (bullet || npc || /Fire|Flare/.test(ammo) || /Flare/.test(weapon)) for (let i = 1; i <= 8 && trails < TRAILS; i++) {
+        const t = age - i * (bullet ? .006 : .025); if (t < 0) continue;
+        this.flightPosition(projectile, t, definitions, flight, weapon === 'Hunting Bow', this.position);
         this.transform.position.copy(this.position); this.transform.rotation.set(t * 3, t * 5, 0);
-        this.transform.scale.setScalar((npc === 3 ? .12 : .09) * (1 - i / 10)); this.transform.updateMatrix();
+        this.transform.scale.setScalar((bullet ? .045 : npc === 3 ? .12 : .09) * (1 - i / 10)); this.transform.updateMatrix();
         this.trails.setMatrixAt(trails, this.transform.matrix);
-        this.trails.setColorAt(trails, this.color.setHex(npc === 3 ? 0x9fb94f : npc ? 0xa9d5ed : 0xffa35b));
+        this.trails.setColorAt(trails, this.color.setHex(bullet ? 0xffdfa3 : npc === 3 ? 0x9fb94f : npc ? 0xa9d5ed : 0xffa35b));
         this.alpha.setX(trails++, .7 * (1 - i / 9));
       }
     }
     for (const id of this.flights.keys()) if (!seen.has(id)) this.flights.delete(id);
     this.trails.count = trails; this.root.visible = trails > 0;
     if (trails) { this.trails.instanceMatrix.needsUpdate = true; this.trails.instanceColor!.needsUpdate = true; this.alpha.needsUpdate = true; }
+  }
+
+  private flightPosition(projectile: Projectile, age: number, definitions: Map<string, ItemDefinition>, flight: Flight, bow: boolean, target: Vector3): void {
+    projectileScenePosition(projectile, age, definitions, target);
+    const duration = projectile.flight3D ? .08 : bow ? .35 : .12;
+    if (!flight.launch || age >= duration) return;
+    const origin = projectileScenePosition(projectile, 0, definitions), t = age / duration;
+    const blend = bow ? 1 - t * t * (3 - 2 * t) : (1 - t) ** 2;
+    target.x += (flight.launch.x - origin.x) * blend;
+    target.y += (flight.launch.y - origin.y) * blend;
+    target.z += (flight.launch.z - origin.z) * blend;
   }
 
   private createModel(weapon: string, ammo: string, thrown: boolean, bullet: boolean, npc: number): Group {
@@ -110,9 +116,10 @@ export class ProjectileWorld3d {
     } else if (bullet) {
       this.kit.part(root, 'box', 0xffdf99, [.055, .055, .3], [0, 0, 0], true);
     } else {
-      const harpoon = /Harpoon/.test(ammo + weapon), shaft = this.kit.part(root, 'cylinder', 0x987549, [.035, harpoon ? 1 : .7, .035], [0, 0, 0]); shaft.rotation.x = Math.PI / 2;
-      const head = this.kit.part(root, 'cone', /Fire/.test(ammo) ? 0xe6a25b : 0xb8c2b6, [.1, .16, .045], [0, 0, harpoon ? .51 : .37], /Fire/.test(ammo)); head.rotation.x = Math.PI / 2;
-      for (const sign of [-1, 1]) this.kit.part(root, 'box', 0xcac7ab, [.13, .022, .16], [sign * .04, 0, -.27]).rotation.z = sign * .7;
+      const harpoon = /Harpoon/.test(ammo + weapon), offset = weapon === 'Hunting Bow' ? .35 : 0;
+      const shaft = this.kit.part(root, 'cylinder', 0x987549, [.035, harpoon ? 1 : .7, .035], [0, 0, offset]); shaft.rotation.x = Math.PI / 2;
+      const head = this.kit.part(root, 'cone', /Fire/.test(ammo) ? 0xe6a25b : 0xb8c2b6, [.1, .16, .045], [0, 0, (harpoon ? .51 : .37) + offset], /Fire/.test(ammo)); head.rotation.x = Math.PI / 2;
+      for (const sign of [-1, 1]) this.kit.part(root, 'box', 0xcac7ab, [.13, .022, .16], [sign * .04, 0, -.27 + offset]).rotation.z = sign * .7;
     }
     const model = this.kit.compileColored(this.kit.compile(root)); model.userData.projectile = true; return model;
   }

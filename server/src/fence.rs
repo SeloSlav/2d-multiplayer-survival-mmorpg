@@ -576,7 +576,14 @@ pub fn check_projectile_fence_collision(
     end_x: f32,
     end_y: f32,
 ) -> Option<(u64, f32, f32)> {
+    check_projectile_fence_collision_3d(ctx, start_x, start_y, end_x, end_y, 0.0, 0.0)
+}
+
+pub fn check_projectile_fence_collision_3d(
+    ctx: &ReducerContext, start_x: f32, start_y: f32, end_x: f32, end_y: f32, start_height: f32, end_height: f32,
+) -> Option<(u64, f32, f32)> {
     let fences = ctx.db.fence();
+    let mut closest: Option<(u64, f32)> = None;
     
     // Calculate which cells to check (within 2 cells of line segment)
     let min_x = start_x.min(end_x);
@@ -623,24 +630,21 @@ pub fn check_projectile_fence_collision(
                     }
                 };
                 
-                // Check if line segment intersects fence AABB
-                if line_intersects_aabb(start_x, start_y, end_x, end_y, fence_min_x, fence_max_x, fence_min_y, fence_max_y) {
-                    // Calculate approximate collision point
-                    let collision_x = end_x.max(fence_min_x).min(fence_max_x);
-                    let collision_y = end_y.max(fence_min_y).min(fence_max_y);
-                    
-                    log::info!(
-                        "[ProjectileCollision] Projectile path from ({:.1}, {:.1}) to ({:.1}, {:.1}) hits Fence {} at ({:.1}, {:.1})",
-                        start_x, start_y, end_x, end_y, fence.id, collision_x, collision_y
-                    );
-                    
-                    return Some((fence.id, collision_x, collision_y));
+                if let Some(t) = crate::projectile_geometry::box_impact(
+                    crate::projectile_geometry::Point3 { x: start_x, y: start_y, height: start_height },
+                    crate::projectile_geometry::Point3 { x: end_x, y: end_y, height: end_height },
+                    crate::projectile_geometry::Point3 { x: fence_min_x, y: fence_min_y, height: 0.0 },
+                    crate::projectile_geometry::Point3 { x: fence_max_x, y: fence_max_y, height: 50.0 },
+                ) {
+                    if closest.map_or(true, |(id, old_t)| t < old_t || (t == old_t && fence.id < id)) {
+                        closest = Some((fence.id, t));
+                    }
                 }
             }
         }
     }
     
-    None
+    closest.map(|(id, t)| (id, start_x + t * (end_x - start_x), start_y + t * (end_y - start_y)))
 }
 
 /// Checks if a line segment is blocked by fences (for melee attacks)

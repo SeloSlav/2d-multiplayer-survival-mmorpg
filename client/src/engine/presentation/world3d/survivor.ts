@@ -1,6 +1,6 @@
 import { Box3, Euler, Group, Matrix4, Mesh, Object3D, Quaternion, Vector3 } from 'three/webgpu';
 import { COLORS as C, ModelKit } from './modelKit';
-import { createWeapon } from './weaponModels';
+import { BOW_GEOMETRY, bowNockZ, createWeapon } from './weaponModels';
 import type { GripStyle } from './weaponModels';
 import { ARM_SEGMENT_LENGTH, ArmPoseSolver } from './armPose';
 import { restingWeaponPitch } from './weaponCarry';
@@ -20,6 +20,8 @@ export interface SurvivorPose {
   jump: number;
   roll: number;
   attack: number;
+  throwAiming?: boolean;
+  throwRelease?: number;
   yaw: number;
   weapon: string;
   torchLit?: boolean;
@@ -282,7 +284,15 @@ export class SurvivorRig {
       this.leftLeg.rotation.x = (-0.2 + kick * kickRange) * amount + swing * (1 - amount);
       this.rightLeg.rotation.x = (-0.2 - kick * kickRange) * amount - swing * (1 - amount);
     }
-    if (pose.attack > 0 && !aimed) {
+    if (pose.throwAiming && !down && pose.roll <= 0) {
+      this.rightArm.rotation.set(-2.35, 0, .12);
+      this.rightForearm.quaternion.identity();
+      this.rightHand.quaternion.copy(this.oneHandGrip);
+      this.body.rotation.y = 0;
+    } else if (pose.throwRelease !== undefined && !down && pose.roll <= 0) {
+      this.rightArm.rotation.set(-2.35 + 1.9 * smoothPhase(pose.throwRelease), 0, .12);
+      this.body.rotation.y = Math.sin(Math.PI * pose.throwRelease) * .4;
+    } else if (pose.attack > 0 && !aimed) {
       const windup = Math.sin(Math.PI * pose.attack);
       this.rightArm.rotation.x = -0.45 - windup * 1.45;
       this.body.rotation.y = windup * 0.4;
@@ -322,7 +332,7 @@ export class SurvivorRig {
     const swimmingWithTorch = Boolean(flame) && pose.swimming && !pose.dead && pose.roll <= 0;
     const socket = swimmingWithTorch || this.weapon.userData.primaryHand === 'left' ? this.leftHandSocket : this.handSocket;
     if (this.weapon.parent !== socket) socket.add(this.weapon);
-    if (this.swimBlend < .1 && !down && this.lifeAmount < .01 && pose.roll <= 0 && (!action || action.kind.startsWith('fish-'))) {
+    if (this.swimBlend < .1 && !down && this.lifeAmount < .01 && pose.roll <= 0 && !pose.throwAiming && (!action || action.kind.startsWith('fish-'))) {
       this.updateWeaponGrip(grip, pose, draw);
     }
     this.actionProps.visible = Boolean(action && ['eat', 'drink', 'bandage'].includes(action.kind));
@@ -366,14 +376,16 @@ export class SurvivorRig {
     for (const name of ['bow-string-upper', 'bow-string-lower']) {
       const string = this.weapon.getObjectByName(name);
       if (!string) continue;
-      const tipY = string.userData.tipY as number, nockZ = -.3 * draw;
-      this.stringDirection.set(0, -tipY, nockZ - .18);
-      string.position.set(0, tipY / 2, (.18 + nockZ) / 2);
+      const tipY = string.userData.tipY as number, tipZ = string.userData.tipZ as number, nockZ = bowNockZ(draw);
+      this.stringDirection.set(0, -tipY, nockZ - tipZ);
+      string.position.set(0, tipY / 2, (tipZ + nockZ) / 2);
       string.scale.y = this.stringDirection.length();
       string.quaternion.setFromUnitVectors(UP, this.stringDirection.normalize());
       if (projectile) projectile.position.z = nockZ;
     }
-    this.root.userData.animation = { state: down ? pose.dead ? 'death' : 'knockdown' : this.lifeAmount > .001 ? 'get-up' : action?.kind ?? 'locomotion', lifeAmount: this.lifeAmount, landing, shotAge, reloadProgress: pose.reloadProgress, bowDraw: draw };
+    const projectileOrigin = this.weapon.getObjectByName('projectile-origin');
+    if (projectileOrigin) projectileOrigin.position.z = bowNockZ(draw);
+    this.root.userData.animation = { state: down ? pose.dead ? 'death' : 'knockdown' : this.lifeAmount > .001 ? 'get-up' : pose.throwAiming ? 'throw-aim' : pose.throwRelease !== undefined ? 'throw-release' : action?.kind ?? 'locomotion', lifeAmount: this.lifeAmount, landing, shotAge, reloadProgress: pose.reloadProgress, bowDraw: draw };
   }
 
   private updateWeaponGrip(grip: GripStyle | undefined, pose: SurvivorPose, draw: number): void {
@@ -423,7 +435,7 @@ export class SurvivorRig {
     this.body.updateWorldMatrix(true, true);
     if (support) { support.getWorldPosition(this.supportPosition); this.torso.worldToLocal(this.supportPosition); }
     else this.supportPosition.set(.25, .98, .34);
-    if (grip === 'bow') this.supportPosition.z += .3 * (1 - draw);
+    if (grip === 'bow') this.supportPosition.z += BOW_GEOMETRY.drawLength * (1 - draw);
     if (reload) {
       this.supportPosition.lerp(this.actionTarget.set(-.24, .65, .1), reload.pocket);
       this.supportPosition.lerp(this.actionTarget.set(.11, 1.05, .41), reload.rack);

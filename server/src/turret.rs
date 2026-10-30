@@ -751,6 +751,7 @@ pub fn process_turret_logic_scheduled(ctx: &ReducerContext, _schedule: TurretPro
                         velocity_x,
                         velocity_y,
                         max_range: MONUMENT_TURRET_RANGE * 1.5,
+                        flight_3d: false, start_height: 0.0, velocity_height: 0.0, gravity_height: 0.0,
                     };
                     
                     let inserted_projectile = ctx.db.projectile().insert(projectile);
@@ -856,6 +857,7 @@ pub fn process_turret_logic_scheduled(ctx: &ReducerContext, _schedule: TurretPro
                             velocity_x,
                             velocity_y,
                             max_range: TURRET_RANGE * 1.5, // Slightly longer than detection range
+                            flight_3d: false, start_height: 0.0, velocity_height: 0.0, gravity_height: 0.0,
                         };
                         
                         let inserted_projectile = ctx.db.projectile().insert(projectile);

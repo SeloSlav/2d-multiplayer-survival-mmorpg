@@ -120,6 +120,7 @@ mod knocked_out; // <<< ADDED knocked out recovery module
 mod bones; // <<< ADDED bones module
 mod ranged_weapon_stats; // Add this line
 mod projectile; // Add this line
+mod projectile_geometry;
 mod death_marker; // <<< ADDED death marker module
 mod torch; // <<< ADDED torch module
 mod flashlight; // <<< ADDED flashlight module
@@ -1642,6 +1643,7 @@ pub fn identity_disconnected(ctx: &ReducerContext) {
             if let Some(mut player) = players.identity().find(&sender_id) {
                  if player.is_online { // Only update if they were marked online
                     player.is_online = false;
+                    player.is_aiming_throw = false;
                     
                     // Create offline corpse if player is not dead (NPCs and humans alike)
                     if !player.is_dead {

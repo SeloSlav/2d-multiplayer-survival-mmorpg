@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Box3, Group, Matrix4, Mesh, OrthographicCamera, Scene, Vector3 } from 'three/webgpu';
 import { ModelKit } from '../client/src/engine/presentation/world3d/modelKit.ts';
 import { SurvivorRig } from '../client/src/engine/presentation/world3d/survivor.ts';
+import { bowNockZ } from '../client/src/engine/presentation/world3d/weaponModels.ts';
 import { AnimalRig } from '../client/src/engine/presentation/world3d/animalRigs.ts';
 import { createTree } from '../client/src/engine/presentation/world3d/treeModels.ts';
 import { createPlant } from '../client/src/engine/presentation/world3d/plantModels.ts';
@@ -15,12 +16,42 @@ import { ProjectileWorld3d, projectileScenePosition } from '../client/src/engine
 import { StaticWorldBatches } from '../client/src/engine/presentation/world3d/StaticWorldBatches.ts';
 import { ExplosionEffects3d } from '../client/src/engine/presentation/world3d/ExplosionEffects3d.ts';
 import { FishingEffects3d } from '../client/src/engine/presentation/world3d/FishingEffects3d.ts';
-import { isLiveDetonation, recordWorldExplosion } from '../client/src/engine/presentation/world3d/presentationEffectEvents.ts';
+import { isLiveDetonation, recordWorldExplosion, recordWorldItemBreak } from '../client/src/engine/presentation/world3d/presentationEffectEvents.ts';
+import { CombatEffects3d } from '../client/src/engine/presentation/world3d/CombatEffects3d.ts';
 import { sampleProjectileState } from '../client/src/utils/projectileSampling.ts';
+import { isThrowableMelee } from '../client/src/engine/runtime/throwableMelee.ts';
 import { WORLD_3D, worldToScene } from '../client/src/engine/presentation/world3d/visualContract.ts';
 
 const rest = { speed: 0, sprinting: false, crouching: false, swimming: false, dead: false, jump: 0, roll: 0, attack: 0, yaw: 0, weapon: '' };
 const stamp = ms => ({ microsSinceUnixEpoch: BigInt(ms) * 1000n });
+
+test('weapon and combat tool eligibility preserves reserved right-click actions', () => {
+  assert.equal(isThrowableMelee({ name: 'Stone Spear', category: { tag: 'Weapon' } }), true);
+  assert.equal(isThrowableMelee({ name: 'Bone Club', category: { tag: 'Tool' }, pvpDamageMax: 25 }), true);
+  assert.equal(isThrowableMelee({ name: 'Repair Hammer', category: { tag: 'Tool' }, pvpDamageMax: 5 }), false);
+  assert.equal(isThrowableMelee({ name: 'Torch', category: { tag: 'Tool' }, pvpDamageMax: 5 }), false);
+  assert.equal(isThrowableMelee({ name: 'Bandage', category: { tag: 'Tool' } }), false);
+});
+
+test('throw aim holds the weapon arm raised and release swings the empty hand', () => {
+  const kit = new ModelKit(), rig = new SurvivorRig(kit);
+  rig.update({ ...rest, weapon: 'Stone Mace' }, .016, 1);
+  rig.root.updateMatrixWorld(true);
+  const hand = rig.root.getObjectByName('right-hand');
+  const restingHeight = hand.getWorldPosition(new Vector3()).y;
+  rig.update({ ...rest, weapon: 'Stone Mace', throwAiming: true }, .016, 1.1);
+  rig.root.updateMatrixWorld(true);
+  const raisedHeight = hand.getWorldPosition(new Vector3()).y;
+  assert.ok(raisedHeight > restingHeight + .25, 'the throwing hand is above its resting position');
+  const orientation = rig.rightArm.quaternion.clone();
+  rig.update({ ...rest, weapon: 'Stone Mace', throwAiming: true }, .016, 1.8);
+  assert.ok(rig.rightArm.quaternion.angleTo(orientation) < 1e-6, 'the raised arm stays fixed while held');
+  assert.equal(rig.root.userData.animation.state, 'throw-aim');
+  rig.update({ ...rest, throwRelease: .5, attack: .5 }, .016, 2);
+  assert.equal(rig.root.userData.animation.state, 'throw-release');
+  assert.ok(rig.rightArm.quaternion.angleTo(orientation) > .3, 'the empty hand moves through the release');
+  kit.dispose();
+});
 
 test('local shot prediction and remote confirmations produce one readable recoil per shot', () => {
   const timeline = new RangedAnimationTimeline(), now = 700000;
@@ -79,7 +110,8 @@ test('the bow string, nock and drawing hand move together through loading and re
     rig.update({ ...rest, weapon: 'Hunting Bow', bowDraw: draw, loaded: draw > 0 }, .016, 1);
     rig.root.updateMatrixWorld(true);
     const model = rig.root.getObjectByName('held-weapon');
-    const nock = model.localToWorld(new Vector3(0, 0, -.3 * draw));
+    const nock = model.localToWorld(new Vector3(0, 0, bowNockZ(draw)));
+    assert.ok(model.getObjectByName('projectile-origin').getWorldPosition(new Vector3()).distanceTo(nock) < 1e-5, 'the launch point follows the actual nock');
     assert.ok(nock.distanceTo(rig.root.getObjectByName('right-hand').getWorldPosition(new Vector3())) < .025);
     for (const name of ['bow-string-upper', 'bow-string-lower']) {
       const string = model.getObjectByName(name);
@@ -93,7 +125,7 @@ test('the bow string, nock and drawing hand move together through loading and re
     rig.update({ ...rest, weapon: 'Hunting Bow', bowDraw: 1, loaded: true, shotAge }, .016, 2 + shotAge);
     rig.root.updateMatrixWorld(true);
     const model = rig.root.getObjectByName('held-weapon'), draw = bowDrawPhase(1, shotAge);
-    const nock = model.localToWorld(new Vector3(0, 0, -.3 * draw));
+    const nock = model.localToWorld(new Vector3(0, 0, bowNockZ(draw)));
     assert.ok(nock.distanceTo(rig.root.getObjectByName('right-hand').getWorldPosition(new Vector3())) < .025);
     released.push(draw);
     if (shotAge >= .02) assert.equal(model.getObjectByName('loaded-projectile').visible, false, 'shot prediction removes the arrow before server ammo confirmation');
@@ -104,6 +136,38 @@ test('the bow string, nock and drawing hand move together through loading and re
   assert.equal(rig.root.getObjectByName('loaded-projectile').visible, false);
   rig.update({ ...rest, weapon: 'Hunting Bow', bowDraw: .4, reloadProgress: .4, loaded: false, shotAge: 1 }, .016, 3);
   assert.equal(rig.root.userData.animation.bowDraw, .4, 'the next reload can draw normally');
+  kit.dispose();
+});
+
+test('the bow curves back toward the archer while the arrow points forward from its string nock', () => {
+  const kit = new ModelKit();
+  for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+    const rig = new SurvivorRig(kit), wrapper = new Group(); wrapper.scale.z = GROUND_Y_SCALE; wrapper.add(rig.root);
+    const forward = new Vector3(Math.sin(yaw), 0, GROUND_Y_SCALE * Math.cos(yaw)).normalize();
+    for (const crouching of [false, true]) for (const draw of [0, .5, 1]) {
+      rig.update({ ...rest, weapon: 'Hunting Bow', yaw, crouching, bowDraw: draw, loaded: true }, .016, 1);
+      wrapper.updateMatrixWorld(true);
+      const model = rig.root.getObjectByName('held-weapon'), grip = model.getObjectByName('primary-grip').getWorldPosition(new Vector3());
+      const arrow = model.getObjectByName('loaded-projectile');
+      const nock = arrow.getWorldPosition(new Vector3());
+      for (const side of ['upper', 'lower']) {
+        const tip = model.getObjectByName(`bow-tip-${side}`).getWorldPosition(new Vector3());
+        const string = model.getObjectByName(`bow-string-${side}`);
+        assert.ok(tip.clone().sub(grip).dot(forward) < -.15, 'limb tips stay behind the bow grip, away from the target');
+        assert.ok(nock.clone().sub(tip).dot(forward) <= 1e-6, 'the string draws toward the archer, behind the limb tips');
+        assert.ok(string.localToWorld(new Vector3(0, -.5, 0)).distanceTo(tip) < 1e-5, 'string ends stay attached to the limb tips');
+      }
+      const shaft = arrow.children[0], head = arrow.children[1];
+      const tail = shaft.localToWorld(new Vector3(0, -.5, 0));
+      const point = head.localToWorld(new Vector3(0, .5, 0));
+      assert.ok(tail.distanceTo(nock) < 1e-5, 'the actual arrow tail meets the string nock');
+      assert.ok(point.sub(grip).dot(forward) > .35, 'the actual arrow point extends toward the target');
+      const wood = model.children.filter(child => child instanceof Mesh && !child.name.startsWith('bow-string-'));
+      const woodBounds = new Box3(); woodBounds.makeEmpty();
+      for (const mesh of wood) { mesh.geometry.computeBoundingBox(); woodBounds.union(mesh.geometry.boundingBox); }
+      assert.ok(woodBounds.max.z < .05 && woodBounds.min.z < -.17, 'the actual limb geometry curves behind the grip');
+    }
+  }
   kit.dispose();
 });
 
@@ -271,6 +335,58 @@ test('3D projectiles preserve the authoritative projected trajectory, deduplicat
   batches.beginFrame(); fx.update(new Map(), definitions, 100400, () => false, () => false); batches.flush();
   assert.equal(fx.flights.size, 0); assert.equal(fx.trails.count, 0); assert.ok([...scene.children].every(mesh => !mesh.isInstancedMesh || mesh.count === 0));
   fx.dispose(); batches.dispose(); kit.dispose();
+});
+
+test('3D flight samples vertical gravity independently from ground movement', () => {
+  const shot = { itemDefId: 1n, ammoDefId: 2n, sourceType: 0, flight3D: true,
+    startPosX: 100, startPosY: 200, startHeight: 50, velocityX: 800, velocityY: 0, velocityHeight: 60, gravityHeight: 240 };
+  const sampled = sampleProjectileState(shot, .25, new Map([['1', { name: 'Hunting Bow' }]]));
+  assert.equal(sampled.x, 300); assert.equal(sampled.y, 200); assert.equal(sampled.height, 57.5);
+  assert.equal(sampled.instantaneousVelocityHeight, 0);
+  const scene = projectileScenePosition(shot, .25, new Map([['1', { name: 'Hunting Bow' }]]));
+  const ground = worldToScene(300, 200);
+  assert.equal(scene.x, ground.x); assert.equal(scene.z, ground.z);
+  assert.equal(scene.y, 57.5 / WORLD_3D.tilePixels);
+});
+
+test('a bow arrow starts at the drawn nock and smoothly joins the authoritative flight path', () => {
+  const kit = new ModelKit(), scene = new Scene(), batches = new StaticWorldBatches(scene), fx = new ProjectileWorld3d(kit, batches);
+  const rig = new SurvivorRig(kit), wrapper = new Group(), ground = worldToScene(400, 400);
+  wrapper.position.set(ground.x, 0, ground.z); wrapper.scale.z = GROUND_Y_SCALE; wrapper.add(rig.root); scene.add(wrapper);
+  rig.update({ ...rest, weapon: 'Hunting Bow', bowDraw: 1, loaded: true, yaw: Math.PI / 2 }, .016, 1);
+  wrapper.updateMatrixWorld(true);
+  const nock = rig.root.getObjectByName('projectile-origin').getWorldPosition(new Vector3());
+  const definitions = new Map([['1', { name: 'Hunting Bow' }], ['2', { name: 'Fire Arrow' }]]);
+  const projectile = { id: 1n, clientShotId: 'bow-launch', ownerId: { toHexString: () => 'owner' }, itemDefId: 1n, ammoDefId: 2n,
+    sourceType: 0, npcProjectileType: 0, startTime: stamp(100000), startPosX: 400, startPosY: 400, velocityX: 300, velocityY: 0, maxRange: 1000 };
+  const getNock = (_owner, target) => { target.copy(nock); return true; };
+  batches.beginFrame(); fx.update(new Map([['shot', projectile]]), definitions, 100000, getNock, () => false);
+  const launched = fx.flights.get('bow-launch').root;
+  assert.ok(launched.position.distanceTo(nock) < 1e-6, 'the projectile origin starts at the nock');
+  launched.updateMatrixWorld(true);
+  assert.ok(Math.abs(new Box3().setFromObject(launched).min.x - nock.x) < .01, 'the visible arrow tail starts at the nock');
+  batches.beginFrame(); fx.update(new Map([['shot', projectile]]), definitions, 100050, getNock, () => false);
+  assert.ok(Math.abs(fx.flights.get('bow-launch').root.position.y - nock.y) < .05, 'the arrow stays near the bow immediately after release');
+  assert.ok(fx.trails.count > 0, 'fire-arrow particles follow the launched arrow');
+  batches.beginFrame(); fx.update(new Map([['shot', projectile]]), definitions, 100350, getNock, () => false);
+  assert.ok(fx.flights.get('bow-launch').root.position.distanceTo(projectileScenePosition(projectile, .35, definitions)) < 1e-6, 'the presentation returns to the shared collision path');
+  fx.dispose(); batches.dispose(); kit.dispose();
+});
+
+test('thrown melee weapons tumble in flight and breaking produces temporary 3D fragments', () => {
+  const kit = new ModelKit(), scene = new Scene(), batches = new StaticWorldBatches(scene), fx = new ProjectileWorld3d(kit, batches);
+  const defs = new Map([['1', { name: 'Wooden Spear' }]]);
+  const shot = { id: 1n, clientShotId: 'thrown-spear', ownerId: { toHexString: () => 'owner' }, itemDefId: 1n, ammoDefId: 1n,
+    sourceType: 0, npcProjectileType: 0, startTime: stamp(100000), startPosX: 400, startPosY: 400, velocityX: 300, velocityY: 0, maxRange: 1000 };
+  batches.beginFrame(); fx.update(new Map([['shot', shot]]), defs, 100100, () => false, () => false);
+  const first = fx.flights.get('thrown-spear').body.quaternion.clone();
+  batches.beginFrame(); fx.update(new Map([['shot', shot]]), defs, 100200, () => false, () => false);
+  assert.ok(fx.flights.get('thrown-spear').body.quaternion.angleTo(first) > 1, 'the spear visibly tumbles instead of rolling around its shaft');
+  const breaks = new CombatEffects3d(kit);
+  recordWorldItemBreak('throw-test', 400, 400, 100000);
+  breaks.update(100100); assert.ok(breaks.debris.count > 0);
+  breaks.update(101000); assert.equal(breaks.debris.count, 0);
+  breaks.dispose(); fx.dispose(); batches.dispose(); kit.dispose();
 });
 
 test('clock rewinds clear world contact history and a slightly future server shot can still arrive', () => {

@@ -1,6 +1,7 @@
 import { InternalError, SenderError } from 'spacetimedb';
 import { gameConfig, getViewBounds } from '../../config/gameConfig';
 import { spawnArrowBreakParticles } from '../../effects/arrowBreakEffect';
+import { recordWorldItemBreak } from '../presentation/world3d/presentationEffectEvents';
 import { playImmediateSound } from '../../hooks/useSoundSystem';
 import { isAnySovaAudioPlaying } from '../../hooks/useSovaSoundBox';
 import { calculateChunkIndex } from '../../utils/chunkUtils';
@@ -445,6 +446,7 @@ export class GameCanvasAmbientEffectsRuntime {
       if (ctx && ctx.event && ctx.event.type !== 'SubscribeApplied') {
         console.log(`[ArrowBreak] Spawning particles at (${arrowBreakEvent.posX}, ${arrowBreakEvent.posY})`);
         spawnArrowBreakParticles(arrowBreakEvent.posX, arrowBreakEvent.posY);
+        recordWorldItemBreak(String(arrowBreakEvent.id), arrowBreakEvent.posX, arrowBreakEvent.posY);
       }
     };
     connection.db.arrow_break_event.onInsert(this.arrowBreakListener);

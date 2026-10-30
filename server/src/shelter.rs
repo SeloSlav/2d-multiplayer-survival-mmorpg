@@ -737,6 +737,24 @@ pub fn check_projectile_shelter_collision(
     None
 }
 
+/// Swept 3D projectile contact with a shelter volume, ordered by distance.
+pub fn check_projectile_shelter_collision_3d(
+    ctx: &ReducerContext, start: crate::projectile_geometry::Point3, end: crate::projectile_geometry::Point3,
+) -> Option<(u32, f32, f32)> {
+    use crate::projectile_geometry::{box_surface_impact, Point3};
+    let mut nearest: Option<(u32, f32)> = None;
+    for shelter in ctx.db.shelter().iter() {
+        if shelter.is_destroyed { continue; }
+        let cy = shelter.pos_y - SHELTER_AABB_CENTER_Y_OFFSET_FROM_POS_Y;
+        let min = Point3 { x: shelter.pos_x - SHELTER_AABB_HALF_WIDTH, y: cy - SHELTER_AABB_HALF_HEIGHT, height: 0.0 };
+        let max = Point3 { x: shelter.pos_x + SHELTER_AABB_HALF_WIDTH, y: cy + SHELTER_AABB_HALF_HEIGHT, height: 110.0 };
+        if let Some(t) = box_surface_impact(start, end, min, max) {
+            if nearest.map_or(true, |(id, old)| t < old || (t == old && shelter.id < id)) { nearest = Some((shelter.id, t)); }
+        }
+    }
+    nearest.map(|(id, t)| (id, start.x + (end.x - start.x) * t, start.y + (end.y - start.y) * t))
+}
+
 /// Checks if a projectile's current position intersects with any shelter walls
 ///
 /// Returns Some(shelter_id) if collision occurs, None otherwise

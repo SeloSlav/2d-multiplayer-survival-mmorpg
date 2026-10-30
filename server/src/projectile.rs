@@ -7,6 +7,11 @@ use crate::PlayerLastAttackTimestamp;
 
 // Import table accessor traits
 use crate::player;
+use crate::monument_part;
+use crate::building::foundation_cell;
+use crate::cairn::cairn;
+use crate::sea_stack::sea_stack;
+use crate::road_lamppost::road_lamppost;
 use crate::active_equipment::active_equipment;
 use crate::items::item_definition;
 use crate::items::inventory_item as inventory_item_table_accessor;
@@ -50,7 +55,7 @@ use crate::basalt_column::{BasaltColumn, basalt_column as BasaltColumnTableTrait
 use crate::wild_animal_npc::{wild_animal as WildAnimalTableTrait};
 use crate::turret::{self, TALLOW_PROJECTILE_DAMAGE};
 use crate::turret::turret as TurretTableTrait;
-use crate::environment::{calculate_chunk_index, WORLD_WIDTH_CHUNKS, WORLD_HEIGHT_CHUNKS};
+use crate::environment::{calculate_chunk_index, CHUNK_SIZE_PX, WORLD_WIDTH_CHUNKS, WORLD_HEIGHT_CHUNKS};
 pub use crate::shared_config::{
     NPC_PROJECTILE_NONE,
     NPC_PROJECTILE_SPECTRAL_BOLT,
@@ -114,6 +119,19 @@ pub fn line_intersects_circle(x1: f32, y1: f32, x2: f32, y2: f32, cx: f32, cy: f
     dist_sq <= radius * radius
 }
 
+/// Keep server sampling in step with the client for every projectile source.
+fn projectile_gravity_multiplier(source: u8, weapon: Option<&str>, self_ammo: bool) -> f32 {
+    use crate::projectile_geometry::ProjectileSource;
+    let kind = match source {
+        PROJECTILE_SOURCE_NPC => ProjectileSource::Npc,
+        PROJECTILE_SOURCE_MONUMENT_TURRET => ProjectileSource::Monument,
+        PROJECTILE_SOURCE_TURRET => ProjectileSource::Turret,
+        _ => ProjectileSource::Player,
+    };
+    crate::projectile_geometry::planar_gravity_multiplier(kind, weapon, self_ammo,
+        PROJECTILE_STRAIGHT_LINE_GRAVITY_MULTIPLIER, PROJECTILE_FIREARM_GRAVITY_MULTIPLIER)
+}
+
 /// Returns the first impact point (closest to segment start) where the segment
 /// intersects the circle, or None if there is no intersection on [0, 1].
 pub fn line_circle_first_impact_point(
@@ -125,36 +143,15 @@ pub fn line_circle_first_impact_point(
     cy: f32,
     radius: f32,
 ) -> Option<(f32, f32)> {
-    let dx = x2 - x1;
-    let dy = y2 - y1;
-    let fx = x1 - cx;
-    let fy = y1 - cy;
+    let start = crate::projectile_geometry::Point3 { x: x1, y: y1, height: 0.0 };
+    let end = crate::projectile_geometry::Point3 { x: x2, y: y2, height: 0.0 };
+    let t = crate::projectile_geometry::cylinder_impact(start, end, (cx, cy), radius, 0.0, 0.0)?;
+    Some((x1 + t * (x2 - x1), y1 + t * (y2 - y1)))
+}
 
-    let a = dx * dx + dy * dy;
-    if a < 1e-8 {
-        return None;
-    }
-
-    let b = 2.0 * (fx * dx + fy * dy);
-    let c = fx * fx + fy * fy - radius * radius;
-    let discriminant = b * b - 4.0 * a * c;
-    if discriminant < 0.0 {
-        return None;
-    }
-
-    let sqrt_d = discriminant.sqrt();
-    let t1 = (-b - sqrt_d) / (2.0 * a);
-    let t2 = (-b + sqrt_d) / (2.0 * a);
-
-    let t = if (0.0..=1.0).contains(&t1) {
-        Some(t1)
-    } else if (0.0..=1.0).contains(&t2) {
-        Some(t2)
-    } else {
-        None
-    }?;
-
-    Some((x1 + t * dx, y1 + t * dy))
+fn clip_segment_to_range(previous: (f32, f32), current: (f32, f32), origin: (f32, f32), range: f32) -> (f32, f32) {
+    let t = crate::projectile_geometry::range_exit(previous, current, origin, range).unwrap_or(0.0);
+    (previous.0 + t * (current.0 - previous.0), previous.1 + t * (current.1 - previous.1))
 }
 
 #[table(accessor = projectile, public)]
@@ -175,6 +172,14 @@ pub struct Projectile {
     pub velocity_x: f32,
     pub velocity_y: f32,
     pub max_range: f32,
+    #[default(false)]
+    pub flight_3d: bool,
+    #[default(0.0)]
+    pub start_height: f32,
+    #[default(0.0)]
+    pub velocity_height: f32,
+    #[default(0.0)]
+    pub gravity_height: f32,
 }
 
 #[table(accessor = projectile_runtime_state)]
@@ -183,6 +188,349 @@ pub struct ProjectileRuntimeState {
     #[primary_key]
     pub projectile_id: u64,
     pub last_sample_elapsed_secs: f32,
+}
+
+/// Instance-specific data belongs to the thrown weapon, not its definition.
+#[table(accessor = thrown_projectile_item)]
+#[derive(Clone, Debug)]
+pub struct ThrownProjectileItem {
+    #[primary_key]
+    pub projectile_id: u64,
+    pub item_data: Option<String>,
+}
+
+fn is_throwable_melee(item: &crate::items::ItemDefinition) -> bool {
+    item.category == crate::items::ItemCategory::Weapon ||
+        (item.category == crate::items::ItemCategory::Tool && item.pvp_damage_max.unwrap_or(0) > 0
+            && !matches!(item.name.as_str(), "Torch" | "Repair Hammer" | "Flashlight"))
+}
+
+/// Vertical bounds use the same 48-pixel scene scale as the 3D presentation.
+fn ground_height_at(ctx: &ReducerContext, x: f32, y: f32) -> f32 {
+    let size = crate::shared_config::FOUNDATION_TILE_SIZE_PX as f32;
+    let cx = (x / size).floor() as i32;
+    let cy = (y / size).floor() as i32;
+    let lx = x - (cx as f32 + 0.5) * size;
+    let ly = y - (cy as f32 + 0.5) * size;
+    for foundation in ctx.db.foundation_cell().idx_cell_coords().filter((cx, cy)) {
+        if foundation.is_destroyed { continue; }
+        let inside = match foundation.shape { 1 => true, 2 => lx + ly <= 0.0, 3 => lx >= ly, 4 => lx + ly >= 0.0, 5 => lx <= ly, _ => false };
+        if inside { return 7.68; }
+    }
+    0.0
+}
+
+fn player_vertical_bounds(ctx: &ReducerContext, player: &crate::Player, now: Timestamp) -> (f32, f32) {
+    let now_ms = (now.to_micros_since_unix_epoch() / 1000).max(0) as u64;
+    let elapsed = now_ms.saturating_sub(player.jump_start_time_ms);
+    let jump = if player.jump_start_time_ms > 0 && elapsed < 500 {
+        (elapsed as f32 / 500.0 * std::f32::consts::PI).sin() * 43.2
+    } else { 0.0 };
+    let bottom = jump + ground_height_at(ctx, player.position_x, player.position_y);
+    (bottom, bottom + if player.is_crouching { 63.0 } else { 90.0 })
+}
+
+fn animal_vertical_bounds(ctx: &ReducerContext, animal: &crate::wild_animal_npc::WildAnimal) -> (f32, f32) {
+    use crate::wild_animal_npc::AnimalSpecies::*;
+    let height = match animal.species {
+        CinderFox => 27.0, TundraWolf => 40.0, Wolverine => 27.0,
+        PolarBear => 52.0, Caribou => 67.0, Hare => 19.0, Vole => 11.0,
+        ArcticWalrus => 24.0, Crow => 27.0, Tern => 25.0, SnowyOwl => 38.0,
+        Bee => 9.0, BeachCrab => 15.0, CableViper => 9.0, SalmonShark => 30.0,
+        Jellyfish => 31.0, Shorebound => 76.0, Shardkin => 46.0, DrownedWatch => 98.0,
+    };
+    let bottom = ground_height_at(ctx, animal.pos_x, animal.pos_y) + if animal.is_flying { 48.0 } else if animal.species == Bee { 24.0 } else { 0.0 };
+    (bottom, bottom + height)
+}
+
+/// The pointer is projected onto the ground plane. Compensate for the visual
+/// elevation of nearby characters, then aim at the centre of their hit volume.
+fn auto_aim_target(ctx: &ReducerContext, owner: Identity, x: f32, y: f32, fallback_height: f32) -> crate::projectile_geometry::Point3 {
+    use crate::projectile_geometry::{Point3, swept_chunks};
+    let mut target = Point3 { x, y, height: fallback_height };
+    let mut best = 42.0f32.powi(2);
+    let mut consider = |cx: f32, cy: f32, bottom: f32, top: f32| {
+        let h = (bottom + top) * 0.5;
+        let dx = x - cx;
+        let ground_dy = y - cy;
+        let projected_dy = y - (cy - h * 0.8660254);
+        let score = (dx * dx + ground_dy * ground_dy).min(dx * dx + projected_dy * projected_dy);
+        if score < best { best = score; target = Point3 { x: cx, y: cy, height: h }; }
+    };
+    for player in ctx.db.player().iter() {
+        if player.identity == owner || player.is_dead || !player.is_online { continue; }
+        let (bottom, top) = player_vertical_bounds(ctx, &player, ctx.timestamp);
+        consider(player.position_x, player.position_y, bottom, top);
+    }
+    for chunk in swept_chunks((x, y), (x, y), 180.0, CHUNK_SIZE_PX, WORLD_WIDTH_CHUNKS, WORLD_HEIGHT_CHUNKS) {
+        for animal in ctx.db.wild_animal().chunk_index().filter(chunk) {
+            if animal.health <= 0.0 || animal.state == crate::wild_animal_npc::AnimalState::Burrowed { continue; }
+            let (bottom, top) = animal_vertical_bounds(ctx, &animal);
+            consider(animal.pos_x, animal.pos_y, bottom, top);
+        }
+    }
+    target
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum FlightHit { Entity(&'static str, u64), Player(Identity), World, Ground }
+
+/// Find the first physical contact before running any damage handlers.
+fn first_flight_hit(ctx: &ReducerContext, projectile: &Projectile, start: crate::projectile_geometry::Point3,
+    end: crate::projectile_geometry::Point3, chunks: &[u32], village_parts: &[crate::MonumentPart]) -> Option<(FlightHit, f32)> {
+    use crate::projectile_geometry::cylinder_impact;
+    let mut best: Option<(FlightHit, f32)> = None;
+    let mut add = |key, t: Option<f32>| {
+        if let Some(t) = t {
+            if best.as_ref().map_or(true, |(_, old)| t < *old) { best = Some((key, t)); }
+        }
+    };
+    let segment_length = (end.x - start.x).hypot(end.y - start.y);
+    for (key, hit) in [
+        ("door", crate::door::check_door_projectile_collision_3d(ctx, start.x, start.y, end.x, end.y, start.height, end.height)),
+        ("fence", crate::fence::check_projectile_fence_collision_3d(ctx, start.x, start.y, end.x, end.y, start.height, end.height)),
+        ("wall", crate::building::check_projectile_wall_collision_3d(ctx, start.x, start.y, end.x, end.y, start.height, end.height)),
+        ("shelter", crate::shelter::check_projectile_shelter_collision_3d(ctx, start, end).map(|(id, x, y)| (id as u64, x, y))),
+    ] {
+        if let Some((id, x, y)) = hit {
+            let t = if segment_length > 1e-6 { (x - start.x).hypot(y - start.y) / segment_length } else { 0.0 };
+            add(FlightHit::Entity(key, id), Some(t));
+        }
+    }
+    // Village walls share the authored segment geometry with their models,
+    // including openings and rotation. They are indestructible world cover.
+    let bounds = (start.x.min(end.x) - 600.0, start.x.max(end.x) + 600.0,
+        start.y.min(end.y) - 600.0, start.y.max(end.y) + 600.0);
+    for part in village_parts {
+        if part.world_x < bounds.0 || part.world_x > bounds.1 || part.world_y < bounds.2 || part.world_y > bounds.3 { continue; }
+        for segment in crate::collision_geometry::village_wall_segments(&part.image_path, part.world_x, part.world_y, part.rotation_rad) {
+            add(FlightHit::World, crate::projectile_geometry::wall_segment_impact(start, end,
+                (segment.ax, segment.ay), (segment.bx, segment.by), 8.0, 0.0, 130.0));
+        }
+    }
+    let (center_x, center_y) = crate::compound_buildings::get_world_center();
+    for building in crate::compound_buildings::COMPOUND_BUILDING_COLLISIONS {
+        let x = center_x + building.offset_x;
+        let y = center_y + building.offset_y;
+        let contact = if let Some((half_x, half_y, offset_y)) = building.aabb {
+            crate::projectile_geometry::box_surface_impact(start, end,
+                crate::projectile_geometry::Point3 { x: x - half_x, y: y + offset_y - half_y, height: 0.0 },
+                crate::projectile_geometry::Point3 { x: x + half_x, y: y + offset_y + half_y, height: 180.0 })
+        } else {
+            cylinder_impact(start, end, (x, y - building.collision_y_offset), building.collision_radius, 0.0, 180.0)
+        };
+        add(FlightHit::World, contact);
+    }
+    macro_rules! circle { ($kind:expr, $id:expr, $x:expr, $y:expr, $radius:expr, $bottom:expr, $top:expr) => {
+        add(FlightHit::Entity($kind, $id as u64), cylinder_impact(start, end, ($x, $y), $radius, $bottom, $top));
+    }; }
+    for chunk in chunks {
+        for stone in ctx.db.cairn().chunk_index().filter(*chunk) {
+            add(FlightHit::World, cylinder_impact(start, end, (stone.pos_x, stone.pos_y - 24.0), 28.0, 0.0, 75.0));
+        }
+        for stack in ctx.db.sea_stack().chunk_index().filter(*chunk) {
+            add(FlightHit::World, cylinder_impact(start, end, (stack.pos_x, stack.pos_y - 70.0 * stack.scale), 60.0 * stack.scale, 0.0, 180.0 * stack.scale));
+        }
+        for lamp in ctx.db.road_lamppost().chunk_index().filter(*chunk) {
+            add(FlightHit::World, cylinder_impact(start, end, (lamp.pos_x, lamp.pos_y - 90.0), 5.0, 0.0, 190.0));
+        }
+        for tree in ctx.db.tree().chunk_index().filter(*chunk) {
+            if tree.respawn_at <= Timestamp::UNIX_EPOCH {
+                let x_offset = if tree.tree_type == crate::tree::TreeType::KrummholzSpruce { -40.0 } else { 0.0 };
+                let y_offset = if tree.tree_type == crate::tree::TreeType::RowanberryTree { -88.0 } else { -68.0 };
+                let height = match tree.tree_type { crate::tree::TreeType::ArcticWillow => 90.0, crate::tree::TreeType::DwarfPine => 110.0, _ => 250.0 };
+                circle!("tree", tree.id, tree.pos_x + x_offset, tree.pos_y + y_offset, 30.0, 0.0, height);
+            }
+        }
+        for stone in ctx.db.stone().chunk_index().filter(*chunk) {
+            if stone.respawn_at <= Timestamp::UNIX_EPOCH { circle!("stone", stone.id, stone.pos_x, stone.pos_y - 36.0, 32.0, 0.0, 50.0); }
+        }
+        for stone in ctx.db.rune_stone().chunk_index().filter(*chunk) { circle!("rune", stone.id, stone.pos_x, stone.pos_y - 24.0, 40.0, 0.0, 110.0); }
+        for rock in ctx.db.basalt_column().chunk_index().filter(*chunk) { circle!("basalt", rock.id, rock.pos_x, rock.pos_y - 40.0, 35.0, 0.0, 140.0); }
+        for coral in ctx.db.living_coral().chunk_index().filter(*chunk) {
+            if coral.respawn_at <= Timestamp::UNIX_EPOCH { circle!("coral", coral.id, coral.pos_x, coral.pos_y - LIVING_CORAL_COLLISION_Y_OFFSET, LIVING_CORAL_RADIUS, 0.0, 70.0); }
+        }
+        for item in ctx.db.campfire().chunk_index().filter(*chunk) {
+            if !item.is_destroyed { circle!("campfire", item.id, item.pos_x, item.pos_y + 5.0, 32.0, 0.0, 24.0); }
+        }
+        for item in ctx.db.wooden_storage_box().chunk_index().filter(*chunk) {
+            if item.is_destroyed || item.box_type == crate::wooden_storage_box::BOX_TYPE_BACKPACK { continue; }
+            if item.is_monument && [3, 5, 6].contains(&item.box_type) && crate::environment::is_position_in_central_compound(item.pos_x, item.pos_y) {
+                let min = crate::projectile_geometry::Point3 { x: item.pos_x - 175.0, y: item.pos_y - 120.0, height: 0.0 };
+                let max = crate::projectile_geometry::Point3 { x: item.pos_x + 175.0, y: item.pos_y + 40.0, height: 150.0 };
+                add(FlightHit::Entity("box", item.id as u64), crate::projectile_geometry::box_surface_impact(start, end, min, max));
+            } else {
+                let offset = match item.box_type { 11 | 12 => 82.0, 14..=17 => 48.0, _ => 50.0 };
+                circle!("box", item.id, item.pos_x, item.pos_y - offset, 28.0, 0.0, 45.0);
+            }
+        }
+        for item in ctx.db.stash().chunk_index().filter(*chunk) {
+            if !item.is_destroyed { circle!("stash", item.id, item.pos_x, item.pos_y - 24.0, 25.0, 0.0, 20.0); }
+        }
+        for item in ctx.db.sleeping_bag().chunk_index().filter(*chunk) {
+            if !item.is_destroyed { circle!("bag", item.id, item.pos_x, item.pos_y - 48.0, 28.0, 0.0, 12.0); }
+        }
+        for item in ctx.db.barrel().chunk_index().filter(*chunk) {
+            if item.health <= 0.0 { continue; }
+            let (radius, offset, height) = if item.variant == crate::barrel::BUOY_VARIANT { (32.0, 110.0, 60.0) }
+                else if item.variant == 4 { (64.0, 96.0, 95.0) } else { (32.0, 48.0, 52.0) };
+            circle!("barrel", item.id, item.pos_x, item.pos_y - offset, radius, 0.0, height);
+        }
+        for item in ctx.db.player_corpse().chunk_index().filter(*chunk) {
+            if item.health != 0 { circle!("corpse", item.id, item.pos_x, item.pos_y - CORPSE_COLLISION_Y_OFFSET, 25.0, 0.0, 20.0); }
+        }
+        for item in ctx.db.rain_collector().chunk_index().filter(*chunk) {
+            if !item.is_destroyed { circle!("collector", item.id, item.pos_x, item.pos_y - RAIN_COLLECTOR_COLLISION_Y_OFFSET, 35.0, 0.0, 75.0); }
+        }
+        for item in ctx.db.furnace().chunk_index().filter(*chunk) {
+            if !item.is_destroyed { circle!("furnace", item.id, item.pos_x, item.pos_y - FURNACE_COLLISION_Y_OFFSET, 40.0, 0.0, 70.0); }
+        }
+        for item in ctx.db.lantern().chunk_index().filter(*chunk) {
+            if !item.is_destroyed { circle!("lantern", item.id, item.pos_x, item.pos_y - 34.0, PROJECTILE_LANTERN_HIT_RADIUS, 0.0, 45.0); }
+        }
+        for item in ctx.db.homestead_hearth().chunk_index().filter(*chunk) { circle!("hearth", item.id, item.pos_x, item.pos_y - HEARTH_COLLISION_Y_OFFSET, 60.0, 0.0, 100.0); }
+        for item in ctx.db.turret().chunk_index().filter(*chunk) {
+            if !item.is_destroyed { let radius = if item.is_monument { crate::turret::MONUMENT_TURRET_COLLISION_RADIUS } else { crate::turret::TURRET_COLLISION_RADIUS };
+                circle!("turret", item.id, item.pos_x, item.pos_y + if item.is_monument { 40.0 } else { 70.0 }, radius, 0.0, 85.0); }
+        }
+        for item in ctx.db.barbecue().chunk_index().filter(*chunk) {
+            if !item.is_destroyed { circle!("barbecue", item.id, item.pos_x, item.pos_y - BARBECUE_COLLISION_Y_OFFSET, BARBECUE_COLLISION_RADIUS + 8.0, 0.0, 55.0); }
+        }
+        for item in ctx.db.animal_corpse().chunk_index().filter(*chunk) {
+            if item.health != 0 { circle!("animal_corpse", item.id, item.pos_x, item.pos_y - ANIMAL_CORPSE_COLLISION_Y_OFFSET, 20.0, 0.0, 20.0); }
+        }
+        for animal in ctx.db.wild_animal().chunk_index().filter(*chunk) {
+            if animal.health <= 0.0 || animal.state == crate::wild_animal_npc::AnimalState::Burrowed { continue; }
+            let (bottom, top) = animal_vertical_bounds(ctx, &animal);
+            circle!("animal", animal.id, animal.pos_x, animal.pos_y, 32.0, bottom, top);
+        }
+    }
+    for player in ctx.db.player().iter() {
+        if player.identity == projectile.owner_id || player.is_dead { continue; }
+        let (bottom, top) = player_vertical_bounds(ctx, &player, ctx.timestamp);
+        add(FlightHit::Player(player.identity), cylinder_impact(start, end, (player.position_x, player.position_y), PROJECTILE_PLAYER_HIT_RADIUS, bottom, top));
+    }
+    // Enclosed foundation clusters render a roof at this height. Only run
+    // enclosure analysis when the shot actually crosses the roof plane.
+    const ROOF_HEIGHT: f32 = 100.8;
+    if (start.height > ROOF_HEIGHT && end.height <= ROOF_HEIGHT) || (start.height < ROOF_HEIGHT && end.height >= ROOF_HEIGHT) {
+        let t = (ROOF_HEIGHT - start.height) / (end.height - start.height);
+        let x = start.x + (end.x - start.x) * t;
+        let y = start.y + (end.y - start.y) * t;
+        if ground_height_at(ctx, x, y) > 0.0 && crate::building_enclosure::is_position_inside_building(ctx, x, y) {
+            add(FlightHit::World, Some(t));
+        }
+    }
+    if start.height > 7.68 && end.height <= 7.68 {
+        let t = (start.height - 7.68) / (start.height - end.height);
+        let x = start.x + (end.x - start.x) * t;
+        let y = start.y + (end.y - start.y) * t;
+        if ground_height_at(ctx, x, y) > 0.0 { add(FlightHit::Ground, Some(t)); }
+    }
+    if start.height > 0.0 && end.height <= 0.0 { add(FlightHit::Ground, Some(start.height / (start.height - end.height))); }
+    best
+}
+
+fn selected_impact(flight_3d: bool, x: f32, y: f32, legacy: Option<(f32, f32)>) -> Option<(f32, f32)> {
+    if flight_3d { Some((x, y)) } else { legacy }
+}
+
+/// Bound the error of the parabolic height approximation even when the
+/// scheduler stalls. Fast projectiles still sweep each whole time slice.
+fn first_flight_hit_interval(ctx: &ReducerContext, projectile: &Projectile, start_time: f32, end_time: f32,
+    village_parts: &[crate::MonumentPart]) -> Option<(FlightHit, f32)> {
+    use crate::projectile_geometry::Point3;
+    let duration = (end_time - start_time).max(0.0);
+    let steps = ((duration / 0.075).ceil() as usize).max(1);
+    let at = |t: f32| Point3 {
+        x: projectile.start_pos_x + projectile.velocity_x * t,
+        y: projectile.start_pos_y + projectile.velocity_y * t,
+        height: projectile.start_height + projectile.velocity_height * t - 0.5 * projectile.gravity_height * t * t,
+    };
+    for step in 0..steps {
+        let from = start_time + duration * step as f32 / steps as f32;
+        let to = start_time + duration * (step + 1) as f32 / steps as f32;
+        let a = at(from);
+        let b = at(to);
+        let chunks = crate::projectile_geometry::swept_chunks((a.x, a.y), (b.x, b.y), 200.0, CHUNK_SIZE_PX, WORLD_WIDTH_CHUNKS, WORLD_HEIGHT_CHUNKS);
+        if let Some((hit, t)) = first_flight_hit(ctx, projectile, a, b, &chunks, village_parts) {
+            let fraction = if duration > 1e-6 { (from + (to - from) * t - start_time) / duration } else { 0.0 };
+            return Some((hit, fraction.clamp(0.0, 1.0)));
+        }
+    }
+    None
+}
+
+#[reducer]
+pub fn set_throw_aim(ctx: &ReducerContext, aiming: bool) -> Result<(), String> {
+    let mut player = ctx.db.player().identity().find(ctx.sender()).ok_or("Player not found")?;
+    if aiming {
+        if player.is_dead || player.is_knocked_out { return Err("Cannot throw while incapacitated".into()); }
+        let equipment = ctx.db.active_equipment().player_identity().find(ctx.sender()).ok_or("No equipped weapon")?;
+        let item = equipment.equipped_item_def_id.and_then(|id| ctx.db.item_definition().id().find(id)).ok_or("No equipped weapon")?;
+        if !is_throwable_melee(&item) { return Err("Only melee weapons can be thrown".into()); }
+    }
+    player.is_aiming_throw = aiming;
+    ctx.db.player().identity().update(player);
+    Ok(())
+}
+
+#[reducer]
+pub fn throw_melee_weapon(ctx: &ReducerContext, item_instance_id: u64, target_x: f32, target_y: f32, client_shot_id: String) -> Result<(), String> {
+    if !target_x.is_finite() || !target_y.is_finite() { return Err("Invalid target".into()); }
+    let player_id = ctx.sender();
+    let player = ctx.db.player().identity().find(player_id).ok_or("Player not found")?;
+    if player.is_dead || player.is_knocked_out || !player.is_aiming_throw { return Err("Player is not ready to throw".into()); }
+    let equipment = ctx.db.active_equipment().player_identity().find(player_id).ok_or("No equipped weapon")?;
+    if equipment.equipped_item_instance_id != Some(item_instance_id) { return Err("Equipped weapon changed".into()); }
+    let mut item = ctx.db.inventory_item().instance_id().find(item_instance_id).ok_or("Weapon not found")?;
+    let owned = match &item.location {
+        crate::models::ItemLocation::Inventory(data) => data.owner_id == player_id,
+        crate::models::ItemLocation::Hotbar(data) => data.owner_id == player_id,
+        _ => false,
+    };
+    if !owned || item.quantity == 0 { return Err("Weapon is not in your inventory".into()); }
+    let def = ctx.db.item_definition().id().find(item.item_def_id).ok_or("Weapon definition not found")?;
+    if !is_throwable_melee(&def) || equipment.equipped_item_def_id != Some(def.id) {
+        return Err("Only the equipped melee weapon can be thrown".into());
+    }
+    if crate::durability::has_durability_system(&def) && crate::durability::is_item_broken(&item) {
+        return Err("This weapon is broken".into());
+    }
+    let aim = auto_aim_target(ctx, player_id, target_x, target_y, 0.0);
+    let dx = aim.x - player.position_x;
+    let dy = aim.y - player.position_y;
+    let distance = dx.hypot(dy);
+    if !distance.is_finite() || distance < 1.0 { return Err("Target too close".into()); }
+    const THROW_SPEED: f32 = 650.0;
+    const THROW_RANGE: f32 = 550.0;
+    let (bottom, _) = player_vertical_bounds(ctx, &player, ctx.timestamp);
+    let launch_height = bottom + if player.is_crouching { 52.0 } else { 68.0 };
+    let trajectory = crate::projectile_geometry::Trajectory3::aim_at(
+        crate::projectile_geometry::Point3 { x: player.position_x, y: player.position_y, height: launch_height },
+        aim, THROW_SPEED, 300.0,
+    ).ok_or("Invalid throw trajectory")?;
+    let projectile = insert_projectile_with_runtime_state(ctx, Projectile {
+        id: 0, client_shot_id, owner_id: player_id, item_def_id: def.id, ammo_def_id: def.id,
+        source_type: PROJECTILE_SOURCE_PLAYER, npc_projectile_type: NPC_PROJECTILE_NONE,
+        start_time: ctx.timestamp, start_pos_x: player.position_x, start_pos_y: player.position_y,
+        velocity_x: trajectory.velocity.x, velocity_y: trajectory.velocity.y,
+        max_range: distance.min(THROW_RANGE),
+        flight_3d: true, start_height: trajectory.start.height, velocity_height: trajectory.velocity.height, gravity_height: trajectory.gravity,
+    });
+    ctx.db.thrown_projectile_item().insert(ThrownProjectileItem { projectile_id: projectile.id, item_data: item.item_data.clone() });
+    if item.quantity > 1 {
+        item.quantity -= 1;
+        ctx.db.inventory_item().instance_id().update(item);
+    } else {
+        ctx.db.inventory_item().instance_id().delete(item_instance_id);
+    }
+    crate::active_equipment::clear_active_item_reducer(ctx, player_id)?;
+    let mut player = ctx.db.player().identity().find(player_id).ok_or("Player not found")?;
+    player.is_aiming_throw = false;
+    ctx.db.player().identity().update(player);
+    sound_events::emit_item_thrown_sound(ctx, projectile.start_pos_x, projectile.start_pos_y, player_id);
+    Ok(())
 }
 
 // Scheduled table for projectile updates
@@ -338,6 +686,7 @@ pub fn fire_npc_projectile(
         velocity_x,
         velocity_y,
         max_range: adjusted_max_range,
+        flight_3d: false, start_height: 0.0, velocity_height: 0.0, gravity_height: 0.0,
     };
     
     let inserted = insert_projectile_with_runtime_state(ctx, projectile);
@@ -387,6 +736,11 @@ pub fn fire_projectile(
     client_shot_id: String,
 ) -> Result<(), String> {
     let player_id = ctx.sender();
+
+    if !target_world_x.is_finite() || !target_world_y.is_finite()
+        || !client_player_x.is_finite() || !client_player_y.is_finite() {
+        return Err("Projectile coordinates must be finite".to_string());
+    }
     
     // Find the player
     let player = ctx.db.player().identity().find(&player_id)
@@ -617,13 +971,25 @@ pub fn fire_projectile(
         log::debug!("Player {:?} firing from inside their shelter {} to target inside same shelter - allowed", player_id, shelter_id);
     }
 
+    // Legacy grenade and flare checks remain until those thrown consumables
+    // move to the 3D flight system. Physical shots hit nearby cover instead.
+    if item_def.name == "Grenade" || item_def.name == "Flare" {
+    // These checks only reject cover within 80 pixels; avoid scanning the
+    // entire cursor distance for each structure on a long-range shot.
+    let proximity_dx = target_world_x - spawn_x;
+    let proximity_dy = target_world_y - spawn_y;
+    let proximity_distance = proximity_dx.hypot(proximity_dy);
+    let proximity_scale = if proximity_distance > 80.0 { 80.0 / proximity_distance } else { 1.0 };
+    let proximity_x = spawn_x + proximity_dx * proximity_scale;
+    let proximity_y = spawn_y + proximity_dy * proximity_scale;
+
     // --- Check if projectile path would immediately hit a wall very close to player ---
     if let Some((wall_id, collision_x, collision_y)) = crate::building::check_projectile_wall_collision(
         ctx,
         spawn_x,
         spawn_y,
-        target_world_x,
-        target_world_y,
+        proximity_x,
+        proximity_y,
     ) {
         let collision_distance = ((collision_x - spawn_x).powi(2) + (collision_y - spawn_y).powi(2)).sqrt();
         const MIN_FIRING_DISTANCE: f32 = 80.0; // About 2 tiles
@@ -634,7 +1000,7 @@ pub fn fire_projectile(
     }
     
     // --- Check if projectile path would immediately hit a closed door very close to player ---
-    if let Some((door_id, collision_x, collision_y)) = crate::door::check_door_projectile_collision(ctx, spawn_x, spawn_y, target_world_x, target_world_y) {
+    if let Some((door_id, collision_x, collision_y)) = crate::door::check_door_projectile_collision(ctx, spawn_x, spawn_y, proximity_x, proximity_y) {
         let collision_distance = ((collision_x - spawn_x).powi(2) + (collision_y - spawn_y).powi(2)).sqrt();
         const MIN_FIRING_DISTANCE: f32 = 80.0;
         
@@ -644,7 +1010,7 @@ pub fn fire_projectile(
     }
     
     // --- Check if projectile path would immediately hit a fence very close to player ---
-    if let Some((fence_id, collision_x, collision_y)) = crate::fence::check_projectile_fence_collision(ctx, spawn_x, spawn_y, target_world_x, target_world_y) {
+    if let Some((fence_id, collision_x, collision_y)) = crate::fence::check_projectile_fence_collision(ctx, spawn_x, spawn_y, proximity_x, proximity_y) {
         let collision_distance = ((collision_x - spawn_x).powi(2) + (collision_y - spawn_y).powi(2)).sqrt();
         const MIN_FIRING_DISTANCE: f32 = 80.0;
         
@@ -658,8 +1024,8 @@ pub fn fire_projectile(
         ctx,
         spawn_x,
         spawn_y,
-        target_world_x,
-        target_world_y,
+        proximity_x,
+        proximity_y,
     ) {
         // Only block the shot if the collision happens very close to the player
         // This allows intentional targeting of shelters while preventing immediate wall hits
@@ -673,11 +1039,17 @@ pub fn fire_projectile(
         // If collision is far enough away, allow the shot (player is intentionally targeting the shelter)
         log::info!("Player {:?} targeting shelter {} at distance {:.1} - shot allowed", player_id, shelter_id, collision_distance);
     }
+    }
 
     // --- Physics Calculation for Initial Velocity to Hit Target ---
     // Use spawn position (client-predicted with anti-cheat validation)
-    let delta_x = target_world_x - spawn_x;
-    let delta_y = target_world_y - spawn_y;
+    let uses_3d = item_def.name != "Grenade" && item_def.name != "Flare";
+    let (bottom, _) = player_vertical_bounds(ctx, &player, ctx.timestamp);
+    let launch_height = bottom + if player.is_crouching { 36.0 } else { 50.0 };
+    let aim = if uses_3d { auto_aim_target(ctx, player_id, target_world_x, target_world_y, launch_height) }
+        else { crate::projectile_geometry::Point3 { x: target_world_x, y: target_world_y, height: 0.0 } };
+    let delta_x = aim.x - spawn_x;
+    let delta_y = aim.y - spawn_y;
     
     // Apply ammunition-specific speed modifications
     let mut v0 = weapon_stats.projectile_speed;
@@ -693,8 +1065,8 @@ pub fn fire_projectile(
     let g = GRAVITY; // GRAVITY const defined at the top of the file
     
     let distance_sq = delta_x * delta_x + delta_y * delta_y;
-    if distance_sq < 1.0 { // distance < 1.0
-        return Err("Target too close".to_string());
+    if !distance_sq.is_finite() || distance_sq < 1.0 || !v0.is_finite() || v0 <= 0.0 {
+        return Err("Invalid projectile target or speed".to_string());
     }
 
     let final_vx: f32;
@@ -702,7 +1074,11 @@ pub fn fire_projectile(
 
     // Crossbow and Hunting Bow now share straight-line projectile physics.
     // Hunting Bow keeps its shorter range via weapon stats/max_range, not extra gravity arc.
-    if item_def.name == "Crossbow" || item_def.name == "Hunting Bow" || item_def.name == "Grenade" || item_def.name == "Flare" {
+    if uses_3d {
+        let distance = distance_sq.sqrt();
+        final_vx = delta_x / distance * v0;
+        final_vy = delta_y / distance * v0;
+    } else if item_def.name == "Crossbow" || item_def.name == "Hunting Bow" || item_def.name == "Grenade" || item_def.name == "Flare" {
         let distance = distance_sq.sqrt();
         let time_to_target = distance / v0;
         
@@ -813,6 +1189,11 @@ pub fn fire_projectile(
 
 
     // Create projectile using validated spawn position
+    let gravity_height = if item_def.name == "Makarov PM" || item_def.name == "PP-91 KEDR" { 0.0 } else { 240.0 };
+    let vertical_velocity = if uses_3d {
+        let travel_time = distance_sq.sqrt() / v0;
+        (aim.height - launch_height) / travel_time + 0.5 * gravity_height * travel_time
+    } else { 0.0 };
     let projectile = Projectile {
         id: 0, // auto_inc
         client_shot_id,
@@ -827,6 +1208,7 @@ pub fn fire_projectile(
         velocity_x: final_vx, // Use calculated velocity
         velocity_y: final_vy, // Use calculated velocity
         max_range: max_range, // Use modified max_range for ammunition-specific flight limit
+        flight_3d: uses_3d, start_height: launch_height, velocity_height: vertical_velocity, gravity_height: if uses_3d { gravity_height } else { 0.0 },
     };
 
     insert_projectile_with_runtime_state(ctx, projectile);
@@ -1309,6 +1691,9 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
     let mut projectiles_to_delete = Vec::new();
     let mut missed_projectiles_for_drops = Vec::new(); // Store missed projectiles for drop creation
     let mut pending_resolutions = Vec::new();
+    let village_parts: Vec<_> = if ctx.db.projectile().iter().any(|projectile| projectile.flight_3d) {
+        ctx.db.monument_part().iter().filter(|part| crate::collision_geometry::COLLISION_GEOMETRY.village.buildings.contains_key(&part.image_path)).collect()
+    } else { Vec::new() };
 
     for projectile in ctx.db.projectile().iter() {
         let start_time_secs = projectile.start_time.to_micros_since_unix_epoch() as f64 / 1_000_000.0;
@@ -1317,32 +1702,21 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         let weapon_item_def_cached = item_defs_table.id().find(projectile.item_def_id);
         let ammo_item_def_cached = item_defs_table.id().find(projectile.ammo_def_id);
         
-        // Get weapon definition to determine gravity effect (thrown-item path removed)
-        // Monument turret projectiles fire in a straight line - no gravity
-        let gravity_multiplier = if projectile.source_type == PROJECTILE_SOURCE_MONUMENT_TURRET {
-            PROJECTILE_STRAIGHT_LINE_GRAVITY_MULTIPLIER
-        } else if let Some(weapon_def) = weapon_item_def_cached.as_ref() {
-            if weapon_def.name == "Crossbow" || weapon_def.name == "Hunting Bow" {
-                PROJECTILE_STRAIGHT_LINE_GRAVITY_MULTIPLIER
-            } else if weapon_def.name == "Makarov PM" || weapon_def.name == "PP-91 KEDR" {
-                PROJECTILE_FIREARM_GRAVITY_MULTIPLIER
-            } else {
-                1.0 // Bow projectiles have full gravity effect
-            }
-        } else {
-            1.0 // Default to full gravity if weapon not found
-        };
+        let final_gravity_multiplier = if projectile.flight_3d { 0.0 } else { projectile_gravity_multiplier(
+            projectile.source_type,
+            weapon_item_def_cached.as_ref().map(|weapon| weapon.name.as_str()),
+            projectile.item_def_id == projectile.ammo_def_id,
+        ) };
         
-        let final_gravity_multiplier = gravity_multiplier;
-        
-        // Calculate current position
-        let current_x = projectile.start_pos_x + projectile.velocity_x * elapsed_time as f32;
-        let current_y = projectile.start_pos_y + projectile.velocity_y * elapsed_time as f32 + 0.5 * GRAVITY * final_gravity_multiplier * (elapsed_time as f32).powi(2);
+        // Clamp the last segment to the lifetime before checking impacts.
+        let sample_time = elapsed_time.max(0.0).min(10.0);
+        let mut current_x = projectile.start_pos_x + projectile.velocity_x * sample_time as f32;
+        let mut current_y = projectile.start_pos_y + projectile.velocity_y * sample_time as f32 + 0.5 * GRAVITY * final_gravity_multiplier * (sample_time as f32).powi(2);
         
         let runtime_state = ctx.db.projectile_runtime_state().projectile_id().find(&projectile.id);
         let prev_time = runtime_state
             .as_ref()
-            .map(|state| (state.last_sample_elapsed_secs as f64).min(elapsed_time))
+            .map(|state| (state.last_sample_elapsed_secs as f64).min(sample_time))
             .unwrap_or(0.0)
             .max(0.0);
         let prev_x = projectile.start_pos_x + projectile.velocity_x * prev_time as f32;
@@ -1350,37 +1724,65 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         
         let travel_distance = ((current_x - projectile.start_pos_x).powi(2) + (current_y - projectile.start_pos_y).powi(2)).sqrt();
         
-        // CRITICAL: Check max range BEFORE collision checks to prevent infinite looping
-        // This is especially important for thrown items which have no gravity and travel in straight lines
-        if travel_distance > projectile.max_range || elapsed_time > 10.0 {
-            log::debug!("DEBUG: Projectile {} reached max range/time BEFORE collision checks. Distance: {:.1}, Range: {:.1}, Time: {:.1}s", 
-                projectile.id, travel_distance, projectile.max_range, elapsed_time);
-            
-            // Create fire patch if this is a fire arrow (100% chance)
-            if let Some(ammo_def) = ammo_item_def_cached.as_ref() {
-                create_fire_patch_if_fire_arrow(ctx, &ammo_def, current_x, current_y, projectile.owner_id);
-            }
-            
-            queue_projectile_resolution(
-                &mut pending_resolutions,
-                &projectile,
-                current_x,
-                current_y,
-                ProjectileResolvedReason::RangeExpired,
-                ProjectileResolvedTargetKind::World,
-                0,
+        let expired = travel_distance > projectile.max_range || elapsed_time > 10.0;
+        if travel_distance > projectile.max_range {
+            // Test the portion still inside range; an impact just before the
+            // range limit must not disappear when a scheduler tick crosses it.
+            (current_x, current_y) = clip_segment_to_range(
+                (prev_x, prev_y), (current_x, current_y),
+                (projectile.start_pos_x, projectile.start_pos_y), projectile.max_range,
             );
-            missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
-            projectiles_to_delete.push(projectile.id);
+        }
+
+        let chunk_indices = crate::projectile_geometry::swept_chunks(
+            (prev_x, prev_y), (current_x, current_y), 200.0,
+            CHUNK_SIZE_PX, WORLD_WIDTH_CHUNKS, WORLD_HEIGHT_CHUNKS,
+        );
+        let chunk_count = chunk_indices.len();
+        let full_dx = projectile.start_pos_x + projectile.velocity_x * sample_time as f32 - prev_x;
+        let full_dy = projectile.start_pos_y + projectile.velocity_y * sample_time as f32 - prev_y;
+        let full_length = full_dx.hypot(full_dy);
+        let clipped_length = (current_x - prev_x).hypot(current_y - prev_y);
+        let range_fraction = if full_length > 1e-6 { (clipped_length / full_length).clamp(0.0, 1.0) } else { 1.0 };
+        let clipped_time = prev_time as f32 + (sample_time as f32 - prev_time as f32) * range_fraction;
+        let first_hit = if projectile.flight_3d { first_flight_hit_interval(ctx, &projectile, prev_time as f32, clipped_time, &village_parts) } else { None };
+        if let Some((_, t)) = first_hit {
+            // Advance a negligible distance into the selected shape to avoid
+            // floating-point disagreement with the legacy 2D hit handlers.
+            let t = (t + 0.00001).min(1.0);
+            current_x = prev_x + (current_x - prev_x) * t;
+            current_y = prev_y + (current_y - prev_y) * t;
+        }
+        if matches!(first_hit.map(|hit| hit.0), Some(FlightHit::Ground | FlightHit::World)) {
+            consume_projectile_on_impact(ctx, &projectile, ammo_item_def_cached.as_ref(), current_x, current_y,
+                &mut missed_projectiles_for_drops, &mut projectiles_to_delete, &mut pending_resolutions);
             continue;
         }
+        let allows = |kind: &'static str, id: u64| !projectile.flight_3d || first_hit.map(|hit| hit.0) == Some(FlightHit::Entity(kind, id));
         
         // Monument turret projectiles pass through structures (doors, fences, walls, shelters)
         // to ensure they reach their targeted animals/players
         if projectile.source_type != PROJECTILE_SOURCE_MONUMENT_TURRET {
+
+        // Compare the actual contacts across these construction types before
+        // applying damage. Table order must not make a farther door beat a
+        // nearer fence or wall on a long swept segment.
+        let selected_structure = |kind: &str| first_hit.and_then(|(hit, _)| match hit {
+            FlightHit::Entity(name, id) if name == kind => Some((id, current_x, current_y)), _ => None,
+        });
+        let door_hit = if projectile.flight_3d { selected_structure("door") }
+            else { crate::door::check_door_projectile_collision(ctx, prev_x, prev_y, current_x, current_y) };
+        let door_hit = door_hit.filter(|(id, _, _)| allows("door", *id));
+        let fence_hit = if projectile.flight_3d { selected_structure("fence") } else { crate::fence::check_projectile_fence_collision(ctx, prev_x, prev_y, current_x, current_y) };
+        let wall_hit = if projectile.flight_3d { selected_structure("wall") } else { crate::building::check_projectile_wall_collision(ctx, prev_x, prev_y, current_x, current_y) };
+        let closest_structure = [(0u8, door_hit), (1u8, fence_hit), (2u8, wall_hit)]
+            .into_iter()
+            .filter_map(|(kind, hit)| hit.map(|(_, x, y)| (kind, (x - prev_x).powi(2) + (y - prev_y).powi(2))))
+            .min_by(|a, b| a.1.total_cmp(&b.1).then_with(|| a.0.cmp(&b.0)))
+            .map(|(kind, _)| kind);
         
         // Check for door collision (closed doors block projectiles)
-        if let Some((door_id, collision_x, collision_y)) = crate::door::check_door_projectile_collision(ctx, prev_x, prev_y, current_x, current_y) {
+        if let Some((door_id, collision_x, collision_y)) = door_hit.filter(|_| closest_structure == Some(0)) {
             log::info!(
                 "[ProjectileUpdate] Projectile {} from owner {:?} hit Door {} at ({:.1}, {:.1})",
                 projectile.id, projectile.owner_id, door_id, collision_x, collision_y
@@ -1435,7 +1837,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         }
         
         // Check for fence collision (fences block projectiles)
-        if let Some((fence_id, collision_x, collision_y)) = crate::fence::check_projectile_fence_collision(ctx, prev_x, prev_y, current_x, current_y) {
+        if let Some((fence_id, collision_x, collision_y)) = fence_hit.filter(|_| closest_structure == Some(1)) {
             log::info!(
                 "[ProjectileUpdate] Projectile {} from owner {:?} hit Fence {} at ({:.1}, {:.1})",
                 projectile.id, projectile.owner_id, fence_id, collision_x, collision_y
@@ -1490,13 +1892,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         }
         
         // Check for wall collision first (before shelter)
-        if let Some((wall_id, collision_x, collision_y)) = crate::building::check_projectile_wall_collision(
-            ctx,
-            prev_x,
-            prev_y,
-            current_x,
-            current_y,
-        ) {
+        if let Some((wall_id, collision_x, collision_y)) = wall_hit.filter(|_| closest_structure == Some(2)) {
             log::info!(
                 "[ProjectileUpdate] Projectile {} from owner {:?} hit Wall {} at ({:.1}, {:.1})",
                 projectile.id, projectile.owner_id, wall_id, collision_x, collision_y
@@ -1568,13 +1964,12 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         }
         
         // Check for shelter wall collision
-        if let Some((shelter_id, collision_x, collision_y)) = shelter::check_projectile_shelter_collision(
-            ctx, 
-            projectile.start_pos_x, 
-            projectile.start_pos_y, 
-            current_x, 
-            current_y
-        ) {
+        let shelter_hit = if projectile.flight_3d {
+            selected_structure("shelter").map(|(id, x, y)| (id as u32, x, y))
+        } else {
+            shelter::check_projectile_shelter_collision(ctx, projectile.start_pos_x, projectile.start_pos_y, current_x, current_y)
+        };
+        if let Some((shelter_id, collision_x, collision_y)) = shelter_hit.filter(|(id, _, _)| allows("shelter", *id as u64)) {
             // NEW: Check if player is attacking their own shelter - prevent self-damage
             if let Some(shelter) = ctx.db.shelter().id().find(shelter_id) {
                 if shelter.placed_by == projectile.owner_id {
@@ -1688,23 +2083,6 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         
         } // End of structure collision skip for monument turret projectiles
         
-        // Chunk-based spatial filtering: collect 3x3 chunks around segment midpoint
-        // Reduces full-table scans to ~9 chunks per entity type (trees, stones, etc.)
-        let mid_x = (prev_x + current_x) * 0.5;
-        let mid_y = (prev_y + current_y) * 0.5;
-        let center_chunk = calculate_chunk_index(mid_x, mid_y);
-        let center_cx = center_chunk % WORLD_WIDTH_CHUNKS;
-        let center_cy = center_chunk / WORLD_WIDTH_CHUNKS;
-        let mut chunk_indices: [u32; 9] = [0; 9];
-        let mut chunk_count = 0usize;
-        for dy in -1i32..=1 {
-            for dx in -1i32..=1 {
-                let cx = (center_cx as i32 + dx).max(0).min(WORLD_WIDTH_CHUNKS as i32 - 1) as u32;
-                let cy = (center_cy as i32 + dy).max(0).min(WORLD_HEIGHT_CHUNKS as i32 - 1) as u32;
-                chunk_indices[chunk_count] = cy * WORLD_WIDTH_CHUNKS + cx;
-                chunk_count += 1;
-            }
-        }
         
         // Check for natural obstacle collisions (trees and stones)
         let mut hit_natural_obstacle_this_tick = false;
@@ -1712,6 +2090,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check tree collisions (chunk-filtered)
         'tree_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for tree in ctx.db.tree().chunk_index().filter(*chunk_idx) {
+                if !allows("tree", tree.id as u64) { continue; }
                 // Skip dead/respawning trees (respawn_at > UNIX_EPOCH when tree is destroyed)
                 if tree.respawn_at > Timestamp::UNIX_EPOCH {
                     continue;
@@ -1724,7 +2103,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let tree_hit_y = tree.pos_y - PROJECTILE_TREE_Y_OFFSET;
                 
                 // Use line segment collision detection for trees
-                if let Some((impact_x, impact_y)) = line_circle_first_impact_point(
+                if let Some((impact_x, impact_y)) = selected_impact(projectile.flight_3d, current_x, current_y, line_circle_first_impact_point(
                     prev_x,
                     prev_y,
                     current_x,
@@ -1732,7 +2111,8 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     tree.pos_x,
                     tree_hit_y,
                     PROJECTILE_TREE_HIT_RADIUS,
-                ) {
+                )) {
+                    let (impact_x, impact_y) = if projectile.flight_3d { (current_x, current_y) } else { (impact_x, impact_y) };
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Tree {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, tree.id, prev_x, prev_y, current_x, current_y
@@ -1768,6 +2148,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check stone collisions (chunk-filtered)
         'stone_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for stone in ctx.db.stone().chunk_index().filter(*chunk_idx) {
+                if !allows("stone", stone.id as u64) { continue; }
                 // Skip dead/respawning stones (respawn_at > UNIX_EPOCH when stone is destroyed)
                 if stone.respawn_at > Timestamp::UNIX_EPOCH {
                     continue;
@@ -1780,7 +2161,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let stone_hit_y = stone.pos_y - PROJECTILE_STONE_Y_OFFSET;
                 
                 // Use line segment collision detection for stones
-                if let Some((impact_x, impact_y)) = line_circle_first_impact_point(
+                if let Some((impact_x, impact_y)) = selected_impact(projectile.flight_3d, current_x, current_y, line_circle_first_impact_point(
                     prev_x,
                     prev_y,
                     current_x,
@@ -1788,7 +2169,8 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     stone.pos_x,
                     stone_hit_y,
                     PROJECTILE_STONE_HIT_RADIUS,
-                ) {
+                )) {
+                    let (impact_x, impact_y) = if projectile.flight_3d { (current_x, current_y) } else { (impact_x, impact_y) };
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Stone {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, stone.id, prev_x, prev_y, current_x, current_y
@@ -1816,10 +2198,15 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 }
             }
         }
+
+        if hit_natural_obstacle_this_tick {
+            continue;
+        }
         
         // Check rune stone collisions (chunk-filtered)
         'rune_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for rune_stone in ctx.db.rune_stone().chunk_index().filter(*chunk_idx) {
+                if !allows("rune", rune_stone.id as u64) { continue; }
                 // Rune stones have a generous collision radius for projectiles (doubled to match visual size)
                 const PROJECTILE_RUNE_STONE_HIT_RADIUS: f32 = 80.0; // Doubled from 40.0 to match doubled visual size
                 const PROJECTILE_RUNE_STONE_Y_OFFSET: f32 = 100.0; // Doubled from 50.0 to match doubled visual size
@@ -1827,7 +2214,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let rune_stone_hit_y = rune_stone.pos_y - PROJECTILE_RUNE_STONE_Y_OFFSET;
                 
                 // Use line segment collision detection for rune stones
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, rune_stone.pos_x, rune_stone_hit_y, PROJECTILE_RUNE_STONE_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, rune_stone.pos_x, rune_stone_hit_y, PROJECTILE_RUNE_STONE_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit RuneStone {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, rune_stone.id, prev_x, prev_y, current_x, current_y
@@ -1863,6 +2250,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check basalt column collisions (chunk-filtered, permanent rock obstacles in quarries)
         'basalt_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for basalt in ctx.db.basalt_column().chunk_index().filter(*chunk_idx) {
+                if !allows("basalt", basalt.id as u64) { continue; }
                 // Basalt columns are permanent obstacles (no health/respawn check needed)
                 const PROJECTILE_BASALT_HIT_RADIUS: f32 = 35.0;
                 const PROJECTILE_BASALT_Y_OFFSET: f32 = 40.0;
@@ -1870,7 +2258,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let basalt_hit_y = basalt.pos_y - PROJECTILE_BASALT_Y_OFFSET;
                 
                 // Use line segment collision detection for basalt columns
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, basalt.pos_x, basalt_hit_y, PROJECTILE_BASALT_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, basalt.pos_x, basalt_hit_y, PROJECTILE_BASALT_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit BasaltColumn {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, basalt.id, prev_x, prev_y, current_x, current_y
@@ -1899,16 +2287,21 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             }
         }
 
+        if hit_natural_obstacle_this_tick {
+            continue;
+        }
+
         // Check living coral collisions (chunk-filtered, underwater obstacles)
         'living_coral_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for coral in ctx.db.living_coral().chunk_index().filter(*chunk_idx) {
+                if !allows("coral", coral.id as u64) { continue; }
                 // Skip destroyed/respawning coral
                 if coral.respawn_at > Timestamp::UNIX_EPOCH {
                     continue;
                 }
 
                 let coral_hit_y = coral.pos_y - LIVING_CORAL_COLLISION_Y_OFFSET;
-                if let Some((impact_x, impact_y)) = line_circle_first_impact_point(
+                if let Some((impact_x, impact_y)) = selected_impact(projectile.flight_3d, current_x, current_y, line_circle_first_impact_point(
                     prev_x,
                     prev_y,
                     current_x,
@@ -1916,7 +2309,8 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     coral.pos_x,
                     coral_hit_y,
                     LIVING_CORAL_RADIUS,
-                ) {
+                )) {
+                    let (impact_x, impact_y) = if projectile.flight_3d { (current_x, current_y) } else { (impact_x, impact_y) };
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit LivingCoral {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, coral.id, prev_x, prev_y, current_x, current_y
@@ -1955,6 +2349,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check campfire collisions (chunk-filtered)
         'campfire_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for campfire in ctx.db.campfire().chunk_index().filter(*chunk_idx) {
+            if !allows("campfire", campfire.id as u64) { continue; }
             if campfire.is_destroyed {
                 continue;
             }
@@ -1966,7 +2361,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             let campfire_hit_y = campfire.pos_y - PROJECTILE_CAMPFIRE_Y_OFFSET;
             
             // Use line segment collision detection instead of just checking current position
-            if line_intersects_circle(prev_x, prev_y, current_x, current_y, campfire.pos_x, campfire_hit_y, PROJECTILE_CAMPFIRE_HIT_RADIUS) {
+            if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, campfire.pos_x, campfire_hit_y, PROJECTILE_CAMPFIRE_HIT_RADIUS) {
                 log::info!(
                     "[ProjectileUpdate] Projectile {} from owner {:?} hit Campfire {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                     projectile.id, projectile.owner_id, campfire.id, prev_x, prev_y, current_x, current_y
@@ -2028,6 +2423,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check wooden storage box collisions (chunk-filtered)
         'storage_box_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for storage_box in ctx.db.wooden_storage_box().chunk_index().filter(*chunk_idx) {
+                if !allows("box", storage_box.id as u64) { continue; }
                 if storage_box.is_destroyed {
                     continue;
                 }
@@ -2042,7 +2438,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let box_hit_y = storage_box.pos_y - PROJECTILE_BOX_Y_OFFSET;
                 
                 // Use line segment collision detection instead of just checking current position
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, storage_box.pos_x, box_hit_y, PROJECTILE_BOX_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, storage_box.pos_x, box_hit_y, PROJECTILE_BOX_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Wooden Storage Box {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, storage_box.id, prev_x, prev_y, current_x, current_y
@@ -2104,6 +2500,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check stash collisions (chunk-filtered)
         'stash_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for stash in ctx.db.stash().chunk_index().filter(*chunk_idx) {
+                if !allows("stash", stash.id as u64) { continue; }
                 if stash.is_destroyed {
                     continue;
                 }
@@ -2112,7 +2509,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 const PROJECTILE_STASH_HIT_RADIUS: f32 = 25.0; // Larger radius for easier hits
                 
                 // Use line segment collision detection instead of just checking current position
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, stash.pos_x, stash.pos_y, PROJECTILE_STASH_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, stash.pos_x, stash.pos_y, PROJECTILE_STASH_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Stash {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, stash.id, prev_x, prev_y, current_x, current_y
@@ -2167,6 +2564,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check sleeping bag collisions (chunk-filtered)
         'sleeping_bag_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for sleeping_bag in ctx.db.sleeping_bag().chunk_index().filter(*chunk_idx) {
+                if !allows("bag", sleeping_bag.id as u64) { continue; }
                 if sleeping_bag.is_destroyed {
                     continue;
                 }
@@ -2178,7 +2576,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let bag_hit_y = sleeping_bag.pos_y - PROJECTILE_SLEEPING_BAG_Y_OFFSET;
                 
                 // Use line segment collision detection instead of just checking current position
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, sleeping_bag.pos_x, bag_hit_y, PROJECTILE_SLEEPING_BAG_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, sleeping_bag.pos_x, bag_hit_y, PROJECTILE_SLEEPING_BAG_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Sleeping Bag {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, sleeping_bag.id, prev_x, prev_y, current_x, current_y
@@ -2229,6 +2627,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check barrel collisions (chunk-filtered)
         'barrel_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for barrel in ctx.db.barrel().chunk_index().filter(*chunk_idx) {
+                if !allows("barrel", barrel.id as u64) { continue; }
                 if barrel.health <= 0.0 {
                     continue; // Skip destroyed barrels
                 }
@@ -2244,7 +2643,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let barrel_hit_y = barrel.pos_y - projectile_barrel_y_offset;
                 
                 // Use line segment collision detection instead of just checking current position
-                if let Some((impact_x, impact_y)) = line_circle_first_impact_point(
+                if let Some((impact_x, impact_y)) = selected_impact(projectile.flight_3d, current_x, current_y, line_circle_first_impact_point(
                     prev_x,
                     prev_y,
                     current_x,
@@ -2252,7 +2651,8 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     barrel.pos_x,
                     barrel_hit_y,
                     projectile_barrel_hit_radius,
-                ) {
+                )) {
+                    let (impact_x, impact_y) = if projectile.flight_3d { (current_x, current_y) } else { (impact_x, impact_y) };
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Barrel {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, barrel.id, prev_x, prev_y, current_x, current_y
@@ -2312,6 +2712,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check player corpse collisions (chunk-filtered)
         'player_corpse_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for corpse in ctx.db.player_corpse().chunk_index().filter(*chunk_idx) {
+                if !allows("corpse", corpse.id as u64) { continue; }
                 if corpse.health == 0 {
                     continue; // Skip depleted corpses
                 }
@@ -2321,7 +2722,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let corpse_hit_y = corpse.pos_y - CORPSE_COLLISION_Y_OFFSET;
                 
                 // Use line segment collision detection for corpses
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, corpse.pos_x, corpse_hit_y, PROJECTILE_CORPSE_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, corpse.pos_x, corpse_hit_y, PROJECTILE_CORPSE_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Player Corpse {} (player: {:?}) along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, corpse.id, corpse.player_identity, prev_x, prev_y, current_x, current_y
@@ -2379,6 +2780,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check rain collector collisions (chunk-filtered)
         'rain_collector_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for rain_collector in ctx.db.rain_collector().chunk_index().filter(*chunk_idx) {
+                if !allows("collector", rain_collector.id as u64) { continue; }
                 if rain_collector.is_destroyed {
                     continue;
                 }
@@ -2386,7 +2788,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 const PROJECTILE_RAIN_COLLECTOR_HIT_RADIUS: f32 = 35.0; // Larger than collision radius (30.0)
                 let collector_hit_y = rain_collector.pos_y - RAIN_COLLECTOR_COLLISION_Y_OFFSET;
                 
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, rain_collector.pos_x, collector_hit_y, PROJECTILE_RAIN_COLLECTOR_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, rain_collector.pos_x, collector_hit_y, PROJECTILE_RAIN_COLLECTOR_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Rain Collector {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, rain_collector.id, prev_x, prev_y, current_x, current_y
@@ -2447,6 +2849,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check furnace collisions (chunk-filtered)
         'furnace_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for furnace in ctx.db.furnace().chunk_index().filter(*chunk_idx) {
+                if !allows("furnace", furnace.id as u64) { continue; }
                 if furnace.is_destroyed {
                     continue; // Skip destroyed furnaces
                 }
@@ -2454,7 +2857,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 const PROJECTILE_FURNACE_HIT_RADIUS: f32 = 40.0; // Larger than collision radius (35.0)
                 let furnace_hit_y = furnace.pos_y - FURNACE_COLLISION_Y_OFFSET;
                 
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, furnace.pos_x, furnace_hit_y, PROJECTILE_FURNACE_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, furnace.pos_x, furnace_hit_y, PROJECTILE_FURNACE_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Furnace {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, furnace.id, prev_x, prev_y, current_x, current_y
@@ -2515,13 +2918,14 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check lantern collisions (chunk-filtered)
         'lantern_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for lantern in ctx.db.lantern().chunk_index().filter(*chunk_idx) {
+                if !allows("lantern", lantern.id as u64) { continue; }
                 if lantern.is_destroyed {
                     continue;
                 }
                 
                 let lantern_hit_y = lantern.pos_y - PROJECTILE_LANTERN_Y_OFFSET;
                 
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, lantern.pos_x, lantern_hit_y, PROJECTILE_LANTERN_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, lantern.pos_x, lantern_hit_y, PROJECTILE_LANTERN_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Lantern {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, lantern.id, prev_x, prev_y, current_x, current_y
@@ -2576,12 +2980,13 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check homestead hearth collisions (chunk-filtered)
         'hearth_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for hearth in ctx.db.homestead_hearth().chunk_index().filter(*chunk_idx) {
+                if !allows("hearth", hearth.id as u64) { continue; }
                 // Check if hearth is destroyed (hearths don't have is_destroyed field, check health instead)
                 // Note: HomesteadHearth might not have health field, so we'll check if it exists
                 let hearth_hit_y = hearth.pos_y - HEARTH_COLLISION_Y_OFFSET;
                 const PROJECTILE_HEARTH_HIT_RADIUS: f32 = 60.0; // Larger than collision radius (55.0)
                 
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, hearth.pos_x, hearth_hit_y, PROJECTILE_HEARTH_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, hearth.pos_x, hearth_hit_y, PROJECTILE_HEARTH_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Homestead Hearth {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, hearth.id, prev_x, prev_y, current_x, current_y
@@ -2637,6 +3042,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         const TURRET_SELF_EXCLUSION_RADIUS_SQ: f32 = 80.0 * 80.0; // Skip turrets within 80px of spawn
         'turret_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for turret_entity in ctx.db.turret().chunk_index().filter(*chunk_idx) {
+                if !allows("turret", turret_entity.id as u64) { continue; }
                 if turret_entity.is_destroyed {
                     continue;
                 }
@@ -2656,7 +3062,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 };
                 let turret_hit_y = turret_entity.pos_y - crate::turret::TURRET_COLLISION_Y_OFFSET;
 
-                if line_intersects_circle(
+                if projectile.flight_3d || line_intersects_circle(
                     prev_x,
                     prev_y,
                     current_x,
@@ -2725,6 +3131,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check barbecue collisions (chunk-filtered)
         'barbecue_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for barbecue in ctx.db.barbecue().chunk_index().filter(*chunk_idx) {
+                if !allows("barbecue", barbecue.id as u64) { continue; }
                 if barbecue.is_destroyed {
                     continue;
                 }
@@ -2732,7 +3139,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 const PROJECTILE_BARBECUE_HIT_RADIUS: f32 = BARBECUE_COLLISION_RADIUS + 8.0;
                 let barbecue_hit_y = barbecue.pos_y - BARBECUE_COLLISION_Y_OFFSET;
 
-                if line_intersects_circle(
+                if projectile.flight_3d || line_intersects_circle(
                     prev_x,
                     prev_y,
                     current_x,
@@ -2801,6 +3208,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check animal corpse collisions (chunk-filtered)
         'animal_corpse_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
             for animal_corpse in ctx.db.animal_corpse().chunk_index().filter(*chunk_idx) {
+                if !allows("animal_corpse", animal_corpse.id as u64) { continue; }
                 if animal_corpse.health == 0 {
                     continue; // Skip depleted corpses
                 }
@@ -2808,7 +3216,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 const PROJECTILE_ANIMAL_CORPSE_HIT_RADIUS: f32 = 20.0; // Generous radius for animal corpses
                 let corpse_hit_y = animal_corpse.pos_y - ANIMAL_CORPSE_COLLISION_Y_OFFSET;
                 
-                if line_intersects_circle(prev_x, prev_y, current_x, current_y, animal_corpse.pos_x, corpse_hit_y, PROJECTILE_ANIMAL_CORPSE_HIT_RADIUS) {
+                if projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, animal_corpse.pos_x, corpse_hit_y, PROJECTILE_ANIMAL_CORPSE_HIT_RADIUS) {
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Animal Corpse {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, animal_corpse.id, prev_x, prev_y, current_x, current_y
@@ -2873,6 +3281,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         if projectile.source_type != PROJECTILE_SOURCE_NPC {
         'wild_animal_chunks: for chunk_idx in &chunk_indices[..chunk_count] {
         for wild_animal in ctx.db.wild_animal().chunk_index().filter(*chunk_idx) {
+            if !allows("animal", wild_animal.id as u64) { continue; }
             // Skip dead animals or animals that are burrowed
             if wild_animal.health <= 0.0 || wild_animal.state == crate::wild_animal_npc::AnimalState::Burrowed {
                 continue;
@@ -2880,7 +3289,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             
             // Use line segment collision detection for wild animals
             const WILD_ANIMAL_HIT_RADIUS: f32 = 32.0; // Generous radius for wild animals
-            let collision_impact = line_circle_first_impact_point(
+            let collision_impact = selected_impact(projectile.flight_3d, current_x, current_y, line_circle_first_impact_point(
                 prev_x,
                 prev_y,
                 current_x,
@@ -2888,7 +3297,8 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 wild_animal.pos_x,
                 wild_animal.pos_y,
                 WILD_ANIMAL_HIT_RADIUS,
-            );
+            ));
+            let collision_impact = if projectile.flight_3d && collision_impact.is_some() { Some((current_x, current_y)) } else { collision_impact };
             let collision_detected = collision_impact.is_some();
             
             // Debug logging for nearby collisions
@@ -3046,6 +3456,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         // Check living player collisions
         let mut hit_player_this_tick = false;
         for player_to_check in ctx.db.player().iter() {
+            if projectile.flight_3d && first_hit.map(|hit| hit.0) != Some(FlightHit::Player(player_to_check.identity)) { continue; }
             if player_to_check.identity == projectile.owner_id || player_to_check.is_dead {
                 continue; // Skip self and dead players (corpses handled above)
             }
@@ -3061,7 +3472,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
             } else {
                 PROJECTILE_PLAYER_HIT_RADIUS
             };
-            let collision_detected = line_intersects_circle(prev_x, prev_y, current_x, current_y, player_to_check.position_x, player_to_check.position_y, player_radius);
+            let collision_detected = projectile.flight_3d || line_intersects_circle(prev_x, prev_y, current_x, current_y, player_to_check.position_x, player_to_check.position_y, player_radius);
             
             // Debug logging for nearby collisions
             if (prev_x - player_to_check.position_x).abs() < 100.0 && (prev_y - player_to_check.position_y).abs() < 100.0 {
@@ -3272,6 +3683,9 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                         ProjectileResolvedTargetKind::Player,
                         0,
                     );
+                    if ctx.db.thrown_projectile_item().projectile_id().find(projectile.id).is_some() {
+                        missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+                    }
                     projectiles_to_delete.push(projectile.id);
                     hit_player_this_tick = true;
                     break; // Stop checking other players for this projectile
@@ -3370,6 +3784,17 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         
         if hit_player_this_tick {
             continue; // Move to the next projectile if this one hit someone
+        }
+
+        if expired {
+            if let Some(ammo_def) = ammo_item_def_cached.as_ref() {
+                create_fire_patch_if_fire_arrow(ctx, ammo_def, current_x, current_y, projectile.owner_id);
+            }
+            queue_projectile_resolution(&mut pending_resolutions, &projectile, current_x, current_y,
+                ProjectileResolvedReason::RangeExpired, ProjectileResolvedTargetKind::World, 0);
+            missed_projectiles_for_drops.push((projectile.id, projectile.ammo_def_id, current_x, current_y));
+            projectiles_to_delete.push(projectile.id);
+            continue;
         }
 
         if let Some(mut runtime_state) = runtime_state {
@@ -3478,7 +3903,11 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
         let grenade_owner_hex = projectile_record_for_owner
             .map(|p| p.owner_id.to_string())
             .unwrap_or_else(|| "unknown".to_string());
-        let item_data = if let Some(ref def) = ammo_item_def {
+        let thrown_data = ctx.db.thrown_projectile_item().projectile_id().find(projectile_id);
+        let is_thrown_weapon = thrown_data.is_some();
+        let item_data = if let Some(thrown) = thrown_data {
+            thrown.item_data
+        } else if let Some(ref def) = ammo_item_def {
             if def.name == "Grenade" {
                 let fuse_duration_secs = 5.0 + (rng.gen::<f32>() * 5.0); // 5-10 seconds
                 let detonates_at = ctx.timestamp.to_micros_since_unix_epoch() as f64 / 1_000_000.0 + fuse_duration_secs as f64;
@@ -3519,6 +3948,7 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 created_drop_projectiles.insert(projectile_id);
             }
             Err(e) => {
+                if is_thrown_weapon { return Err(format!("Could not land thrown weapon: {e}")); }
                 log::error!("[ProjectileMiss] Failed to create dropped '{}' for missed projectile {}: {}", 
                           ammo_name, projectile_id, e);
             }
@@ -3559,9 +3989,33 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
 
     // Delete all projectiles that need to be removed
     for projectile_id in projectiles_to_delete {
+        ctx.db.thrown_projectile_item().projectile_id().delete(&projectile_id);
         ctx.db.projectile_runtime_state().projectile_id().delete(&projectile_id);
         ctx.db.projectile().id().delete(&projectile_id);
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod projectile_physics_tests {
+    use super::*;
+
+    #[test]
+    fn source_and_weapon_sampling_matches_the_client() {
+        assert_eq!(projectile_gravity_multiplier(PROJECTILE_SOURCE_NPC, Some("Makarov PM"), false), 0.0);
+        assert_eq!(projectile_gravity_multiplier(PROJECTILE_SOURCE_MONUMENT_TURRET, None, true), 0.0);
+        assert_eq!(projectile_gravity_multiplier(PROJECTILE_SOURCE_TURRET, None, true), 1.0);
+        assert_eq!(projectile_gravity_multiplier(PROJECTILE_SOURCE_PLAYER, Some("Grenade"), true), 0.0);
+        assert_eq!(projectile_gravity_multiplier(PROJECTILE_SOURCE_PLAYER, Some("Hunting Bow"), false), 0.0);
+        assert_eq!(projectile_gravity_multiplier(PROJECTILE_SOURCE_PLAYER, Some("Makarov PM"), false), PROJECTILE_FIREARM_GRAVITY_MULTIPLIER);
+    }
+
+    #[test]
+    fn last_segment_keeps_hits_inside_range_and_excludes_hits_beyond_it() {
+        let end = clip_segment_to_range((90.0, 0.0), (110.0, 0.0), (0.0, 0.0), 100.0);
+        assert_eq!(end, (100.0, 0.0));
+        assert!(line_intersects_circle(90.0, 0.0, end.0, end.1, 98.0, 0.0, 1.0));
+        assert!(!line_intersects_circle(90.0, 0.0, end.0, end.1, 105.0, 0.0, 1.0));
+    }
 }

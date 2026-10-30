@@ -3,6 +3,7 @@ import { predictedCombatHit } from '../../../utils/combatFeedbackEvents';
 import type { CombatFeedbackKind } from '../../../utils/combatFeedbackEvents';
 import { ModelKit } from './modelKit';
 import { seedFromId, worldToScene, WORLD_3D } from './visualContract';
+import { worldItemBreaksAfter } from './presentationEffectEvents';
 
 type MaterialKind = 'blood'|'ethereal'|'wood'|'stone'|'metal';
 interface HitState { server:bigint; predicted:number; predictionAt:number; reactionAt:number; seenAt:number }
@@ -34,6 +35,7 @@ export class CombatEffects3d {
   private readonly transform=new Object3D();
   private readonly color=new Color();
   private lastCleanup=0;
+  private breakCursor=0;
   constructor(kit:ModelKit){
     this.root.name='combat-impact-effects';
     this.debris=new InstancedMesh(kit.geometry('rock'),this.debrisMaterial,PARTICLES);
@@ -76,6 +78,12 @@ export class CombatEffects3d {
     if(this.impacts.length>36)this.impacts.shift();
   }
   update(now:number):void {
+    for (const event of worldItemBreaksAfter(this.breakCursor, now)) {
+      this.breakCursor = Math.max(this.breakCursor, event.sequence);
+      const point = worldToScene(event.x, event.y);
+      this.impacts.push({at:event.at,x:point.x,y:.3,z:point.z,ground:0,material:'wood',seed:seedFromId(`break:${event.id}`)});
+      if(this.impacts.length>36)this.impacts.shift();
+    }
     while(this.impacts.length&&now-this.impacts[0].at>=DURATION)this.impacts.shift();
     let debris=0,flashes=0;
     for(const hit of this.impacts){

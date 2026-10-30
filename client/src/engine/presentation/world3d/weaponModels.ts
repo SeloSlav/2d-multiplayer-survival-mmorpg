@@ -6,6 +6,11 @@ export type GripStyle = 'one' | 'pistol' | 'longgun' | 'bow' | 'staff';
 export interface WeaponSpec { form: Form; hold: GripStyle; length: number; color: number }
 const spec = (form: Form, hold: GripStyle, length: number, color: number = C.steel): WeaponSpec => ({ form, hold, length, color });
 
+// Arrows fly along +Z. The grip sits in front of the limb tips and braced
+// string; drawing the nock moves it farther toward the archer along -Z.
+export const BOW_GEOMETRY = { tipSetback: .18, drawLength: .3, arrowLength: .85, arrowHeadLength: .13 } as const;
+export const bowNockZ = (draw: number): number => -BOW_GEOMETRY.tipSetback - BOW_GEOMETRY.drawLength * draw;
+
 /** Every weapon in items_database/weapons.rs and every gathering/combat tool
  * has its own authored dimensions. Generic inspection guns are explicit too. */
 export const WEAPON_MODELS = {
@@ -88,9 +93,9 @@ function plate(kit: ModelKit, group: Group, color: number, outline: [number, num
   mesh.rotation.x = Math.PI / 2;
 }
 
-function shaft(kit: ModelKit, group: Group, length: number, color: number = C.wood, radius = .037): void {
+function shaft(kit: ModelKit, group: Group, length: number, color: number = C.wood, radius = .037, startY = -.2): void {
   const handle = new Group(); handle.name = 'weapon-shaft'; group.add(handle);
-  kit.beam(handle, color, new Vector3(0, -.2, 0), new Vector3(.025, length, 0), radius);
+  kit.beam(handle, color, new Vector3(0, startY, 0), new Vector3(.025, length, 0), radius);
   for (let i = 0; i < 4; i++) kit.part(handle, 'cylinder', C.leather, [radius * 2.12, .022, radius * 2.12], [0, -.1 + i * .06, 0]);
 }
 
@@ -226,7 +231,8 @@ export function createWeapon(kit: ModelKit, requested: string): Group {
     if (name === 'Naval Cutlass') kit.beam(root, 0xb69b59, new Vector3(.1, .14, 0), new Vector3(.1, -.17, 0), .022);
     if (name === 'Tidebreaker Blade') for (let i = 0; i < 5; i++) plate(kit, root, C.steel, [[-.055, .23 + i * .045], [-.095, .26 + i * .045], [-.05, .27 + i * .045]], .03);
   } else if (p.form === 'spear' || p.form === 'scythe' || p.form === 'rod' || p.form === 'gaff' || p.form === 'paddle' || p.form === 'crowbar') {
-    shaft(kit, root, length * .83, p.form === 'crowbar' ? p.color : C.wood, p.form === 'rod' ? .025 : .035);
+    const paddleHalfShaft = length * .26;
+    shaft(kit, root, p.form === 'paddle' ? paddleHalfShaft : length * .83, p.form === 'crowbar' ? p.color : C.wood, p.form === 'rod' ? .025 : .035, p.form === 'paddle' ? -paddleHalfShaft : -.2);
     if (p.form === 'spear') {
       kit.part(root, 'cone', p.color, [name === 'Wooden Spear' ? .08 : .18, length * .22, .07], [.025, length * .88, 0]);
       if (name === 'Reed Harpoon') for (let i = 0; i < 3; i++) plate(kit, root, C.bone, [[.025, length * .78 + i * .07], [.15, length * .75 + i * .07], [.025, length * .85 + i * .07]], .04);
@@ -234,7 +240,10 @@ export function createWeapon(kit: ModelKit, requested: string): Group {
       plate(kit, root, p.color, [[.02, length * .77], [.25, length * .89], [.73, length * .7], [.37, length * .79], [.03, length * .67]], .05);
       strikeEdge = { reach: .6, height: length * .75 };
     }
-    else if (p.form === 'paddle') for (const end of [-1, 1]) plate(kit, root, p.color, [[-.08, end * .48], [-.18, end * .78], [0, end * .98], [.18, end * .78], [.08, end * .48]], .06);
+    else if (p.form === 'paddle') for (const end of [-1, 1]) {
+      const centerX = end > 0 ? .025 : 0, base = paddleHalfShaft - .015, wide = paddleHalfShaft + length * .14, tip = length * .5;
+      plate(kit, root, p.color, [[centerX - .08, end * base], [centerX - .18, end * wide], [centerX, end * tip], [centerX + .18, end * wide], [centerX + .08, end * base]], .06);
+    }
     else if (p.form === 'gaff' || p.form === 'crowbar') {
       const top = length * .83;
       strikeEdge = { reach: .24, height: top - .075 };
@@ -249,7 +258,7 @@ export function createWeapon(kit: ModelKit, requested: string): Group {
   } else if (p.form === 'bow') {
     for (const side of [-1, 1]) for (let i = 0; i < 7; i++) {
       const a = i / 7, b = (i + 1) / 7;
-      kit.beam(root, p.color, new Vector3(0, side * a * length / 2, .18 * a * a), new Vector3(0, side * b * length / 2, .18 * b * b), .028 - a * .014);
+      kit.beam(root, p.color, new Vector3(0, side * a * length / 2, -BOW_GEOMETRY.tipSetback * a * a), new Vector3(0, side * b * length / 2, -BOW_GEOMETRY.tipSetback * b * b), .028 - a * .014);
     }
     // The string is articulated after compilation so its nock can draw/release.
     for (let i = 0; i < 4; i++) kit.part(root, 'cylinder', C.leather, [.07, .025, .07], [0, -.08 + i * .05, 0]);
@@ -272,7 +281,7 @@ export function createWeapon(kit: ModelKit, requested: string): Group {
     kit.part(root, 'cylinder', C.bone, [.11, .08, .11], [0, .28, 0]);
   } else kit.part(root, 'rock', p.color, [length, length * .75, length * .85], [0, .08, .035]);
 
-  if (strikeEdge) {
+  if (strikeEdge || name === 'Bone Club') {
     // A quarter-turn about the shaft sends the cutting/striking side from +X
     // to +Z. Rotate the head/blade/guard assembly, preserving the handle pose.
     const quarterTurn = new Matrix4().makeRotationY(-Math.PI / 2);
@@ -284,10 +293,11 @@ export function createWeapon(kit: ModelKit, requested: string): Group {
   compiled.userData.attackMotion = p.form === 'spear' || p.form === 'rod' ? 'thrust' : 'swing';
   compiled.userData.primaryHand = p.hold === 'bow' ? 'left' : 'right';
   marker(compiled, 'primary-grip');
+  if (p.form === 'bow') marker(compiled, 'projectile-origin', 0, 0, bowNockZ(0));
   if (p.form === 'rod') marker(compiled, 'rod-tip', .18, p.length, 0);
   if (p.hold === 'longgun') marker(compiled, 'support-grip', -.14, -.025, p.form === 'crossbow' || p.form === 'harpoon-gun' ? .23 : .2);
   else if (p.hold === 'staff') marker(compiled, 'support-grip', 0, -.22, 0);
-  else if (p.hold === 'bow') marker(compiled, 'support-grip', 0, 0, -.3);
+  else if (p.hold === 'bow') marker(compiled, 'support-grip', 0, 0, bowNockZ(1));
   if (['pistol', 'smg', 'rifle', 'shotgun', 'crossbow', 'harpoon-gun'].includes(p.form)) marker(compiled, 'muzzle', 0, p.form === 'harpoon-gun' ? .23 : p.form === 'crossbow' ? .23 : .13, p.length * .88);
   if (['pistol', 'smg', 'rifle', 'shotgun'].includes(p.form)) {
     const flash = new Group(); flash.name = 'muzzle-flash';
@@ -298,9 +308,11 @@ export function createWeapon(kit: ModelKit, requested: string): Group {
     flash.visible = false; compiled.getObjectByName('muzzle')!.add(flash);
   }
   if (p.form === 'bow') for (const side of [-1, 1]) {
-    const string = kit.beam(compiled, C.bone, new Vector3(0, side * p.length / 2, .18), new Vector3(0, 0, 0), .008);
+    const tip = new Vector3(0, side * p.length / 2, -BOW_GEOMETRY.tipSetback);
+    marker(compiled, side > 0 ? 'bow-tip-upper' : 'bow-tip-lower', tip.x, tip.y, tip.z);
+    const string = kit.beam(compiled, C.bone, tip, new Vector3(0, 0, bowNockZ(0)), .008);
     string.name = side > 0 ? 'bow-string-upper' : 'bow-string-lower';
-    string.userData.tipY = side * p.length / 2;
+    string.userData.tipY = tip.y; string.userData.tipZ = tip.z;
   }
   if (strikeEdge) {
     marker(compiled, 'strike-center', 0, strikeEdge.height, 0);
@@ -317,8 +329,10 @@ export function createWeapon(kit: ModelKit, requested: string): Group {
   if (p.form === 'bow' || p.form === 'crossbow' || p.form === 'harpoon-gun') {
     const projectile = new Group(); projectile.name = 'loaded-projectile';
     const harpoon = p.form === 'harpoon-gun';
-    kit.part(projectile, 'cylinder', harpoon ? C.bone : C.wood, [.025, harpoon ? 1 : .85, .025], [0, p.form === 'bow' ? 0 : .24, harpoon ? .4 : .2]).rotation.x = Math.PI / 2;
-    kit.part(projectile, 'cone', harpoon ? C.bone : C.steel, [harpoon ? .12 : .065, harpoon ? .18 : .13, .04], [0, p.form === 'bow' ? 0 : .24, harpoon ? .97 : .68]).rotation.x = Math.PI / 2;
+    const arrow = p.form === 'bow';
+    kit.part(projectile, 'cylinder', harpoon ? C.bone : C.wood, [.025, harpoon ? 1 : BOW_GEOMETRY.arrowLength, .025], [0, arrow ? 0 : .24, arrow ? BOW_GEOMETRY.arrowLength / 2 : harpoon ? .4 : .2]).rotation.x = Math.PI / 2;
+    kit.part(projectile, 'cone', harpoon ? C.bone : C.steel, [harpoon ? .12 : .065, harpoon ? .18 : BOW_GEOMETRY.arrowHeadLength, .04], [0, arrow ? 0 : .24, arrow ? BOW_GEOMETRY.arrowLength + BOW_GEOMETRY.arrowHeadLength / 2 : harpoon ? .97 : .68]).rotation.x = Math.PI / 2;
+    if (arrow) projectile.position.z = bowNockZ(0);
     projectile.visible = false; compiled.add(projectile);
   }
   return compiled;

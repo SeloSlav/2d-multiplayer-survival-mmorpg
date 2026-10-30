@@ -24,4 +24,8 @@ export default __t.row({
   velocityX: __t.f32().name("velocity_x"),
   velocityY: __t.f32().name("velocity_y"),
   maxRange: __t.f32().name("max_range"),
+  flight3D: __t.bool().name("flight_3_d"),
+  startHeight: __t.f32().name("start_height"),
+  velocityHeight: __t.f32().name("velocity_height"),
+  gravityHeight: __t.f32().name("gravity_height"),
 });

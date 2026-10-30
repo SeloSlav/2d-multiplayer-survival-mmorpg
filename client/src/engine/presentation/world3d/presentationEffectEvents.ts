@@ -1,6 +1,19 @@
 export interface WorldExplosion { sequence: number; id: string; x: number; y: number; radius: number; heavy: boolean; at: number }
 const explosions: WorldExplosion[] = [];
 let sequence = 0;
+export interface WorldItemBreak { sequence: number; id: string; x: number; y: number; at: number }
+const itemBreaks: WorldItemBreak[] = [];
+let itemBreakSequence = 0;
+
+export function recordWorldItemBreak(id: string, x: number, y: number, at = Date.now()): void {
+  if (itemBreaks.some(event => event.id === id)) return;
+  itemBreaks.push({ sequence: ++itemBreakSequence, id, x, y, at });
+  while (itemBreaks.length > 64) itemBreaks.shift();
+}
+
+export function worldItemBreaksAfter(cursor: number, now: number): WorldItemBreak[] {
+  return itemBreaks.filter(event => event.sequence > cursor && now >= event.at && now - event.at < 780);
+}
 
 export function isLiveDetonation(context: unknown, explosive: { isDud: boolean; detonatesAt?: { microsSinceUnixEpoch: bigint } | null }, now = Date.now()): boolean {
   const event = (context as { event?: { tag?: string; type?: string } } | null)?.event;

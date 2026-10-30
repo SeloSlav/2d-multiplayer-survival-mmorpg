@@ -15,11 +15,13 @@ export interface SampledProjectileState {
   isThrown: boolean;
   isBullet: boolean;
   instantaneousVelocityY: number;
+  height?: number;
+  instantaneousVelocityHeight?: number;
 }
 
 export function resolveProjectileGravityState(
   projectile: Projectile,
-  itemDefinitions?: Map<string, ItemDefinition | any>,
+  itemDefinitions?: Map<string, ItemDefinition>,
 ): { gravityMultiplier: number; isThrown: boolean; isBullet: boolean } {
   const isThrown = projectile.ammoDefId === projectile.itemDefId;
 
@@ -57,10 +59,10 @@ export function resolveProjectileGravityState(
 export function sampleProjectileState(
   projectile: Projectile,
   elapsedTimeSeconds: number,
-  itemDefinitions?: Map<string, ItemDefinition | any>,
+  itemDefinitions?: Map<string, ItemDefinition>,
 ): SampledProjectileState {
   const { gravityMultiplier, isThrown, isBullet } = resolveProjectileGravityState(projectile, itemDefinitions);
-  const gravityEffect = 0.5 * PROJECTILE_GRAVITY * gravityMultiplier * elapsedTimeSeconds * elapsedTimeSeconds;
+  const gravityEffect = projectile.flight3D ? 0 : 0.5 * PROJECTILE_GRAVITY * gravityMultiplier * elapsedTimeSeconds * elapsedTimeSeconds;
   const x = projectile.startPosX + projectile.velocityX * elapsedTimeSeconds;
   const y = projectile.startPosY + projectile.velocityY * elapsedTimeSeconds + gravityEffect;
 
@@ -70,6 +72,8 @@ export function sampleProjectileState(
     gravityMultiplier,
     isThrown,
     isBullet,
-    instantaneousVelocityY: projectile.velocityY + PROJECTILE_GRAVITY * gravityMultiplier * elapsedTimeSeconds,
+    instantaneousVelocityY: projectile.velocityY + (projectile.flight3D ? 0 : PROJECTILE_GRAVITY * gravityMultiplier * elapsedTimeSeconds),
+    height: projectile.flight3D ? projectile.startHeight + projectile.velocityHeight * elapsedTimeSeconds - .5 * projectile.gravityHeight * elapsedTimeSeconds ** 2 : undefined,
+    instantaneousVelocityHeight: projectile.flight3D ? projectile.velocityHeight - projectile.gravityHeight * elapsedTimeSeconds : undefined,
   };
 }

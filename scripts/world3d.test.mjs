@@ -935,7 +935,8 @@ test('shelter cutaway leaves an opaque rim outside the protected screen area and
     const border=first.root.getObjectByName('shelter-protected-border');assert.equal(border.visible,true);border.updateMatrixWorld(true);
     const bounds=new Box3().setFromObject(border);assert.ok(Math.abs(bounds.max.x-150/48)<.035&&Math.abs(bounds.max.z-62.5/48)<.035);
     first.update(false,1250,1000);assert.equal(border.visible,false);assert.equal(shell.visible,true);assert.equal(opaque.visible,true);assert.equal(rim.visible,false);assert.equal(shell.position.x,0);
-    shell.traverse(o=>{if(o instanceof Mesh){assert.equal(o.material.opacity,1);assert.equal(o.castShadow,true);}});
+    opaque.traverse(o=>{if(o instanceof Mesh){assert.equal(o.material.opacity,1);assert.equal(o.castShadow,true);}});
+    rim.traverse(o=>{if(o instanceof Mesh){assert.equal(o.material.opacity,1);assert.equal(o.castShadow,false,'cutaway rim must not shadow the exposed interior');}});
   }
   other.root.traverse(o=>{if(o instanceof Mesh)assert.equal(o.material.opacity,1,'shared source materials must remain opaque');});
   const view=new ShelterVisibility();view.prepare([row],'visitor',outside);assert.equal(view.occludes(1000,1000),true);assert.equal(view.occludes(1151,1000),false);

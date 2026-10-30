@@ -15,7 +15,7 @@ export interface PresentationEntity {
   waterLevelMl?: number; maxWaterCapacityMl?: number;
   health?: number; isDestroyed?: boolean; isDead?: boolean; isKnockedOut?: boolean;
   respawnAt?: { microsSinceUnixEpoch: bigint };
-  isSprinting?: boolean; isCrouching?: boolean; isOnWater?: boolean; isFlying?: boolean; isBurning?: boolean;
+  isSprinting?: boolean; isCrouching?: boolean; isOnWater?: boolean; isFlying?: boolean; isBurning?: boolean; isAimingThrow?: boolean;
   isTorchLit?: boolean; isSnorkeling?: boolean; isSubmerged?: boolean; isNpc?: boolean;
   direction?: string; facingDirection?: string; directionX?: number; directionY?: number;
   treeType?: unknown; oreType?: unknown; species?: unknown; plantType?: unknown; tileType?: unknown; state?: unknown;

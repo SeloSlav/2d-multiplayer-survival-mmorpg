@@ -2312,9 +2312,16 @@ pub fn check_projectile_wall_collision(
     end_x: f32,
     end_y: f32,
 ) -> Option<(u64, f32, f32)> {
+    check_projectile_wall_collision_3d(ctx, start_x, start_y, end_x, end_y, 0.0, 0.0)
+}
+
+pub fn check_projectile_wall_collision_3d(
+    ctx: &ReducerContext, start_x: f32, start_y: f32, end_x: f32, end_y: f32, start_height: f32, end_height: f32,
+) -> Option<(u64, f32, f32)> {
     const WALL_COLLISION_THICKNESS: f32 = 6.0; // Same as player collision
     
     let walls = ctx.db.wall_cell();
+    let mut closest: Option<(u64, f32)> = None;
     
     // Calculate which tiles to check (within 2 tiles of line segment)
     let min_x = start_x.min(end_x);
@@ -2340,6 +2347,19 @@ pub fn check_projectile_wall_collision(
                 let tile_top = tile_y as f32 * FOUNDATION_TILE_SIZE_PX as f32;
                 let tile_right = tile_left + FOUNDATION_TILE_SIZE_PX as f32;
                 let tile_bottom = tile_top + FOUNDATION_TILE_SIZE_PX as f32;
+
+                if wall.edge == 4 || wall.edge == 5 {
+                    let start = crate::projectile_geometry::Point3 { x: start_x, y: start_y, height: start_height };
+                    let end = crate::projectile_geometry::Point3 { x: end_x, y: end_y, height: end_height };
+                    if let Some(segment) = crate::collision_geometry::construction_boundary(
+                        (tile_left + tile_right) / 2.0, (tile_top + tile_bottom) / 2.0, wall.edge, wall.foundation_shape, false,
+                    ) {
+                        if let Some(t) = crate::projectile_geometry::wall_segment_impact(start, end, (segment.ax, segment.ay), (segment.bx, segment.by), WALL_COLLISION_THICKNESS, 0.0, 97.0) {
+                            if closest.map_or(true, |(id, old_t)| t < old_t || (t == old_t && wall.id < id)) { closest = Some((wall.id, t)); }
+                        }
+                    }
+                    continue;
+                }
                 
                 // Determine wall edge bounds based on edge direction
                 // Edge 0 = North (top), 1 = East (right), 2 = South (bottom), 3 = West (left)
@@ -2359,24 +2379,21 @@ pub fn check_projectile_wall_collision(
                     _ => continue, // Skip invalid edges
                 };
                 
-                // Check if line segment intersects wall AABB
-                if line_intersects_aabb(start_x, start_y, end_x, end_y, wall_min_x, wall_max_x, wall_min_y, wall_max_y) {
-                    // Calculate approximate collision point
-                    let collision_x = end_x.max(wall_min_x).min(wall_max_x);
-                    let collision_y = end_y.max(wall_min_y).min(wall_max_y);
-                    
-                    log::info!(
-                        "[ProjectileCollision] Projectile path from ({:.1}, {:.1}) to ({:.1}, {:.1}) hits Wall {} at ({:.1}, {:.1})",
-                        start_x, start_y, end_x, end_y, wall.id, collision_x, collision_y
-                    );
-                    
-                    return Some((wall.id, collision_x, collision_y));
+                if let Some(t) = crate::projectile_geometry::box_impact(
+                    crate::projectile_geometry::Point3 { x: start_x, y: start_y, height: start_height },
+                    crate::projectile_geometry::Point3 { x: end_x, y: end_y, height: end_height },
+                    crate::projectile_geometry::Point3 { x: wall_min_x, y: wall_min_y, height: 0.0 },
+                    crate::projectile_geometry::Point3 { x: wall_max_x, y: wall_max_y, height: 97.0 },
+                ) {
+                    if closest.map_or(true, |(id, old_t)| t < old_t || (t == old_t && wall.id < id)) {
+                        closest = Some((wall.id, t));
+                    }
                 }
             }
         }
     }
     
-    None
+    closest.map(|(id, t)| (id, start_x + t * (end_x - start_x), start_y + t * (end_y - start_y)))
 }
 
 /// Checks if a line segment is blocked by walls (for melee attacks)

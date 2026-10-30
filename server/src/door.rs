@@ -459,21 +459,29 @@ pub fn check_door_projectile_collision(
     end_x: f32,
     end_y: f32,
 ) -> Option<(u64, f32, f32)> {
-    const CHECK_RADIUS_TILES: i32 = 3;
-    
-    // Get center point for spatial query
-    let center_x = (start_x + end_x) / 2.0;
-    let center_y = (start_y + end_y) / 2.0;
-    
-    let center_cell_x = (center_x / FOUNDATION_TILE_SIZE_PX as f32).floor() as i32;
-    let center_cell_y = (center_y / FOUNDATION_TILE_SIZE_PX as f32).floor() as i32;
+    check_door_projectile_collision_impl(ctx, start_x, start_y, end_x, end_y, 0.0, 0.0, false)
+}
+
+pub fn check_door_projectile_collision_3d(
+    ctx: &ReducerContext, start_x: f32, start_y: f32, end_x: f32, end_y: f32, start_height: f32, end_height: f32,
+) -> Option<(u64, f32, f32)> {
+    check_door_projectile_collision_impl(ctx, start_x, start_y, end_x, end_y, start_height, end_height, true)
+}
+
+fn check_door_projectile_collision_impl(
+    ctx: &ReducerContext, start_x: f32, start_y: f32, end_x: f32, end_y: f32, start_height: f32, end_height: f32, visual_edge: bool,
+) -> Option<(u64, f32, f32)> {
+    let size = FOUNDATION_TILE_SIZE_PX as f32;
+    let min_cell_x = ((start_x.min(end_x) - size) / size).floor() as i32;
+    let max_cell_x = ((start_x.max(end_x) + size) / size).floor() as i32;
+    let min_cell_y = ((start_y.min(end_y) - size) / size).floor() as i32;
+    let max_cell_y = ((start_y.max(end_y) + size) / size).floor() as i32;
     
     let doors = ctx.db.door();
+    let mut closest: Option<(u64, f32)> = None;
     
-    for cell_offset_x in -CHECK_RADIUS_TILES..=CHECK_RADIUS_TILES {
-        for cell_offset_y in -CHECK_RADIUS_TILES..=CHECK_RADIUS_TILES {
-            let check_cell_x = center_cell_x + cell_offset_x;
-            let check_cell_y = center_cell_y + cell_offset_y;
+    for check_cell_x in min_cell_x..=max_cell_x {
+        for check_cell_y in min_cell_y..=max_cell_y {
             
             for door in doors.idx_cell_coords().filter((check_cell_x, check_cell_y)) {
                 // Skip destroyed or open doors
@@ -496,7 +504,7 @@ pub fn check_door_projectile_collision(
                     },
                     2 => { // South edge - positioned higher to match player collision offset
                         const SOUTH_DOOR_COLLISION_OFFSET: f32 = 24.0;
-                        let collision_y = tile_bottom - SOUTH_DOOR_COLLISION_OFFSET;
+                        let collision_y = tile_bottom - if visual_edge { 0.0 } else { SOUTH_DOOR_COLLISION_OFFSET };
                         (tile_left, tile_right, collision_y - DOOR_COLLISION_THICKNESS / 2.0, collision_y + DOOR_COLLISION_THICKNESS / 2.0)
                     },
                     3 => { // West edge
@@ -505,25 +513,21 @@ pub fn check_door_projectile_collision(
                     _ => continue,
                 };
                 
-                // Simple AABB vs line segment intersection check
-                if line_intersects_aabb(start_x, start_y, end_x, end_y, 
-                                       door_min_x, door_min_y, door_max_x, door_max_y) {
-                    // Calculate approximate collision point
-                    let collision_x = end_x.max(door_min_x).min(door_max_x);
-                    let collision_y = end_y.max(door_min_y).min(door_max_y);
-                    
-                    log::info!(
-                        "[DoorProjectileCollision] Projectile path from ({:.1}, {:.1}) to ({:.1}, {:.1}) hits Door {} at ({:.1}, {:.1})",
-                        start_x, start_y, end_x, end_y, door.id, collision_x, collision_y
-                    );
-                    
-                    return Some((door.id, collision_x, collision_y));
+                if let Some(t) = crate::projectile_geometry::box_impact(
+                    crate::projectile_geometry::Point3 { x: start_x, y: start_y, height: start_height },
+                    crate::projectile_geometry::Point3 { x: end_x, y: end_y, height: end_height },
+                    crate::projectile_geometry::Point3 { x: door_min_x, y: door_min_y, height: 0.0 },
+                    crate::projectile_geometry::Point3 { x: door_max_x, y: door_max_y, height: 97.0 },
+                ) {
+                    if closest.map_or(true, |(id, old_t)| t < old_t || (t == old_t && door.id < id)) {
+                        closest = Some((door.id, t));
+                    }
                 }
             }
         }
     }
     
-    None
+    closest.map(|(id, t)| (id, start_x + t * (end_x - start_x), start_y + t * (end_y - start_y)))
 }
 
 /// Check if a line segment is blocked by any closed door (for melee attacks)

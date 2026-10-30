@@ -21,6 +21,7 @@ import { RangedAnimationTimeline, reloadPhase, timestampMs } from './actorAnimat
 import { actorInteraction } from './interactionAnimation';
 import { FootContactEffects3d } from './FootContactEffects3d';
 import { ProjectileWorld3d } from './ProjectileWorld3d';
+import { isThrowableMelee } from '../../runtime/throwableMelee';
 import { ExplosionEffects3d } from './ExplosionEffects3d';
 import { FishingEffects3d } from './FishingEffects3d';
 import { createPlacedExplosive } from './explosiveModels';
@@ -158,6 +159,7 @@ export class WebGpuWorldRenderer {
   private readonly explosionEffects = new ExplosionEffects3d(this.kit);
   private readonly fishingEffects = new FishingEffects3d(this.kit);
   private readonly rangedTimeline = new RangedAnimationTimeline();
+  private readonly thrownAt = new Map<string, number>();
   private readonly shardGlow = new MemoryShardGlow3d();
   private readonly collectibleGlitter = new CollectibleGlitter3d();
   private readonly underwater = new UnderwaterView3d(this.camera);
@@ -327,6 +329,16 @@ export class WebGpuWorldRenderer {
     this.shardGlow.beginFrame(time);
     this.collectibleGlitter.beginFrame(time, cycle, this.camera.quaternion);
     this.prepareBuildings(frame);
+    const renderNow = frame.nowMs ?? Date.now();
+    if (frame.tables.projectiles instanceof Map && frame.tables.itemDefinitions instanceof Map) {
+      for (const shot of frame.tables.projectiles.values()) {
+        const def = frame.tables.itemDefinitions.get(String(shot.itemDefId));
+        if (shot.sourceType !== 0 || shot.itemDefId !== shot.ammoDefId || !isThrowableMelee(def)) continue;
+        const owner = identity(shot.ownerId), at = timestampMs(shot.startTime);
+        if (owner && at > (this.thrownAt.get(owner) ?? 0)) this.thrownAt.set(owner, at);
+      }
+    }
+    for (const [owner, at] of this.thrownAt) if (renderNow - at > 700) this.thrownAt.delete(owner);
     this.shelterVisibility.prepare(frame.tables.shelters instanceof Map?frame.tables.shelters.values():[],frame.localPlayerId,frame.predictedPosition);
     for (const kind of STATIC_TABLES) this.syncTable(kind, frame, dt, time, seen, fires);
     this.syncTable('compoundLandmarks', {...frame,tables:{...frame.tables,compoundLandmarks:this.compoundLandmarks}},dt,time,seen,fires);
@@ -336,7 +348,8 @@ export class WebGpuWorldRenderer {
     this.projectileWorld.update(frame.tables.projectiles instanceof Map ? frame.tables.projectiles as Map<string, Projectile> : new Map(),
       frame.tables.itemDefinitions instanceof Map ? frame.tables.itemDefinitions as Map<string, ItemDefinition> : new Map(), frame.nowMs ?? Date.now(),
       (owner, target) => {
-        const muzzle = this.visuals.get(`players:${owner}`)?.survivor?.root.getObjectByName('muzzle');
+        const survivor = this.visuals.get(`players:${owner}`)?.survivor?.root;
+        const muzzle = survivor?.getObjectByName('muzzle') ?? survivor?.getObjectByName('projectile-origin') ?? survivor?.getObjectByName('right-hand-socket');
         if (!muzzle) return false; muzzle.getWorldPosition(target); return true;
       }, (x, y) => this.shelterVisibility.occludes(x, y));
     this.fishingEffects.update(frame.tables.fishingSessions instanceof Map ? frame.tables.fishingSessions : new Map(), frame.nowMs ?? Date.now(), (owner, target) => {
@@ -720,6 +733,7 @@ export class WebGpuWorldRenderer {
         const nowMs = frame.nowMs ?? Date.now();
         const jumpAge = nowMs - (isLocal && frame.jumpStartMs ? frame.jumpStartMs : Number(row.jumpStartTimeMs ?? 0));
         const swingAge = nowMs - Number(equipment?.swingStartTimeMs ?? 0);
+        const throwAge = nowMs - (this.thrownAt.get(id) ?? 0);
         const swingDuration = Math.max(120, Math.min(1500, (item?.attackIntervalSecs ?? .5) * 1000));
         const stats = frame.tables.rangedWeaponStats instanceof Map ? frame.tables.rangedWeaponStats.get(weapon) : undefined;
         const reload = reloadPhase(equipment?.reloadStartTimeMs, stats?.magazineReloadTimeSecs || stats?.reloadTimeSecs || 1.3, nowMs);
@@ -732,7 +746,9 @@ export class WebGpuWorldRenderer {
           jumpAge: jumpAge / 1000,
           jump: jumpAge > 0 && jumpAge < 500 ? Math.sin(jumpAge / 500 * Math.PI) : 0,
           roll: isLocal ? frame.rollProgress ?? 0 : 0,
-          attack: swingAge > 0 && swingAge < swingDuration ? swingAge / swingDuration : 0,
+          attack: throwAge >= 0 && throwAge < 400 ? throwAge / 400 : swingAge > 0 && swingAge < swingDuration ? swingAge / swingDuration : 0,
+          throwAiming: Boolean(row.isAimingThrow && isThrowableMelee(item)),
+          throwRelease: throwAge >= 0 && throwAge < 400 ? throwAge / 400 : undefined,
           yaw: playerCorpse ? visual.corpseYaw ?? 0 : yaw(isLocal ? frame.facing ?? row.direction ?? '' : row.direction ?? ''), weapon,
           torchLit: Boolean(row.isTorchLit && !row.isSnorkeling), loaded: Boolean(equipment?.loadedAmmoCount && equipment?.isReadyToFire),
           shotAge, reloadProgress: reload, reloading: reload !== undefined,
@@ -934,6 +950,7 @@ export class WebGpuWorldRenderer {
     this.disposed = true;
     this.terrainWorker?.dispose(); this.readyTerrain = null;
     this.rangedTimeline.clear();
+    this.thrownAt.clear();
     const warmupRelease = this.pipelineWarmup.dispose();
     // Renderer releases GPU resources before their shared CPU owners are disposed.
     const release = () => { this.device?.destroy(); this.device = null; this.water.dispose(); this.terrainMaterials.dispose(); this.swimmingEffects.dispose(); this.treeFallEffects.dispose(); this.combatEffects.dispose(); this.footEffects.dispose(); this.projectileWorld.dispose(); this.explosionEffects.dispose(); this.fishingEffects.dispose(); this.shardGlow.dispose(); this.collectibleGlitter.dispose(); this.underwater.dispose(); this.placementPreview.dispose(); this.batches.dispose(); this.terrain.geometry.dispose(); this.kit.dispose(); this.scene.clear(); this.visuals.clear(); this.prototypes.clear(); };
