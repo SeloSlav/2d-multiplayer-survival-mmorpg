@@ -88,6 +88,9 @@ pub const FLASHLIGHT_BEAM_RANGE_SQUARED: f32 = FLASHLIGHT_BEAM_RANGE * FLASHLIGH
 pub const FLASHLIGHT_BEAM_HALF_ANGLE: f32 = 0.523599; // ~30 degrees (60° total cone) in radians
 pub const FLASHLIGHT_HESITATION_SPEED_MULTIPLIER: f32 = 0.10; // 10% speed when in beam (severe slowdown - nearly frozen)
 
+// Living tall grass halves apparition detection range again after crouching.
+const TALL_GRASS_PERCEPTION_MULTIPLIER: f32 = 0.5;
+
 // === WARD DETERRENCE CONSTANTS ===
 // Wards create hard deterrence zones where hostile NPCs WILL NOT ENTER.
 // Unlike spawn reduction, this is a complete barrier - hostiles actively flee from ward zones.
@@ -169,6 +172,7 @@ const FISHING_VILLAGE_EXCLUSION_RADIUS_SQ: f32 = FISHING_VILLAGE_EXCLUSION_RADIU
 // This struct holds all data pre-fetched once per AI tick to avoid repeated table scans
 pub struct PreFetchedAIData {
     pub all_players: Vec<Player>,
+    pub players_in_tall_grass_cover: HashSet<Identity>,
     pub lit_torch_players: Vec<Player>,
     pub burning_campfires: Vec<Campfire>,
     pub active_foundations: Vec<FoundationCell>,
@@ -182,6 +186,12 @@ impl PreFetchedAIData {
     pub fn fetch(ctx: &ReducerContext) -> Self {
         let all_players: Vec<Player> = ctx.db.player().iter()
             .filter(|p| !p.is_dead && p.is_online)
+            .collect();
+        // Check cover once per crouching player per tick, not once per apparition.
+        let players_in_tall_grass_cover = all_players.iter()
+            .filter(|p| p.is_crouching && !p.is_inside_building && !p.is_snorkeling)
+            .filter(|p| crate::grass::is_position_in_tall_grass(ctx, p.position_x, p.position_y))
+            .map(|p| p.identity)
             .collect();
         let lit_torch_players: Vec<Player> = all_players
             .iter()
@@ -204,6 +214,7 @@ impl PreFetchedAIData {
         Self {
             // Only online players matter for active zone / wander checks - saves iterations
             all_players,
+            players_in_tall_grass_cover,
             lit_torch_players,
             burning_campfires: ctx.db.campfire().iter()
                 .filter(|c| c.is_burning && !c.is_destroyed)
@@ -1719,7 +1730,7 @@ fn update_animal_ai_state(
     
     let detected_player = if should_skip_fire_filtering {
         // These species don't filter players based on fire - use all nearby players
-        find_detected_player(ctx, animal, stats, &nearby_players)
+        find_detected_player(ctx, animal, stats, &nearby_players, &prefetched.players_in_tall_grass_cover)
     } else {
         // Normal species: filter out players with fire if this animal fears it
         let mut fire_safe_players = Vec::new();
@@ -1742,7 +1753,7 @@ fn update_animal_ai_state(
             }
         }
         
-        find_detected_player(ctx, animal, stats, &fire_safe_players)
+        find_detected_player(ctx, animal, stats, &fire_safe_players, &prefetched.players_in_tall_grass_cover)
     };
     behavior.update_ai_state_logic(ctx, animal, stats, detected_player.as_ref(), current_time, rng)?;
 
@@ -2454,7 +2465,7 @@ fn should_animal_wander(all_players: &[Player], animal: &WildAnimal) -> bool {
     get_closest_player_distance_squared(all_players, animal) <= WANDER_ACTIVATION_DISTANCE_SQUARED
 }
 
-fn find_detected_player(ctx: &ReducerContext, animal: &WildAnimal, stats: &AnimalStats, nearby_players: &[Player]) -> Option<Player> {
+fn find_detected_player(ctx: &ReducerContext, animal: &WildAnimal, stats: &AnimalStats, nearby_players: &[Player], players_in_tall_grass_cover: &HashSet<Identity>) -> Option<Player> {
     // Check if this is a hostile NPC that should respect shipwreck protection zones
     let is_hostile_npc = matches!(animal.species, 
         AnimalSpecies::Shorebound | AnimalSpecies::Shardkin | AnimalSpecies::DrownedWatch);
@@ -2519,6 +2530,12 @@ fn find_detected_player(ctx: &ReducerContext, animal: &WildAnimal, stats: &Anima
         } else {
             stats.perception_range
         };
+
+        // Concealment affects acquiring a target; an existing chase keeps its memory.
+        // Standing players and ordinary wildlife retain their existing detection rules.
+        if is_hostile_npc && player.is_crouching && players_in_tall_grass_cover.contains(&player.identity) {
+            effective_perception_range *= TALL_GRASS_PERCEPTION_MULTIPLIER;
+        }
         
         // 🦊 FOX FUR ARMOR: Detection radius bonus makes animals less likely to detect you
         // Each piece of Fox Fur armor reduces animal detection range by the bonus percentage

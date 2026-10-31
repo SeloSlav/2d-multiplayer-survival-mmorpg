@@ -25,6 +25,9 @@ pub(crate) const PLANT_FIBER_MAX_DROP: u32 = 18; // Maximum fiber dropped (was 1
 pub(crate) const GRASS_INTERACTION_DISTANCE: f32 = 80.0; // Max distance to interact with grass
 pub(crate) const GRASS_INTERACTION_DISTANCE_SQ: f32 = GRASS_INTERACTION_DISTANCE * GRASS_INTERACTION_DISTANCE;
 
+// A player must be within one tile of a living tall-grass clump to use its cover.
+const TALL_GRASS_COVER_RADIUS: f32 = 48.0;
+
 // Grass Spawning Parameters - Optimized for dense "seas" of grass
 pub(crate) const GRASS_DENSITY_PERCENT: f32 = 0.18; // Used for noise-based density calculation
 pub(crate) const GRASS_SPAWN_NOISE_FREQUENCY: f64 = 1.2; // Much lower frequency = HUGE contiguous patches/regions (was 2.5, originally 10.0)
@@ -85,6 +88,16 @@ pub enum GrassAppearanceType {
 
 // --- NEW: Helper function to check if grass type is a bramble (indestructible) ---
 impl GrassAppearanceType {
+    /// Tall foliage that can conceal a crouching player, including coastal grass.
+    pub fn is_tall_grass(&self) -> bool {
+        matches!(self,
+            Self::TallGrassA | Self::TallGrassB |
+            Self::TallGrassTundraA | Self::TallGrassTundraB |
+            Self::TallGrassAlpineA | Self::TallGrassAlpineB |
+            Self::BeachGrassA
+        )
+    }
+
     /// Returns true if this grass type is a bramble and should be indestructible
     pub fn is_bramble(&self) -> bool {
         matches!(self, GrassAppearanceType::BramblesA | GrassAppearanceType::BramblesB)
@@ -154,6 +167,35 @@ pub struct GrassState {
     #[index(btree)]
     pub respawn_at: Timestamp,
 } 
+
+/// Query only chunks overlapping the cover radius, including across chunk edges.
+/// Read live state so cutting grass removes cover and regrowth restores it.
+pub(crate) fn is_position_in_tall_grass(ctx: &ReducerContext, x: f32, y: f32) -> bool {
+    use crate::environment::{calculate_chunk_index, WORLD_WIDTH_CHUNKS};
+
+    let min_chunk = calculate_chunk_index(x - TALL_GRASS_COVER_RADIUS, y - TALL_GRASS_COVER_RADIUS);
+    let max_chunk = calculate_chunk_index(x + TALL_GRASS_COVER_RADIUS, y + TALL_GRASS_COVER_RADIUS);
+    let grass_table = ctx.db.grass();
+    let states = ctx.db.grass_state();
+
+    for chunk_y in (min_chunk / WORLD_WIDTH_CHUNKS)..=(max_chunk / WORLD_WIDTH_CHUNKS) {
+        for chunk_x in (min_chunk % WORLD_WIDTH_CHUNKS)..=(max_chunk % WORLD_WIDTH_CHUNKS) {
+            let chunk_index = chunk_y * WORLD_WIDTH_CHUNKS + chunk_x;
+            for grass in grass_table.chunk_index().filter(chunk_index) {
+                if !grass.appearance_type.is_tall_grass() {
+                    continue;
+                }
+                let distance_sq = crate::utils::get_distance_squared(x, y, grass.pos_x, grass.pos_y);
+                if distance_sq <= TALL_GRASS_COVER_RADIUS * TALL_GRASS_COVER_RADIUS
+                    && states.grass_id().find(grass.id).is_some_and(|state| state.is_alive && state.health > 0)
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
 
 // --- GRASS RESPAWN: BATCH SCHEDULER ---
 // 
@@ -529,4 +571,4 @@ pub fn spawn_grass_entity(
         .map_err(|e| format!("Failed to insert GrassState for grass {}: {}", grass_id, e))?;
     
     Ok(grass_id)
-} 
+}
