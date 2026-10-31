@@ -141,6 +141,8 @@ mod tilled_tiles; // <<< ADDED tilled tiles module for farming soil preparation
 pub mod wild_animal_npc; // <<< ADDED wild animal NPC system (now modular, includes hostile NPCs)
 mod animal_collision; // <<< ADDED animal collision system
 mod barrel; // <<< ADDED roadside barrel loot system
+mod cover_geometry;
+mod world_cover;
 mod metadata_providers; // <<< ADDED: Provides plant/seed metadata to client
 mod sea_stack; // <<< ADDED: Sea stack decorative entities
 mod memory_grid; // <<< ADDED: Memory Grid tech tree system

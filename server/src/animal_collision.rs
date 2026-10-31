@@ -91,6 +91,9 @@ pub fn resolve_animal_collision(
     let animal_row = ctx.db.wild_animal().id().find(&animal_id);
     let animal_species = animal_row.as_ref().map(|a| a.species);
     let animal_is_flying = animal_row.as_ref().map(|a| a.is_flying).unwrap_or(false);
+    if !animal_is_flying && !matches!(animal_species,Some(AnimalSpecies::Bee)) && crate::world_cover::blocks_path(ctx,(current_x,current_y),(proposed_x,proposed_y),24.0) {
+        return (current_x,current_y);
+    }
     
     // BEES: No collision with players - they fly through everything
     let is_bee = matches!(animal_species, Some(crate::wild_animal_npc::AnimalSpecies::Bee));
@@ -1139,6 +1142,9 @@ pub fn validate_animal_spawn_position(
     pos_y: f32,
     species: Option<AnimalSpecies>,
 ) -> Result<(), String> {
+    if crate::world_cover::blocks_path(ctx,(pos_x,pos_y),(pos_x,pos_y),32.0) {
+        return Err("Cannot spawn wildlife inside natural cover".to_string());
+    }
     if crate::wild_animal_npc::core::is_position_in_alk_wildlife_zone(ctx, pos_x, pos_y) {
         return Err("Cannot spawn wildlife near an ALK compound".to_string());
     }
@@ -1189,6 +1195,11 @@ pub fn can_animal_move_to_position(
     proposed_y: f32,
     is_attacking: bool,
 ) -> bool {
+    if let Some(animal) = ctx.db.wild_animal().id().find(animal_id) {
+        if !animal.is_flying && animal.species != AnimalSpecies::Bee && crate::world_cover::blocks_path(ctx,(animal.pos_x,animal.pos_y),(proposed_x,proposed_y),24.0) {
+            return false;
+        }
+    }
     // Quick check for water - allow walruses to swim
     if is_water_tile(ctx, proposed_x, proposed_y) {
         if let Some(animal) = ctx.db.wild_animal().id().find(&animal_id) {
@@ -1222,6 +1233,7 @@ pub fn has_clear_line_of_sight(
     to_x: f32,
     to_y: f32,
 ) -> bool {
+    if crate::world_cover::blocks_path(ctx,(from_x,from_y),(to_x,to_y),0.0) { return false; }
     // If wall blocks the path, LOS is blocked
     if check_wall_line_collision(&ctx.db, from_x, from_y, to_x, to_y).is_some() {
         return false;

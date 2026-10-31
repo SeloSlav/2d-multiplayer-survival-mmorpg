@@ -14,6 +14,7 @@ use crate::{
     world_pos_to_tile_coords,
 };
 use crate::player as PlayerTableTrait;
+use crate::barrel::barrel as _;
 use crate::active_equipment::active_equipment as ActiveEquipmentTableTrait;
 use crate::items::{item_definition as ItemDefinitionTableTrait, inventory_item as InventoryItemTableTrait};
 use crate::homestead_hearth::homestead_hearth as HomesteadHearthTableTrait;
@@ -843,6 +844,18 @@ pub fn place_foundation(
     
     // 5.2. Check if position is within monument zones (ALK stations, rune stones, hot springs, quarries)
     check_monument_zone_placement(ctx, world_x, world_y)?;
+
+    // A foundation must not swallow a living barricade. Once it is cleared,
+    // the normal cover respawn check will respect the new foundation.
+    for prop in ctx.db.barrel().iter().filter(|p| p.health > 0.0) {
+        if let Some(cover) = crate::cover_geometry::profile(prop.variant) {
+            let half = FOUNDATION_TILE_SIZE_PX as f32 / 2.0;
+            if (world_x-prop.pos_x).abs() < half+cover.width/2.0
+                && (world_y-prop.pos_y).abs() < half+cover.depth/2.0 {
+                return Err("Clear the natural barricade before building here.".to_string());
+            }
+        }
+    }
     
     // 5.25. Check if position has grass (cannot place foundation on grass - must clear first)
     // Foundation is 96x96 pixels, check if any alive grass is within the foundation bounds

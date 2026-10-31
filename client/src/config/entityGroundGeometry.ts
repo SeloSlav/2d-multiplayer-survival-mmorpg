@@ -1,4 +1,5 @@
 import collisionGeometry from '../../../shared/config/collisionGeometry.json';
+import { combatCoverProfile } from './combatCover';
 
 /** Shared existing client collision anchors. These preserve current prediction behavior;
  * server disagreements are recorded in docs/webgpu-migration.md, not corrected here.
@@ -67,6 +68,7 @@ export const SHELTER_DIMS = {
 /** Keep the existing water-barrel translation shared with prediction. */
 export function getBarrelCollisionOffset(barrel: { variant?: number }, onSea = false): { x: number; y: number } {
   const variant = Number(barrel.variant ?? 0);
+  if (combatCoverProfile(variant)) return { x: 0, y: 0 };
   if (variant === 6) return { x: 0, y: -110 };
   if (variant < 3 && onSea) return { x: 52, y: 0 };
   return { x: 0, y: COLLISION_OFFSETS.BARREL.y * (variant === 4 ? 2 : 1) };

@@ -7,6 +7,7 @@ export { COLLISION_OFFSETS, SHELTER_DIMS, MONUMENT_BUILDING_COLLISION } from '..
 import { gameConfig, FOUNDATION_TILE_SIZE, foundationCellToWorldCenter } from '../config/gameConfig';
 import { COMPOUND_BUILDINGS, getBuildingWorldPosition, isCompoundMonument } from '../config/compoundBuildings';
 import { alkBuildingFootprint, alkTurretFootprint } from '../config/alkGeometry';
+import { combatCoverProfile } from '../config/combatCover';
 
 // Add at top after imports:
 // Spatial filtering constants
@@ -420,10 +421,17 @@ function getCollisionCandidates(
   );
   
   for (const barrel of nearbyBarrels) {
+    if (barrel.health <= 0) continue;
     // Skip destroyed barrels (respawning)
     if (barrel.respawnAt && barrel.respawnAt.microsSinceUnixEpoch !== 0n) continue;
     
     const variantIndex = Number(barrel.variant ?? 0);
+    const cover = combatCoverProfile(variantIndex);
+    if (cover) {
+      shapes.push({ id: barrel.id.toString(), type: `barrel-${barrel.id}`, x: barrel.posX, y: barrel.posY,
+        width: cover.width, height: cover.depth });
+      continue;
+    }
     const isBuoy = variantIndex === 6;
     const barrelOffset = getBarrelCollisionOffset(barrel, !!isOnSeaTile?.(barrel.posX, barrel.posY));
     const collisionRadius = isBuoy ? COLLISION_RADII.BARREL : variantIndex === 4 ? COLLISION_RADII.BARREL * 2 : COLLISION_RADII.BARREL;

@@ -6,6 +6,7 @@
  ******************************************************************************/
 
 use spacetimedb::{ReducerContext, Table};
+use crate::barrel::barrel as _;
 
 use crate::campfire::campfire as CampfireTableTrait;
 use crate::furnace::{furnace as FurnaceTableTrait, get_furnace_collision_radius, get_furnace_collision_y_offset};
@@ -53,6 +54,14 @@ pub fn check_placeable_overlap(
     half_height: f32,
     allow_shelter_overlap: bool,
 ) -> Result<(), String> {
+    for e in ctx.db.barrel().iter() {
+        if e.health <= 0.0 { continue; }
+        if let Some(cover) = crate::cover_geometry::profile(e.variant) {
+            if rects_overlap(center_x,center_y,half_width,half_height,e.pos_x,e.pos_y,cover.width/2.0,cover.depth/2.0) {
+                return Err("Clear the natural barricade before building here.".to_string());
+            }
+        }
+    }
     // Campfires: pos is center-ish (pos_y has offset)
     for e in ctx.db.campfire().iter() {
         if e.is_destroyed { continue; }

@@ -4,6 +4,8 @@ import {
   Scene, SRGBColorSpace, StandardNodeLibrary, Vector3, WebGPUBackend, ACESFilmicToneMapping,
 } from 'three/webgpu';
 import { AnimalRig } from './animals';
+import { combatCoverProfile } from '../../../config/combatCover';
+import { createCombatCover } from './combatCoverModels';
 import {
   createBarrel, createCampfire, createPlant, createRock, createTree,
 } from './environmentModels';
@@ -404,7 +406,7 @@ export class WebGpuWorldRenderer {
       const sx = (position.x + frame.cameraOffset.x - frame.width / 2) * zoom + frame.width / 2;
       const sy = (position.y + frame.cameraOffset.y - frame.height / 2) * zoom + frame.height / 2;
       if (this.diving || this.shelterVisibility.occludes(position.x, position.y) || sx < -240 || sy < -240 || sx > frame.width + 240 || sy > frame.height + 240) return null;
-      const floating = event.variant >= 3 || this.waterTiles.has(`${Math.floor(position.x / 48)},${Math.floor(position.y / 48)}`);
+      const floating = !combatCoverProfile(event.variant) && (event.variant >= 3 || this.waterTiles.has(`${Math.floor(position.x / 48)},${Math.floor(position.y / 48)}`));
       const visual = this.visuals.get(`barrels:${event.id}`);
       if (visual) { visual.root.updateMatrixWorld(true); target.copy(visual.root.matrixWorld); }
       else {
@@ -762,7 +764,7 @@ export class WebGpuWorldRenderer {
       }
       if (kind === 'seaStacks') visual.root.scale.set(row.scale ?? 1, row.scale ?? 1, (row.scale ?? 1) * GROUND_Y_SCALE);
       if (!hiddenBySurface && kind === 'roadLampposts' && isNightTime(cycleOf(frame))) fires.push({ position: new Vector3(p.x + .6, 3.75, p.z), color: 0xffd299, intensity: 4 });
-      if (kind === 'barrels' && (waterKind || row.variant === 6 || (row.variant ?? 0) >= 3)) {
+      if (kind === 'barrels' && !combatCoverProfile(row.variant ?? 0) && (waterKind || row.variant === 6 || (row.variant ?? 0) >= 3)) {
         const bob = floatingPose(time, row.posX ?? position.x, row.posY ?? position.y);
         // Center the 1.06-unit barrel body on the waterline, keeping its gentle bob.
         visual.root.position.y = (row.variant === 6 ? -.1 : -.52) + bob.height; visual.root.rotation.set(bob.pitch, 0, bob.roll);
@@ -981,7 +983,7 @@ export class WebGpuWorldRenderer {
         else if (kind === 'placedExplosives') prototype = createPlacedExplosive(this.kit, tag(row.explosiveType) === 'MatriarchWrath');
         else if (kind === 'stones') prototype = createRock(this.kit, tag(row.oreType), seed % 8);
         else if (kind === 'woodenStorageBoxes') prototype = createStorageModel(this.kit, row.boxType ?? 0);
-        else if (kind === 'barrels') prototype = row.variant === 6 ? createBuoy(this.kit) : createBarrel(this.kit, row.variant ?? 0);
+        else if (kind === 'barrels') prototype = combatCoverProfile(row.variant ?? 0) ? createCombatCover(this.kit, row.variant!) : row.variant === 6 ? createBuoy(this.kit) : createBarrel(this.kit, row.variant ?? 0);
         else if (kind === 'foundationCells' || kind === 'ceilings') prototype = createFoundationModel(this.kit, row.tier ?? 0, row.shape ?? 1, kind === 'ceilings');
         else if (kind === 'wallCells') prototype = createWallModel(this.kit, row.tier ?? 0, row.edge ?? 0, row.foundationShape ?? 1);
         else if (kind === 'fences') prototype = createFenceModel(this.kit, row.tier ?? 1, row.edge ?? 0);

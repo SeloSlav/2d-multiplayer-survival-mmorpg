@@ -1,6 +1,8 @@
 import { Color, Group, InstancedBufferAttribute, InstancedMesh, Matrix3, Matrix4, MeshStandardNodeMaterial, Quaternion, Vector3 } from 'three/webgpu';
 import { attribute, mix } from 'three/tsl';
 import { barrelPaint, createBarrel } from './environmentModels';
+import { combatCoverProfile } from '../../../config/combatCover';
+import { CombatCoverDebris3d } from './CombatCoverDebris3d';
 import type { ModelKit } from './modelKit';
 import { barrelFractureSeeds, createVoronoiFragments } from './voronoiFracture';
 import type { FracturePiece } from './voronoiFracture';
@@ -17,6 +19,7 @@ export type BarrelFracturePose = (event: WorldBarrelBreak, target: Matrix4) => n
 /** Precut, capped solid cells. One instanced draw per cell serves every burst;
  * geometry and motion storage are allocated once, not during destruction. */
 export class BarrelFractureEffects3d {
+  private readonly coverDebris: CombatCoverDebris3d;
   readonly root = new Group();
   readonly fragments: readonly FracturePiece[];
   readonly meshes: InstancedMesh[] = [];
@@ -33,6 +36,7 @@ export class BarrelFractureEffects3d {
   private count = 0;
 
   constructor(kit: ModelKit) {
+    this.coverDebris=new CombatCoverDebris3d(kit);this.root.add(this.coverDebris.root);
     this.root.name = 'barrel-voronoi-fractures'; this.root.visible = false;
     this.fragments = createVoronoiFragments(createBarrel(kit), barrelFractureSeeds(), barrelPaint(0));
     // Only the original painted shell changes between barrel variants. Bands,
@@ -75,7 +79,10 @@ export class BarrelFractureEffects3d {
     for (const event of worldBarrelBreaksAfter(this.cursor, now)) {
       this.cursor = Math.max(this.cursor, event.sequence);
       const floor = pose?.(event, this.origin);
-      if (floor !== undefined && floor !== null) this.spawn(event.id, event.variant, event.at, this.origin, floor);
+      if (floor !== undefined && floor !== null) {
+        if(combatCoverProfile(event.variant))this.coverDebris.spawn(event.id,event.variant,event.at,this.origin,floor);
+        else this.spawn(event.id, event.variant, event.at, this.origin, floor);
+      }
     }
     for (let i = 0; i < this.count;) {
       const age = now - this.slots[i].at;
@@ -104,7 +111,8 @@ export class BarrelFractureEffects3d {
         this.paintAttributes[i].setXYZ(index, slot.paint.r, slot.paint.g, slot.paint.b);
       }
     }
-    this.root.visible = !submerged && this.count > 0;
+    this.coverDebris.update(now);
+    this.root.visible = !submerged && (this.count > 0 || this.coverDebris.activeCount > 0);
     for (let i = 0; i < this.meshes.length; i++) {
       this.meshes[i].count = this.count;
       if (this.count) { this.meshes[i].instanceMatrix.needsUpdate = true; this.paintAttributes[i].needsUpdate = true; }
@@ -120,6 +128,7 @@ export class BarrelFractureEffects3d {
     return bottom;
   }
   dispose(): void {
+    this.coverDebris.dispose();
     this.root.removeFromParent(); this.count = 0;
     for (const mesh of this.meshes) { mesh.dispose(); mesh.geometry.dispose(); }
     this.material.dispose(); this.root.clear();

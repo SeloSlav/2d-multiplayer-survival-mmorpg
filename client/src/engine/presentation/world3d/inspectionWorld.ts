@@ -149,9 +149,11 @@ export function createInspectionWorld(seed = 73021, scene: InspectionScene = 'wo
       else world.wildAnimals.set(`wildlife-${species}`, { posX: x, posY: y, species: { tag: species }, spawnX: x, spawnY: y, directionX: 1, directionY: 0, facingDirection: 'right', state: { tag: 'Patrolling' }, isFlying: false, phase: i * .7 });
     });
   } else if (scene === 'natural') {
+    [7,8,9,10,11].forEach((variant,i) => world.barrels.set(`cover-${variant}`,
+      { posX:(11+i*5)*48,posY:18*48,variant,health:600 }));
     ['Green', 'Red', 'Blue'].forEach((type, i) => world.runeStones.set(`rune-${i}`, { posX: (13 + i * 5) * 48, posY: 13 * 48, runeType: { tag: type } }));
-    ['beach', 'tundra', 'alpine'].forEach((type, i) => world.cairns.set(`cairn-${i}`, { posX: (13 + i * 4) * 48, posY: 18 * 48, loreId: type }));
-    world.basaltColumns.set('column', { posX: 26 * 48, posY: 18 * 48, columnType: { tag: 'Type2' } });
+    ['beach', 'tundra', 'alpine'].forEach((type, i) => world.cairns.set(`cairn-${i}`, { posX: (13 + i * 4) * 48, posY: 25 * 48, loreId: type }));
+    world.basaltColumns.set('column', { posX: 26 * 48, posY: 25 * 48, columnType: { tag: 'Type2' } });
     world.fumaroles.set('vent', { posX: 29 * 48, posY: 13 * 48 });
     world.roadLampposts.set('lamp', { posX: 29 * 48, posY: 21 * 48 });
   } else if (scene === 'reef') {

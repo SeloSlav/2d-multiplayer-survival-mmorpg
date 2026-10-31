@@ -96,7 +96,7 @@ pub struct Barrel {
     pub pos_x: f32,
     pub pos_y: f32,
     pub health: f32,
-    pub variant: u8, // 0, 1, 2 for road barrels; 3, 4, 5 for sea flotsam/cargo crates (can spawn around sea stacks or on beaches)
+    pub variant: u8, // 0-2 road loot; 3-5 flotsam; 6 buoy; 7-11 natural combat cover
     #[index(btree)]
     pub chunk_index: u32,
     pub last_hit_time: Option<Timestamp>,
@@ -222,6 +222,12 @@ pub fn has_barrel_collision(ctx: &ReducerContext, pos_x: f32, pos_y: f32, exclud
         if barrel.health == 0.0 { continue; } // Skip destroyed barrels
         if let Some(exclude) = exclude_id {
             if barrel.id == exclude { continue; } // Skip the barrel we're checking against
+        }
+
+        if let Some(cover) = crate::cover_geometry::profile(barrel.variant) {
+            if (pos_x-barrel.pos_x).abs() < cover.width/2.0+BARREL_COLLISION_RADIUS
+                && (pos_y-barrel.pos_y).abs() < cover.depth/2.0+BARREL_COLLISION_RADIUS { return true; }
+            continue;
         }
         
         let (collision_radius, collision_y_offset) = if barrel.variant == BUOY_VARIANT {
@@ -410,6 +416,25 @@ pub fn damage_barrel(
     if barrel.variant == BUOY_VARIANT {
         return Err("The buoy is indestructible.".to_string());
     }
+
+    if let Some(cover) = crate::cover_geometry::profile(barrel.variant) {
+        barrel.health = crate::cover_geometry::damage_after_hit(barrel.health, damage);
+        barrel.last_hit_time = Some(timestamp);
+        if barrel.health <= 0.0 {
+            barrel.respawn_at = Timestamp::from_micros_since_unix_epoch(
+                timestamp.to_micros_since_unix_epoch() + crate::cover_geometry::COVER.respawn_seconds * 1_000_000);
+            if cover.material == "wood" {
+                crate::sound_events::emit_box_destroyed_sound(ctx, barrel.pos_x, barrel.pos_y, attacker_id);
+            } else { crate::sound_events::emit_stone_destroyed_sound(ctx, barrel.pos_x, barrel.pos_y, attacker_id); }
+        } else if cover.material == "wood" {
+            crate::sound_events::emit_wood_hit_sound(ctx, barrel.pos_x, barrel.pos_y, attacker_id);
+        } else {
+            crate::sound_events::emit_stone_hit_sound(ctx, barrel.pos_x, barrel.pos_y, attacker_id);
+        }
+        // Natural cover is not a loot barrel and does not award barrel achievements.
+        barrels.id().update(barrel);
+        return Ok(());
+    }
     
     let old_health = barrel.health;
     barrel.health = (barrel.health - damage).max(0.0);
@@ -479,6 +504,8 @@ pub fn respawn_destroyed_barrels(ctx: &ReducerContext, _schedule: BarrelRespawnS
     }
 
     let current_time = ctx.timestamp;
+    // Also fills existing worlds after a module update, without resetting the map.
+    crate::world_cover::seed_if_missing(ctx);
     let barrels = ctx.db.barrel();
     let mut respawned_count = 0;
     
@@ -524,9 +551,14 @@ pub fn respawn_destroyed_barrels(ctx: &ReducerContext, _schedule: BarrelRespawnS
         .collect();
     
     for mut barrel in barrels_to_respawn {
+        if let Some(cover) = crate::cover_geometry::profile(barrel.variant) {
+            if !crate::world_cover::can_respawn(ctx, barrel.pos_x, barrel.pos_y, cover) { continue; }
+        }
         if crate::indoors::blocks_world_spawn(ctx, barrel.pos_x, barrel.pos_y) || crate::indoors::blocks_world_spawn(ctx, barrel.pos_x, barrel.pos_y-BARREL_COLLISION_Y_OFFSET) { continue; }
         // Reset barrel state
-        barrel.health = BARREL_INITIAL_HEALTH;
+        barrel.health = if crate::cover_geometry::profile(barrel.variant).is_some() {
+            crate::cover_geometry::COVER.health
+        } else { BARREL_INITIAL_HEALTH };
         barrel.respawn_at = Timestamp::UNIX_EPOCH; // Use epoch to mean "not respawning"
         barrel.last_hit_time = None;
         

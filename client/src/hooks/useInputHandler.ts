@@ -25,6 +25,7 @@
 
 import { useEffect, useSyncExternalStore, useCallback, useMemo, MutableRefObject } from 'react';
 import { useLatest } from './useLatest';
+import { combatCoverProfile, coverTargetPoint } from '../config/combatCover';
 import { readLocalPlayerLife, sendAlivePlayerAction } from '../engine/runtime/localPlayerLifecycle';
 import { recordActorInteraction } from '../engine/presentation/world3d/interactionAnimation';
 import { recordPredictedRangedShot } from '../engine/presentation/world3d/actorAnimation';
@@ -97,6 +98,8 @@ type OptimisticHarvestPick = {
 };
 
 function barrelHarvestPredictSound(variant: number): HarvestHitPredictSound {
+    const cover = combatCoverProfile(variant);
+    if (cover) return cover.material === 'wood' ? 'hit_wood' : 'stone_hit';
     if (variant === 4) return 'hit_trash';
     if (variant === 3) return 'hit_wood';
     return 'barrel_hit';
@@ -579,8 +582,10 @@ export const useInputHandler = ({
                     barrelsRef.current?.forEach((barrel) => {
                         if (barrel.health === 0) return;
                         const barrelVariant = (barrel as { variant?: number }).variant ?? 0;
-                        const barrelCollisionYOffset = barrelVariant === 6 ? 110 : barrelVariant === 4 ? 96 : 48;
-                        const { inCone, distSq } = isInAttackCone(px, py, dir, barrel.posX, barrel.posY, barrelCollisionYOffset, attackRange, attackAngle);
+                        const cover = combatCoverProfile(barrelVariant);
+                        const barrelCollisionYOffset = cover ? 0 : barrelVariant === 6 ? 110 : barrelVariant === 4 ? 96 : 48;
+                        const point = coverTargetPoint(barrelVariant,barrel.posX,barrel.posY,px,py);
+                        const { inCone, distSq } = isInAttackCone(px, py, dir, point.x, point.y, barrelCollisionYOffset, attackRange, attackAngle);
                         if (inCone && (!best || distSq < best.d2)) {
                             const bvs = barrelVariant;
                             best = {

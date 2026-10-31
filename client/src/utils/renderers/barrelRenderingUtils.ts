@@ -19,6 +19,7 @@
  */
 
 import { Barrel } from '../../generated/types'; // Import generated type
+import { combatCoverProfile } from '../../config/combatCover';
 import barrelImage from '../../assets/doodads/barrel.png'; // Variant 0
 import barrel2Image from '../../assets/doodads/barrel2.png'; // Variant 1 
 import barrel3Image from '../../assets/doodads/barrel3.png'; // Variant 2
@@ -325,6 +326,7 @@ export function hasActiveBarrelDestruction(barrelId: string): boolean {
  */
 export function checkBarrelDestructionVisibility(barrel: Barrel): boolean {
     const variantIndex = Number(barrel.variant ?? 0);
+    if (combatCoverProfile(variantIndex)) return false;
     if (variantIndex === 6) return false; // Buoy is indestructible
 
     const barrelId = barrel.id.toString();
@@ -346,6 +348,7 @@ export function checkBarrelDestructionVisibility(barrel: Barrel): boolean {
  * Trigger barrel destruction effect.
  */
 export function triggerBarrelDestructionEffect(barrel: Barrel): void {
+    if (combatCoverProfile(Number(barrel.variant ?? 0))) return;
     const barrelId = barrel.id.toString();
     if (activeBarrelDestructions.has(barrelId)) return;
 
@@ -832,6 +835,26 @@ export function renderBarrel(
     if (hasActiveBarrelDestruction(barrelId)) return;
 
     const variantIndex = Number(barrel.variant ?? 0);
+    const cover = combatCoverProfile(variantIndex);
+    if (cover) {
+        // Explicit legacy rendering also uses the authoritative ground footprint.
+        if (barrel.health <= 0) return;
+        const w=cover.width,h=cover.height,d=cover.depth;
+        ctx.save();ctx.translate(barrel.posX,barrel.posY);
+        ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(0,0,w/2,d/2,0,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle=`#${cover.color.toString(16).padStart(6,'0')}`;
+        if(cover.material==='wood') {
+            ctx.fillRect(-w/2,-h,w,h);ctx.strokeStyle='#40392d';ctx.lineWidth=3;
+            for(let i=1;i<5;i++){ctx.beginPath();ctx.moveTo(-w/2+4,-h+i*h/5);ctx.lineTo(w/2-4,-h+i*h/5);ctx.stroke();}
+            ctx.fillStyle='#bea47e';ctx.beginPath();ctx.ellipse(-w/2+6,-h/2,6,h/2,0,0,Math.PI*2);ctx.fill();
+        } else {
+            for(let i=0;i<5;i++) {const x=-w/2+i*w/5;
+                ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x-4,-h*.55);ctx.lineTo(x+8,-h*(.8+(i%2)*.15));
+                ctx.lineTo(x+w/5,-h*.9);ctx.lineTo(x+w/5+5,-h*.3);ctx.lineTo(x+w/5,0);ctx.closePath();ctx.fill();
+                ctx.strokeStyle='#44494c';ctx.lineWidth=2;ctx.stroke();}
+        }
+        ctx.restore();return;
+    }
     
     // Apply water effects when barrel is on a sea tile (any variant - road barrels near coast can end up on water)
     // If isOnSeaTile callback is provided, use it to verify the barrel is on water

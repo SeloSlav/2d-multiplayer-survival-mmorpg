@@ -1092,8 +1092,10 @@ pub fn find_targets_in_cone(
             crate::barrel::BARREL_COLLISION_Y_OFFSET
         };
         
-        let dx = barrel.pos_x - player.position_x;
-        let target_y = barrel.pos_y - collision_y_offset;
+        let (target_x,target_y) = if let Some(cover) = crate::cover_geometry::profile(barrel.variant) {
+            cover.nearest_point(barrel.pos_x,barrel.pos_y,player.position_x,player.position_y)
+        } else { (barrel.pos_x,barrel.pos_y-collision_y_offset) };
+        let dx = target_x - player.position_x;
         let dy = target_y - player.position_y;
         let dist_sq = dx * dx + dy * dy;
         
@@ -4077,6 +4079,8 @@ pub fn process_attack(
     rng: &mut impl Rng
 ) -> Result<AttackResult, String> {
     // NEW: Check line of sight before processing any attack
+    let attacker = ctx.db.player().identity().find(&attacker_id)
+        .ok_or_else(|| "Attacker not found".to_string())?;
     let (target_x, target_y, target_player_id) = match &target.id {
         TargetId::Player(player_id) => {
             if let Some(target_player) = ctx.db.player().identity().find(player_id) {
@@ -4203,7 +4207,10 @@ pub fn process_attack(
                 } else {
                     BARREL_COLLISION_Y_OFFSET
                 };
-                (barrel.pos_x, barrel.pos_y - y_offset, None)
+                if let Some(cover) = crate::cover_geometry::profile(barrel.variant) {
+                    let (x,y)=cover.nearest_point(barrel.pos_x,barrel.pos_y,attacker.position_x,attacker.position_y);
+                    (x,y,None)
+                } else { (barrel.pos_x, barrel.pos_y - y_offset, None) }
             } else {
                 return Err("Target barrel not found".to_string());
             }
@@ -4253,10 +4260,6 @@ pub fn process_attack(
             }
         },
     };
-
-    // Get attacker position
-    let attacker = ctx.db.player().identity().find(&attacker_id)
-        .ok_or_else(|| "Attacker not found".to_string())?;
 
     // Melee from water cannot connect with targets on dry land (no reach onto shore).
     // Applies to every weapon (torch, harpoon, etc.), wading or snorkeling — not torch-only.
@@ -4443,6 +4446,15 @@ pub fn process_attack(
         attacker_id, attacker.position_x, attacker.position_y, target.id, target_x, target_y, target_is_shelter
     );
     
+    let ignored_cover = match target.id { TargetId::Barrel(id) => Some(id), _ => None };
+    if let Some(cover) = crate::world_cover::first_blocker(ctx,
+        crate::projectile_geometry::Point3{x:attacker.position_x,y:attacker.position_y,height:40.0},
+        crate::projectile_geometry::Point3{x:target_x,y:target_y,height:40.0},0.0,ignored_cover) {
+        // A preferred player/resource behind cover must not absorb the swing.
+        // Resolve against the first barricade using the same reach and damage rules.
+        let blocked_target = Target { target_type:TargetType::Barrel,id:TargetId::Barrel(cover.id),distance_sq:target.distance_sq };
+        return process_attack(ctx,attacker_id,&blocked_target,item_def,timestamp,rng);
+    }
     if !target_is_shelter && is_line_blocked_by_shelter(
         ctx,
         attacker_id,

@@ -2565,6 +2565,10 @@ fn find_detected_player(ctx: &ReducerContext, animal: &WildAnimal, stats: &Anima
         }
         
         if distance_sq <= effective_perception_range * effective_perception_range {
+            if is_hostile_npc && crate::world_cover::first_blocker(ctx,
+                crate::projectile_geometry::Point3{x:animal.pos_x,y:animal.pos_y,height:90.0},
+                crate::projectile_geometry::Point3{x:player.position_x,y:player.position_y,height:if player.is_crouching {50.0} else {90.0}},
+                0.0,None).is_some() { continue; }
             // Check if within perception cone (except for Cable Viper which has 360° detection)
             if animal.species == AnimalSpecies::CableViper || 
                is_within_perception_cone(animal, player, stats) {

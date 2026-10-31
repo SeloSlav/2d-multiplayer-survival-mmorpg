@@ -374,6 +374,10 @@ fn first_flight_hit(ctx: &ReducerContext, projectile: &Projectile, start: crate:
         }
         for item in ctx.db.barrel().chunk_index().filter(*chunk) {
             if item.health <= 0.0 { continue; }
+            if let Some(cover) = crate::cover_geometry::profile(item.variant) {
+                add(FlightHit::Entity("barrel", item.id), cover.impact(start,end,item.pos_x,item.pos_y,0.0));
+                continue;
+            }
             let (radius, offset, height) = if item.variant == crate::barrel::BUOY_VARIANT { (32.0, 110.0, 60.0) }
                 else if item.variant == 4 { (64.0, 96.0, 95.0) } else { (32.0, 48.0, 52.0) };
             circle!("barrel", item.id, item.pos_x, item.pos_y - offset, radius, 0.0, height);
@@ -2668,7 +2672,9 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     continue; // Skip destroyed barrels
                 }
                 
-                let (projectile_barrel_hit_radius, projectile_barrel_y_offset) = if barrel.variant == crate::barrel::BUOY_VARIANT {
+                let (projectile_barrel_hit_radius, projectile_barrel_y_offset) = if crate::cover_geometry::profile(barrel.variant).is_some() {
+                    (0.0, 0.0) // Cover uses its shared box below, never the barrel cylinder.
+                } else if barrel.variant == crate::barrel::BUOY_VARIANT {
                     (32.0, 110.0) // Buoy - standard hit radius, offset moved down a bit
                 } else if barrel.variant == 4 {
                     (64.0, 96.0) // Variant 4 (barrel5.png) 2x larger
@@ -2679,7 +2685,13 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                 let barrel_hit_y = barrel.pos_y - projectile_barrel_y_offset;
                 
                 // Use line segment collision detection instead of just checking current position
-                if let Some((impact_x, impact_y)) = selected_impact(projectile.flight_3d, current_x, current_y, line_circle_first_impact_point(
+                let planar_impact = if let Some(cover) = crate::cover_geometry::profile(barrel.variant) {
+                    cover.impact(
+                        crate::projectile_geometry::Point3{x:prev_x,y:prev_y,height:1.0},
+                        crate::projectile_geometry::Point3{x:current_x,y:current_y,height:1.0},
+                        barrel.pos_x,barrel.pos_y,0.0
+                    ).map(|t| (prev_x+(current_x-prev_x)*t,prev_y+(current_y-prev_y)*t))
+                } else { line_circle_first_impact_point(
                     prev_x,
                     prev_y,
                     current_x,
@@ -2687,13 +2699,18 @@ pub fn update_projectiles(ctx: &ReducerContext, _args: ProjectileUpdateSchedule)
                     barrel.pos_x,
                     barrel_hit_y,
                     projectile_barrel_hit_radius,
-                )) {
+                ) };
+                if let Some((impact_x, impact_y)) = selected_impact(projectile.flight_3d, current_x, current_y, planar_impact) {
                     let (impact_x, impact_y) = if projectile.flight_3d { (current_x, current_y) } else { (impact_x, impact_y) };
                     log::info!(
                         "[ProjectileUpdate] Projectile {} from owner {:?} hit Barrel {} along path from ({:.1}, {:.1}) to ({:.1}, {:.1})",
                         projectile.id, projectile.owner_id, barrel.id, prev_x, prev_y, current_x, current_y
                     );
                     
+                    // Spectral projectiles also chip away at natural cover.
+                    if projectile.source_type == PROJECTILE_SOURCE_NPC && crate::cover_geometry::profile(barrel.variant).is_some() {
+                        crate::barrel::damage_barrel(ctx,projectile.owner_id,barrel.id,get_npc_projectile_damage(&projectile),current_time,&mut rng)?;
+                    }
                     // Apply damage using existing barrel combat system
                     if let Some(weapon_item_def) = weapon_item_def_cached.as_ref() {
                         if let Some(ammo_item_def) = ammo_item_def_cached.as_ref() {

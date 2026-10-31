@@ -16,3 +16,6 @@ mod projectile_geometry;
 #[allow(dead_code)]
 #[path = "../../../server/src/wildlife_projectile_geometry.rs"]
 mod wildlife_projectile_geometry;
+#[allow(dead_code)]
+#[path = "../../../server/src/cover_geometry.rs"]
+mod cover_geometry;

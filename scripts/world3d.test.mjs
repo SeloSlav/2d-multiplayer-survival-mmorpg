@@ -26,6 +26,7 @@ import { ADVANCED_VISUAL_DEFAULTS, PERFORMANCE_VISUAL_DEFAULTS, migrateVisualSet
 import { isDevWatchIgnored, resilientDevWatcher } from './dev-server-policy.ts';
 import { clearDevelopmentServiceWorker } from '../client/src/services/developmentServiceWorker.ts';
 import { EventEmitter } from 'node:events';
+import './combat-cover.test.mjs';
 
 test('native Windows and nested Rust build paths cannot crash the web watcher',()=>{
   assert.ok(isDevWatchIgnored('C:\\game\\scripts\\collision-contract\\target\\debug\\build\\locked.exe'));
